@@ -142,6 +142,11 @@ a {
   margin-bottom: 6px;
 }
 
+.small {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
