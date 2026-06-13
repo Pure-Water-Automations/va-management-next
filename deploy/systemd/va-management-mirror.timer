@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the PWA VA Management DB mirror sheet every 30 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Unit=va-management-mirror.service
+
+[Install]
+WantedBy=timers.target

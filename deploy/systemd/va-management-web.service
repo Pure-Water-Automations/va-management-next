@@ -1,0 +1,18 @@
+[Unit]
+Description=PWA VA Management console (Next.js web app)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/app/SecondBrain/va-management-console/current
+EnvironmentFile=/app/SecondBrain/va-management-console/shared/.env.production
+# Loopback only: trusts the Cf-Access-Authenticated-User-Email header, so it must
+# be reachable solely via the Cloudflare tunnel, never directly.
+ExecStart=/usr/bin/node /app/SecondBrain/va-management-console/current/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 8796
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
