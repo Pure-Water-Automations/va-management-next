@@ -1,0 +1,487 @@
+// PWA VA Management System — Postgres schema (source of truth).
+// Replaces the 16-tab Google Sheet backend. The Sheet becomes a read-only
+// mirror generated from these tables (worker/sheet-mirror-export.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Identity & access (replaces GAS resolveRole) ──────────────────────────
+
+enum Role {
+  HR_MANAGER
+  PEOPLE_OPS
+  TEAM_LEAD
+  BOOKKEEPER
+  RECRUITER
+  SENIOR_VA
+  VA
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role
+  active    Boolean  @default(true)
+  vaId      String? // links a VA/Senior-VA login to their VA row
+  va        Va?      @relation(fields: [vaId], references: [vaId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Core HR / VA ──────────────────────────────────────────────────────────
+
+enum CompRole {
+  TRAINEE
+  TIER_1
+  TIER_2
+  TIER_3
+  TIER_4
+}
+
+enum VaStatus {
+  active
+  training
+  departed
+}
+
+model Va {
+  vaId               String    @id
+  name               String
+  email              String    @unique
+  compensationRole   CompRole  @default(TRAINEE)
+  status             VaStatus  @default(training)
+  targetHoursWeekly  Float?
+  supervisorVaId     String?
+  supervisor         Va?       @relation("Supervision", fields: [supervisorVaId], references: [vaId])
+  reports            Va[]      @relation("Supervision")
+  desklogUserId      String?
+  skillSpecs         String?
+  availabilityNotes  String?
+  lastCheckinDate    DateTime?
+  notionProfileUrl   String?
+  roleStartedDate    DateTime?
+  notionDisplayTier  String?
+  tierMismatchFlag   String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  users          User[]
+  hoursRaw       DeskLogHours[]
+  efficiency     DeskLogEfficiency[]
+  payrollCalcs   PayrollCalculation[]
+  tierReviews    TierReview[]
+  capacityEvents CapacityFlagEvent[]
+  onboarding     Onboarding?
+}
+
+enum CompensationType {
+  hourly
+  salary
+}
+
+model CompensationRole {
+  roleId                  CompRole         @id
+  roleName                String
+  compensationType        CompensationType @default(hourly)
+  hourlyRate              Float?
+  salaryPerPeriod         Float?
+  onAdvancementTrack      Boolean          @default(true)
+  minTotalHoursToReachNext Float?
+  nextRoleId              CompRole?
+  additionalRequirements  String?
+  notes                   String?
+  updatedAt               DateTime         @updatedAt
+}
+
+model DeskLogHours {
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  vaId         String
+  va           Va       @relation(fields: [vaId], references: [vaId])
+  desklogUserId String?
+  project      String?
+  task         String?
+  billable     Boolean?
+  timeAtWorkHrs Float?
+  focusTimeHrs Float?
+  idleTimeHrs  Float?
+  taskSpentHrs Float    @default(0)
+  taskAssignedHrs Float?
+  payRule      String?
+  needsReview  Boolean  @default(false)
+  reviewReason String?
+  createdAt    DateTime @default(now())
+
+  @@unique([date, vaId])
+  @@index([vaId])
+}
+
+model DeskLogEfficiency {
+  id                 String   @id @default(cuid())
+  date               DateTime @db.Date
+  vaId               String
+  va                 Va       @relation(fields: [vaId], references: [vaId])
+  desklogUserId      String?
+  activityPct        Float?
+  efficiencyPct      Float?
+  productiveTimeHrs  Float?
+  focusTimeHrs       Float?
+  idleTimeHrs        Float?
+  nonProductiveTimeHrs Float?
+  createdAt          DateTime @default(now())
+
+  @@unique([date, vaId])
+  @@index([vaId])
+}
+
+model CapacityFlagEvent {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  vaId        String
+  va          Va       @relation(fields: [vaId], references: [vaId])
+  vaName      String?
+  flagType    String // overburdened | underutilized | manual_review
+  transition  String // flagged | cleared | reviewed
+  severity    String // red | yellow | green
+  supervisorVaId String?
+  notifiedAt  DateTime?
+  notes       String?
+
+  @@index([vaId])
+}
+
+// ── Payroll ─────────────────────────────────────────────────────────────
+
+enum PeriodStatus {
+  open
+  closed
+  paid
+}
+
+model PayrollPeriod {
+  periodStart        DateTime     @id @db.Date
+  periodEnd          DateTime     @db.Date
+  closeDate          DateTime     @db.Date
+  status             PeriodStatus @default(open)
+  periodTotalHours   Float?
+  periodTotalPayroll Float?
+  reminder3dSentAt   DateTime?
+  reminder1dSentAt   DateTime?
+  bookkeeperEmailSentAt DateTime?
+  calculations       PayrollCalculation[]
+}
+
+model PayrollCalculation {
+  id               String        @id @default(cuid())
+  periodStart      DateTime      @db.Date
+  period           PayrollPeriod @relation(fields: [periodStart], references: [periodStart])
+  periodEnd        DateTime      @db.Date
+  vaId             String
+  va               Va            @relation(fields: [vaId], references: [vaId])
+  name             String
+  compensationRole CompRole
+  compensationType CompensationType
+  hoursInPeriod    Float         @default(0)
+  hourlyRate       Float?
+  salaryPerPeriod  Float?
+  grossPay         Float         @default(0)
+  createdAt        DateTime      @default(now())
+
+  @@unique([periodStart, vaId])
+  @@index([vaId])
+}
+
+enum TierReviewStatus {
+  hours_triggered
+  form_sent
+  under_review
+  approved
+  declined
+}
+
+model TierReview {
+  id                     String           @id @default(cuid())
+  timestamp              DateTime         @default(now())
+  vaId                   String
+  va                     Va               @relation(fields: [vaId], references: [vaId])
+  vaName                 String?
+  currentRole            CompRole?
+  targetRole             CompRole?
+  cumulativeHoursAtTrigger Float?
+  status                 TierReviewStatus @default(hours_triggered)
+  skillAttestationFormUrl String?
+  hrDecisionDate         DateTime?
+  hrNotes                String?
+
+  @@index([vaId])
+}
+
+// ── Recruitment / Training / Onboarding ───────────────────────────────────
+
+enum CandidateStage {
+  applied
+  reviewed
+  interview_scheduled
+  interviewed
+  decision
+  tenhr_invited
+  tenhr_in_progress
+  tenhr_pass
+  tenhr_fail
+  contract_sent
+  signed
+  onboarding
+  closed
+}
+
+enum RecruiterRecommendation {
+  recommend_hire
+  consider
+  pass
+  on_waitlist
+}
+
+enum FinalDecision {
+  invite_tenhr
+  waitlist
+  reject
+}
+
+enum GateResult {
+  pass
+  fail
+  pending
+}
+
+enum ContractStatus {
+  awaiting_send
+  viewed
+  sent
+  signed
+  completed
+}
+
+model Candidate {
+  candidateId   String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+  lastUpdated   DateTime       @updatedAt
+  source        String?
+  name          String?
+  email         String         @unique
+  country       String?
+  resumeUrl     String?
+  skillsRoleTags String?
+  currentStage  CandidateStage @default(applied)
+
+  aiSkillScore   Float?
+  commScore        Float?
+  reliabilityScore Float?
+  ownershipScore   Float?
+  skillFitScore    Float?
+  interviewerEmail String?
+  interviewDate    DateTime?
+  interviewNotes   String?
+  recruiterRecommendation RecruiterRecommendation?
+
+  finalDecision FinalDecision?
+  decidedBy     String?
+  decidedAt     DateTime?
+
+  tenhrAssignmentTitle String?
+  tenhrAssignmentLink  String?
+  tenhrResultUrl       String?
+  tenhrLoomUrl         String?
+  tenhrQuizScore       Float?
+  tenhrDeadline        DateTime?
+  tenhrGateResult      GateResult?
+  gateReviewedBy       String?
+
+  contractSentAt   DateTime?
+  contractStatus   ContractStatus?
+  contractDeadline DateTime?
+  signedAt         DateTime?
+  bunnydocRequestId String?
+
+  vaId          String?
+  notionPageId  String?
+  followUpNotes String?
+
+  // training tracker rollups + magic-link token
+  trainingAccessToken   String?  @unique
+  trainingTotalMinutes  Int      @default(0)
+  trainingSessionCount  Int      @default(0)
+  trainingLastSessionAt DateTime?
+  trainingReadyForReview Boolean @default(false)
+
+  sessions TrainingSession[]
+
+  @@index([currentStage])
+}
+
+enum SessionStatus {
+  active
+  completed
+  rejected
+  void
+}
+
+enum ReviewStatus {
+  needs_review
+  approved
+  question
+  rejected
+  void
+}
+
+model TrainingSession {
+  sessionId      String        @id @default(cuid())
+  candidateId    String
+  candidate      Candidate     @relation(fields: [candidateId], references: [candidateId])
+  candidateEmail String?
+  candidateName  String?
+  assignmentTitle String?
+  assignmentLink String?
+  startTime      DateTime?
+  endTime        DateTime?
+  durationMinutes Int?
+  status         SessionStatus @default(active)
+  workNotes      String?
+  reviewStatus   ReviewStatus  @default(needs_review)
+  reviewNotes    String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([candidateId])
+}
+
+model TrainingAssignment {
+  id               String  @id @default(cuid())
+  task             String
+  instructions     String?
+  instructionsLink String?
+  active           Boolean @default(true)
+  createdAt        DateTime @default(now())
+}
+
+enum OnboardingStatus {
+  pending
+  in_progress
+  completed
+}
+
+model Onboarding {
+  onboardingId   String           @id @default(cuid())
+  vaId           String           @unique
+  va             Va               @relation(fields: [vaId], references: [vaId])
+  vaName         String?
+  signedAt       DateTime?
+  status         OnboardingStatus @default(pending)
+  gmailCreated    Boolean @default(false)
+  desklogCreated  Boolean @default(false)
+  whatsappAdded   Boolean @default(false)
+  contractUploaded Boolean @default(false)
+  ndaUploaded     Boolean @default(false)
+  taxFormType     String?
+  taxFormDone     Boolean @default(false)
+  paymentMethod   String?
+  paymentFormDone Boolean @default(false)
+  headshotUploaded Boolean @default(false)
+  handbookAck     Boolean @default(false)
+  notionOnboardingPageId String?
+  notes          String?
+  updatedAt      DateTime @updatedAt
+}
+
+// ── System / config / audit ───────────────────────────────────────────────
+
+model Setting {
+  key      String  @id
+  value    String?
+  isSecret Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model Policy {
+  key          String  @id
+  value        String?
+  status       String?
+  owner        String?
+  source       String?
+  notes        String?
+  lastUpdatedAt DateTime @updatedAt
+}
+
+model NotionRef {
+  refId        String  @id
+  refType      String?
+  name         String?
+  relatedRoleId String?
+  relatedVaId  String?
+  notionUrl    String?
+  status       String?
+  notes        String?
+  lastSyncedAt DateTime?
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  source    String
+  eventType String
+  vaId      String?
+  severity  String   @default("info")
+  summary   String
+
+  @@index([timestamp])
+}
+
+model SystemLog {
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
+  service    String
+  status     String
+  durationMs Int?
+  message    String
+
+  @@index([timestamp])
+}
+
+enum RunStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+model SyncRun {
+  id            String    @id @default(cuid())
+  worker        String
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  status        RunStatus @default(FAILED)
+  firstErrorLine String?
+  detailsJson   Json?
+
+  @@index([worker])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  actorEmail String?
+  action    String
+  target    String?
+  ip        String?
+  ok        Boolean  @default(true)
+  details   Json?
+
+  @@index([timestamp])
+}

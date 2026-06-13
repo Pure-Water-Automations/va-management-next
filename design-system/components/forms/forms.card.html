@@ -1,0 +1,82 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Form Controls" subtitle="Input · Switch — labels, icons, error states, sizes" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../../styles.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; padding: 20px 24px; background: #fff; }
+    .sec-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #98989d; font-family: 'DM Sans', sans-serif; margin-bottom: 12px; }
+    .section { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { Input, Switch } = window.PWADesignSystem_9304be;
+
+    function Showcase() {
+      const [v, setV]   = React.useState('');
+      const [s1, setS1] = React.useState(true);
+      const [s2, setS2] = React.useState(false);
+      const [s3, setS3] = React.useState(true);
+
+      return (
+        <div style={{ fontFamily: 'var(--font-sans)', display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+          <div className="section">
+            <div className="sec-label">Input — States</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <Input
+                label="System Name"
+                placeholder="e.g. Filtration Unit A"
+                value={v}
+                onChange={e => setV(e.target.value)}
+              />
+              <Input
+                label="Search Systems"
+                placeholder="Search…"
+                icon={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></>}
+              />
+              <Input
+                label="Flow Rate Limit"
+                value="999"
+                error="Must be between 0 and 500 L/min"
+              />
+              <Input
+                label="Alert Email"
+                type="email"
+                placeholder="ops@company.com"
+                hint="Receives critical system alerts"
+              />
+              <Input label="Device ID" value="SYS-00142" disabled />
+              <Input label="Password" type="password" placeholder="••••••••"
+                iconRight={<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>}
+              />
+            </div>
+          </div>
+
+          <div className="section">
+            <div className="sec-label">Switch — Labels &amp; Sizes</div>
+            <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <Switch checked={s1} onChange={setS1} label="Auto-flush" hint="Daily at midnight" />
+              <Switch checked={s2} onChange={setS2} label="Email alerts" />
+              <Switch size="sm" checked={s3} onChange={setS3} label="Compact" />
+              <Switch size="lg" checked={s1} label="Large toggle" />
+              <Switch disabled checked label="Locked setting" hint="Contact admin" />
+              <Switch checked={s2} onChange={setS2} label="Left label" labelPosition="left" />
+            </div>
+          </div>
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Showcase />);
+  </script>
+</body>
+</html>

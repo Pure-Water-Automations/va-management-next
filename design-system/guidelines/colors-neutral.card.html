@@ -1,0 +1,31 @@
+<!-- @dsCard group="Colors" viewport="700x220" name="Neutral Scale" subtitle="Apple-aligned gray scale for text, borders, surfaces" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { margin: 0; padding: 20px 24px 24px; background: #fff; font-family: 'DM Sans', system-ui, sans-serif; }
+    .scale { display: flex; gap: 4px; }
+    .chip { flex: 1; height: 56px; border-radius: 10px; display: flex; align-items: flex-end; padding: 6px 7px; border: 1px solid rgba(0,0,0,0.05); }
+    .chip-num { font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+    .row-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="row-label">Neutral — text · surfaces · borders</div>
+  <div class="scale">
+    <div class="chip" style="background:var(--color-neutral-0)">   <span class="chip-num" style="color:#98989d">0</span></div>
+    <div class="chip" style="background:var(--color-neutral-50)">  <span class="chip-num" style="color:#98989d">50</span></div>
+    <div class="chip" style="background:var(--color-neutral-100)"> <span class="chip-num" style="color:#6e6e73">100</span></div>
+    <div class="chip" style="background:var(--color-neutral-200)"> <span class="chip-num" style="color:#48484a">200</span></div>
+    <div class="chip" style="background:var(--color-neutral-300)"> <span class="chip-num" style="color:#fff">300</span></div>
+    <div class="chip" style="background:var(--color-neutral-400)"> <span class="chip-num" style="color:#fff">400</span></div>
+    <div class="chip" style="background:var(--color-neutral-500)"> <span class="chip-num" style="color:#fff">500</span></div>
+    <div class="chip" style="background:var(--color-neutral-600)"> <span class="chip-num" style="color:#fff">600</span></div>
+    <div class="chip" style="background:var(--color-neutral-700)"> <span class="chip-num" style="color:#fff">700</span></div>
+    <div class="chip" style="background:var(--color-neutral-800)"> <span class="chip-num" style="color:#fff">800</span></div>
+    <div class="chip" style="background:var(--color-neutral-900)"> <span class="chip-num" style="color:#fff">900</span></div>
+  </div>
+</body>
+</html>

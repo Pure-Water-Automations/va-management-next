@@ -1,0 +1,27 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Shadows" subtitle="6-stop neutral elevation · navy/sky brand-tinted" -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    body { margin: 0; padding: 20px 24px 24px; background: var(--color-bg-secondary); font-family: 'DM Sans', system-ui, sans-serif; }
+    .row { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+    .chip { width: 80px; height: 52px; background: white; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; }
+    .lbl { font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--color-text-tertiary); margin-top: 8px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <div><div class="chip" style="box-shadow:var(--shadow-xs)"></div>  <div class="lbl">xs</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-sm)"></div>  <div class="lbl">sm</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-md)"></div>  <div class="lbl">md</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-lg)"></div>  <div class="lbl">lg</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-xl)"></div>  <div class="lbl">xl</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-navy-sm)"></div><div class="lbl">navy-sm</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-navy-md)"></div><div class="lbl">navy-md</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-sky-sm)"></div> <div class="lbl">sky-sm</div></div>
+    <div><div class="chip" style="box-shadow:var(--shadow-sky-md)"></div> <div class="lbl">sky-md</div></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "name": "va-management-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3032",
+    "build": "next build",
+    "start": "next start -p 3032",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:dev": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "import:sheet": "tsx scripts/import-from-sheet.ts",
+    "worker:desklog": "tsx worker/desklog-ingest.ts",
+    "worker:tier-check": "tsx worker/tier-check.ts",
+    "worker:capacity": "tsx worker/capacity-monitor.ts",
+    "worker:payroll-close": "tsx worker/payroll-close.ts",
+    "worker:checkin": "tsx worker/monthly-checkin.ts",
+    "worker:intake": "tsx worker/application-intake-poll.ts",
+    "worker:mirror": "tsx worker/sheet-mirror-export.ts"
+  },
+  "dependencies": {
+    "@googleapis/drive": "^8.0.0",
+    "@googleapis/gmail": "^11.0.0",
+    "@googleapis/sheets": "^9.0.0",
+    "@prisma/client": "^5.20.0",
+    "google-auth-library": "^9.0.0",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
