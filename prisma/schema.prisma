@@ -119,8 +119,8 @@ model DeskLogHours {
   reviewReason String?
   createdAt    DateTime @default(now())
 
-  @@unique([date, vaId])
   @@index([vaId])
+  @@index([date, vaId])
 }
 
 model DeskLogEfficiency {
@@ -137,8 +137,8 @@ model DeskLogEfficiency {
   nonProductiveTimeHrs Float?
   createdAt          DateTime @default(now())
 
-  @@unique([date, vaId])
   @@index([vaId])
+  @@index([date, vaId])
 }
 
 model CapacityFlagEvent {
