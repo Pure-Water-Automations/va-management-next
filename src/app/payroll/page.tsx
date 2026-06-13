@@ -2,6 +2,7 @@ import { getPayrollDashboard } from "@/lib/reads/payroll";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ActionButton } from "@/components/ActionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,36 @@ export default async function PayrollConsole() {
           <h1>Payroll console</h1>
         </div>
         {d.openPeriod && (
-          <Badge variant={d.openPeriod.status === "open" ? "info" : "default"}>
-            {d.openPeriod.status}
-          </Badge>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Badge variant={d.openPeriod.status === "open" ? "info" : "default"}>
+              {d.openPeriod.status}
+            </Badge>
+            {d.openPeriod.status === "open" && (
+              <>
+                <ActionButton path="/api/payroll/recalculate" body={{}} variant="ghost">
+                  Recalculate
+                </ActionButton>
+                <ActionButton
+                  path="/api/payroll/lock"
+                  body={{}}
+                  confirm="Lock this period? It will be marked closed and the bookkeeper emailed."
+                  variant="primary"
+                >
+                  Lock & close
+                </ActionButton>
+              </>
+            )}
+            {d.openPeriod.status === "closed" && (
+              <ActionButton
+                path="/api/payroll/mark-paid"
+                body={{ periodStart: d.openPeriod.periodStart.toISOString().slice(0, 10) }}
+                confirm="Mark this period as paid?"
+                variant="secondary"
+              >
+                Mark paid
+              </ActionButton>
+            )}
+          </div>
         )}
       </div>
 
