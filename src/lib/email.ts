@@ -1,7 +1,7 @@
 import { gmail as gmailApi } from "@googleapis/gmail";
 import { OAuth2Client } from "google-auth-library";
-import { env } from "@/lib/env";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 
 /**
  * TEST MODE: when the `email_redirect_to` setting holds an address, every system
@@ -25,6 +25,7 @@ export type SystemEmailOptions = {
   subject: string;
   body: string;
   htmlBody?: string;
+  attachments?: { filename: string; content: Buffer; mimeType: string }[];
   tokenFile?: string;
 };
 
@@ -64,7 +65,7 @@ export async function sendSystemEmail(opts: SystemEmailOptions): Promise<SystemE
   const response = await gmail.users.messages.send({
     userId: "me",
     requestBody: {
-      raw: base64UrlEncode(buildRawMessage(effective)),
+      raw: base64UrlEncode(buildMimeMessage(effective)),
     },
   });
 
@@ -108,7 +109,7 @@ function oauthClientFromToken(token: TokenJson): OAuth2Client {
   return auth;
 }
 
-function buildRawMessage(opts: SystemEmailOptions): string {
+export function buildMimeMessage(opts: SystemEmailOptions): string {
   const to = Array.isArray(opts.to) ? opts.to.join(", ") : opts.to;
   const headers = [
     ["From", sanitizeHeader(opts.from)],
@@ -116,32 +117,52 @@ function buildRawMessage(opts: SystemEmailOptions): string {
     ["Subject", encodeHeaderWord(opts.subject)],
     ["MIME-Version", "1.0"],
   ];
+  const headerLines = headers.map(([key, value]) => `${key}: ${value}`);
 
-  if (!opts.htmlBody) {
+  const bodyPart = (): string[] => {
+    if (!opts.htmlBody) {
+      return ['Content-Type: text/plain; charset="UTF-8"', "", opts.body];
+    }
+    const alt = `alt-${Date.now().toString(36)}`;
     return [
-      ...headers.map(([key, value]) => `${key}: ${value}`),
+      `Content-Type: multipart/alternative; boundary="${alt}"`,
+      "",
+      `--${alt}`,
       'Content-Type: text/plain; charset="UTF-8"',
       "",
       opts.body,
-    ].join("\r\n");
+      `--${alt}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "",
+      opts.htmlBody,
+      `--${alt}--`,
+    ];
+  };
+
+  if (!opts.attachments || opts.attachments.length === 0) {
+    return [...headerLines, ...bodyPart(), ""].join("\r\n");
   }
 
-  const boundary = `pwa-next-${Date.now().toString(36)}`;
-  return [
-    ...headers.map(([key, value]) => `${key}: ${value}`),
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  const mixed = `mixed-${Date.now().toString(36)}`;
+  const parts: string[] = [
+    ...headerLines,
+    `Content-Type: multipart/mixed; boundary="${mixed}"`,
     "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "",
-    opts.body,
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "",
-    opts.htmlBody,
-    `--${boundary}--`,
-    "",
-  ].join("\r\n");
+    `--${mixed}`,
+    ...bodyPart(),
+  ];
+  for (const a of opts.attachments) {
+    parts.push(
+      `--${mixed}`,
+      `Content-Type: ${a.mimeType}; name="${a.filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${a.filename}"`,
+      "",
+      a.content.toString("base64").replace(/(.{76})/g, "$1\r\n"),
+    );
+  }
+  parts.push(`--${mixed}--`, "");
+  return parts.join("\r\n");
 }
 
 function base64UrlEncode(value: string): string {
