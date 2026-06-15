@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
+import { sendSystemEmail } from "@/lib/email";
+import { loadSettings } from "@/lib/settings";
 
 const BOOLEAN_FIELDS = new Set([
   "gmailCreated",
@@ -116,21 +118,47 @@ export async function setFlag(
   return updated;
 }
 
+export function welcomeEmailBody(vaName: string, company: string): string {
+  const first = vaName.trim().split(/\s+/)[0] || "there";
+  return [
+    `Hi ${first},`,
+    "",
+    `Welcome to ${company}! Your onboarding checklist is complete and your account is set up.`,
+    "",
+    "You can sign in to your VA console to see your tasks, log your monthly check-in, and track your tier progress.",
+    "",
+    `— ${company}`,
+  ].join("\n");
+}
+
 export async function markComplete(vaId: string) {
   const row = await db.onboarding.findUnique({ where: { vaId } });
   if (!row) throw new Error(`No onboarding record for ${vaId}`);
 
-  const updated = await db.onboarding.update({
-    where: { vaId },
-    data: { status: "completed" },
-  });
+  const updated = await db.onboarding.update({ where: { vaId }, data: { status: "completed" } });
+
+  // Advance the linked candidate off the dead-end onboarding stage.
+  const candidate = await db.candidate.findFirst({ where: { vaId, currentStage: "onboarding" } });
+  if (candidate) {
+    await db.candidate.update({ where: { candidateId: candidate.candidateId }, data: { currentStage: "closed" } });
+  }
+
+  // Welcome the new VA (best-effort).
+  const va = await db.va.findUnique({ where: { vaId } });
+  if (va?.email) {
+    const settings = await loadSettings();
+    const company = settings.get("company_name")?.trim() || "Pure Water Automations";
+    const from = settings.get("system_email_from")?.trim() || settings.get("hr_manager_email")?.trim() || "okamotomiak@gmail.com";
+    await sendSystemEmail({ from, to: va.email, subject: `Welcome to ${company}!`, body: welcomeEmailBody(va.name, company) })
+      .catch((err) => console.warn("markComplete: welcome email failed:", err instanceof Error ? err.message : err));
+  }
 
   await logActivity({
     source: "hr_action",
     eventType: "onboarding_complete",
     severity: "success",
     vaId,
-    summary: `${updated.vaName ?? vaId} onboarding complete`,
+    summary: `${updated.vaName ?? vaId} onboarding complete — VA welcomed, pipeline closed`,
   });
 
   return updated;
