@@ -134,3 +134,10 @@ export async function signContract(
 
   return { ok: true as const };
 }
+
+export async function saveContractTemplate(html: string): Promise<{ ok: true }> {
+  const value = (html ?? "").trim();
+  if (!value) throw new Error("Template cannot be empty.");
+  await db.setting.upsert({ where: { key: "contract_template_html" }, update: { value }, create: { key: "contract_template_html", value } });
+  return { ok: true };
+}

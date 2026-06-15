@@ -1,4 +1,5 @@
 import { loadEnvConfig } from "@next/env";
+import { DEFAULT_CONTRACT_TEMPLATE_HTML } from "../src/lib/contract/seed-template";
 
 loadEnvConfig(process.cwd());
 
@@ -125,6 +126,16 @@ async function main(): Promise<void> {
       create: role,
     });
     console.log(`${existing ? "updated" : "created"} CompensationRole ${role.roleId}`);
+  }
+
+  const settingDefaults: [string, string][] = [
+    ["contract_template_html", DEFAULT_CONTRACT_TEMPLATE_HTML],
+    ["company_name", "Pure Water Automations"],
+    ["contract_role_label", "Virtual Assistant"],
+  ];
+  for (const [key, value] of settingDefaults) {
+    await db.setting.upsert({ where: { key }, update: {}, create: { key, value } });
+    console.log(`upserted Setting ${key}`);
   }
 }
 
