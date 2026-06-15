@@ -11,7 +11,7 @@ export function ContractTemplateEditor({ initial }: { initial: string }) {
     setMsg(j.ok ? "Saved." : `Error: ${j.error ?? "failed"}`);
   }
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+    <div className="editor-grid">
       <div>
         <textarea value={html} onChange={(e) => setHtml(e.target.value)} style={{ width: "100%", height: 420, fontFamily: "monospace", fontSize: 13 }} />
         <p className="small">Tokens: {"{{name}} {{role}} {{rate}} {{date}} {{deadline}} {{company}}"}</p>

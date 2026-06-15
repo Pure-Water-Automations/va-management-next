@@ -38,7 +38,7 @@ export function AdminBar({
   }
 
   return (
-    <div style={bar}>
+    <div className="admin-bar" style={bar}>
       <span style={tag}>ADMIN</span>
       <span style={{ color: "rgba(255,255,255,.75)", fontSize: "var(--text-xs)" }}>View as:</span>
       {VIEWS.map((v) => (

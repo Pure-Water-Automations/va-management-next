@@ -27,11 +27,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <>
+      {/* Mobile nav: hamburger toggles the sidebar drawer (CSS-only). */}
+      <input type="checkbox" id="nav-toggle" className="nav-toggle-cb" aria-hidden="true" defaultChecked={false} />
+      <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
       <div className="app-shell">
+        <label htmlFor="nav-toggle" className="nav-backdrop" aria-hidden="true" />
         <Sidebar view={view} role={user.role} name={user.name ?? user.email} />
         <main className="content" style={{ padding: 0 }}>
           {user.isAdmin && <AdminBar currentView={view} vas={adminVas} currentVaId={impersonatedVaId} />}
-          <div style={{ padding: "36px 40px 80px" }}>{children}</div>
+          <div className="content-pad">{children}</div>
         </main>
       </div>
       <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
