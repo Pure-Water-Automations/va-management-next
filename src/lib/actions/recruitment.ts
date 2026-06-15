@@ -194,6 +194,7 @@ export async function markContractSent(candidateId: string) {
   const settings = await loadSettings();
   const deadlineDays = Math.max(0, Math.trunc(settingNum(settings, "contract_deadline_days", 7)));
   const now = new Date();
+  const token = randomUUID();
   const updated = await db.candidate.update({
     where: { candidateId },
     data: {
@@ -201,13 +202,18 @@ export async function markContractSent(candidateId: string) {
       contractSentAt: now,
       contractDeadline: addDays(now, deadlineDays),
       currentStage: "contract_sent",
+      contractSignToken: token,
     },
   });
+
+  await emailContractLink(updated, token, settings).catch((err) =>
+    console.warn("markContractSent: link email failed:", err instanceof Error ? err.message : err),
+  );
 
   await logActivity({
     source: "recruitment",
     eventType: "contract_sent",
-    summary: `Contract marked sent for ${candidateLabel(updated)}`,
+    summary: `Contract link sent to ${candidateLabel(updated)}`,
   });
 
   return updated;
@@ -528,6 +534,30 @@ async function emailSkillsTrialInvite(
       "Take your time and do your best — we're excited to see what you can do!",
       "",
       "— Pure Water Automations Recruitment",
+    ].join("\n"),
+  });
+}
+
+async function emailContractLink(
+  candidate: { name: string | null; email: string },
+  token: string,
+  settings: Map<string, string>,
+): Promise<void> {
+  const link = `${appBaseUrl(settings)}/sign/${token}`;
+  await sendSystemEmail({
+    from: systemEmailFrom(settings),
+    to: candidate.email,
+    subject: "Your Pure Water VA contract is ready to sign",
+    body: [
+      `Hi ${firstName(candidate.name) || "there"},`,
+      "",
+      "Congratulations! Your contract is ready. Please review and sign it here:",
+      "",
+      link,
+      "",
+      "It only takes a minute — read it, type your name, sign, and submit.",
+      "",
+      "— Pure Water Automations",
     ].join("\n"),
   });
 }
