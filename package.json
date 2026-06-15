@@ -13,6 +13,7 @@
     "prisma:dev": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "import:sheet": "tsx scripts/import-from-sheet.ts",
+    "seed:contract-settings": "tsx scripts/seed-contract-settings.ts",
     "worker:desklog": "tsx worker/desklog-ingest.ts",
     "worker:tier-check": "tsx worker/tier-check.ts",
     "worker:capacity": "tsx worker/capacity-monitor.ts",
