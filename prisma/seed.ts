@@ -132,6 +132,9 @@ async function main(): Promise<void> {
     ["contract_template_html", DEFAULT_CONTRACT_TEMPLATE_HTML],
     ["company_name", "Pure Water Automations"],
     ["contract_role_label", "Virtual Assistant"],
+    // Signed-contract archive: Drive folder /PWA-VA Files/VA- Contracts.
+    // The service account must be shared as Editor or archiving best-effort no-ops.
+    ["signed_contracts_folder_id", "1oqdrz3HDu8WBGiCw9Y8eL_Lr6jUHY49S"],
   ];
   for (const [key, value] of settingDefaults) {
     await db.setting.upsert({ where: { key }, update: {}, create: { key, value } });
