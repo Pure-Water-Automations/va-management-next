@@ -644,7 +644,7 @@ export async function getSignState(token: string) {
   const expired = !!candidate.contractDeadline && candidate.contractDeadline.getTime() < Date.now();
 
   const settings = await loadSettings();
-  const trainee = await db.compensationRole.findUnique({ where: { compRole: "TRAINEE" } });
+  const trainee = await db.compensationRole.findUnique({ where: { roleId: "TRAINEE" } });
   const vars = contractVarsForCandidate(candidate, trainee, settings, new Date());
   const html = renderContract(await templateHtml(settings), vars);
 
@@ -672,7 +672,7 @@ export async function signContract(token: string, input: SignInput, meta: { ip: 
 
   const now = new Date();
   const settings = await loadSettings();
-  const trainee = await db.compensationRole.findUnique({ where: { compRole: "TRAINEE" } });
+  const trainee = await db.compensationRole.findUnique({ where: { roleId: "TRAINEE" } });
   const vars = contractVarsForCandidate(candidate, trainee, settings, now);
   const html = renderContract(await templateHtml(settings), vars);
   const templateHash = createHash("sha256").update(html).digest("hex");
