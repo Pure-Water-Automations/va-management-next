@@ -20,6 +20,14 @@ const envSchema = z.object({
     z.string().default("Form Responses 1"),
   ),
   GOOGLE_WORKSPACE_TOKEN_FILE: optionalEnvString(z.string()),
+  GMAIL_SENDER_TOKEN_FILE: optionalEnvString(z.string()),
+  GOOGLE_OAUTH_CLIENT_ID: optionalEnvString(z.string()),
+  GOOGLE_OAUTH_CLIENT_SECRET: optionalEnvString(z.string()),
+  OPENAI_API_KEY: optionalEnvString(z.string()),
+  OPENAI_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("gpt-4o-mini"),
+  ),
 });
 
 export const env = envSchema.parse(process.env);

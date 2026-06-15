@@ -1,21 +1,18 @@
-import { startSession } from "@/lib/actions/training";
+import { startTask } from "@/lib/actions/training";
 
-function readToken(body: unknown): string {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new Error("Invalid JSON body");
-  }
-  const token = (body as Record<string, unknown>).token;
-  if (typeof token !== "string" || token.trim() === "") throw new Error("Missing field: token");
-  return token;
+function field(body: unknown, key: string): string {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid request");
+  const v = (body as Record<string, unknown>)[key];
+  if (typeof v !== "string" || v.trim() === "") throw new Error(`Missing field: ${key}`);
+  return v;
 }
 
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as unknown;
-    const result = await startSession(readToken(body));
+    const result = await startTask(field(body, "token"), field(body, "assignmentId"));
     return Response.json({ ok: true, result });
   } catch (err) {
-    const error = err instanceof Error ? err.message : "Action failed";
-    return Response.json({ ok: false, error }, { status: 400 });
+    return Response.json({ ok: false, error: err instanceof Error ? err.message : "Action failed" }, { status: 400 });
   }
 }

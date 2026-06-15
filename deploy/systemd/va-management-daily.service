@@ -13,5 +13,10 @@ ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_module
 ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/tier-check.ts || true'
 ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/capacity-monitor.ts || true'
 ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/payroll-close.ts || true'
+ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/application-intake-poll.ts || true'
+ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/application-screen.ts || true'
 ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/monthly-checkin.ts || true'
+# nudge is gated by the `nudge_enabled` setting (off by default). Purii can flip
+# it on/off; this line only sends when it's TRUE.
+ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/nudge.ts || true'
 User=root

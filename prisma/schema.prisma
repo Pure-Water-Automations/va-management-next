@@ -29,6 +29,7 @@ model User {
   name      String?
   role      Role
   active    Boolean  @default(true)
+  isAdmin   Boolean  @default(false) // can view/test every console + bypass role guards
   vaId      String? // links a VA/Senior-VA login to their VA row
   va        Va?      @relation(fields: [vaId], references: [vaId])
   createdAt DateTime @default(now())
@@ -58,6 +59,7 @@ model Va {
   compensationRole   CompRole  @default(TRAINEE)
   status             VaStatus  @default(training)
   targetHoursWeekly  Float?
+  baselineHours      Float     @default(0) // cumulative hours carried over from the old tool at cutover
   supervisorVaId     String?
   supervisor         Va?       @relation("Supervision", fields: [supervisorVaId], references: [vaId])
   reports            Va[]      @relation("Supervision")
@@ -77,6 +79,7 @@ model Va {
   efficiency     DeskLogEfficiency[]
   payrollCalcs   PayrollCalculation[]
   tierReviews    TierReview[]
+  evaluations    Evaluation[]
   capacityEvents CapacityFlagEvent[]
   onboarding     Onboarding?
 }
@@ -219,8 +222,65 @@ model TierReview {
   skillAttestationFormUrl String?
   hrDecisionDate         DateTime?
   hrNotes                String?
+  evaluation             Evaluation?
 
   @@index([vaId])
+}
+
+// ── Trainee / tier evaluation (dual self + supervisor assessment) ──────────
+// Replaces the GAS Evaluation_Summary tab. 1:1 with a TierReview: the review
+// row tracks the lifecycle/decision; this row holds the scored assessments.
+
+enum EvalRubric {
+  TRAINEE
+  TIER
+}
+
+enum EvalStatus {
+  forms_sent
+  self_submitted
+  supervisor_submitted
+  ready_for_review
+  approved
+  declined
+}
+
+model Evaluation {
+  evaluationId  String     @id @default(cuid())
+  tierReviewId  String     @unique
+  tierReview    TierReview @relation(fields: [tierReviewId], references: [id])
+  vaId          String
+  va            Va         @relation(fields: [vaId], references: [vaId])
+  vaName        String?
+  rubric        EvalRubric @default(TRAINEE)
+  stage         String? // e.g. "40h", "final", "tier_1_2" — display label
+  status        EvalStatus @default(forms_sent)
+
+  supervisorVaId String?
+
+  selfSubmittedAt DateTime?
+  selfScore       Float?
+  selfJson        Json? // { scores: {key:1-5}, narratives: {key:text}, portfolioUrl }
+
+  supervisorSubmittedAt    DateTime?
+  supervisorScore          Float?
+  supervisorRecommendation String? // promote | hold | needs_improvement
+  supervisorJson           Json?
+
+  combinedScore      Float?
+  autoRecommendation String? // promote | hold | extend_training | pending
+
+  hrNotes   String?
+  decision  String? // approved | declined
+  decidedAt DateTime?
+  decidedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vaId])
+  @@index([status])
+  @@index([supervisorVaId])
 }
 
 // ── Recruitment / Training / Onboarding ───────────────────────────────────
@@ -312,6 +372,14 @@ model Candidate {
   vaId          String?
   notionPageId  String?
   followUpNotes String?
+  applicationJson Json? // full native-application answers (Typeform-style intake)
+
+  // AI first-pass screening of the application (serious candidate? real answers?)
+  screenVerdict String?   // serious | review | spam
+  screenScore   Int?      // 0-100 overall quality/seriousness
+  screenSummary String?   // recruiter-facing summary
+  screenFlags   Json?     // string[] of concerns / failed checks
+  screenedAt    DateTime?
 
   // training tracker rollups + magic-link token
   trainingAccessToken   String?  @unique
@@ -320,7 +388,8 @@ model Candidate {
   trainingLastSessionAt DateTime?
   trainingReadyForReview Boolean @default(false)
 
-  sessions TrainingSession[]
+  sessions     TrainingSession[]
+  taskProgress TrainingTaskProgress[]
 
   @@index([currentStage])
 }
@@ -346,6 +415,7 @@ model TrainingSession {
   candidate      Candidate     @relation(fields: [candidateId], references: [candidateId])
   candidateEmail String?
   candidateName  String?
+  assignmentId   String? // which checklist task this session timed
   assignmentTitle String?
   assignmentLink String?
   startTime      DateTime?
@@ -363,13 +433,39 @@ model TrainingSession {
   @@index([candidateId])
 }
 
+// Catalog of the 10-hour training module items (the editable checklist).
 model TrainingAssignment {
   id               String  @id @default(cuid())
+  kind             String  @default("task") // read | video | quiz | task | submit
   task             String
   instructions     String?
   instructionsLink String?
+  skill            String? // e.g. Communication, Research, Marketing, Data, Design
+  estMinutes       Int?
+  sortOrder        Int     @default(0)
   active           Boolean @default(true)
   createdAt        DateTime @default(now())
+
+  progress TrainingTaskProgress[]
+}
+
+// One row per (candidate, task): their checklist progress + optional output.
+model TrainingTaskProgress {
+  id           String             @id @default(cuid())
+  candidateId  String
+  candidate    Candidate          @relation(fields: [candidateId], references: [candidateId])
+  assignmentId String
+  assignment   TrainingAssignment @relation(fields: [assignmentId], references: [id])
+  status       String             @default("not_started") // not_started | in_progress | done
+  minutesSpent Int                @default(0)
+  outputLink   String?
+  note         String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  updatedAt    DateTime           @updatedAt
+
+  @@unique([candidateId, assignmentId])
+  @@index([candidateId])
 }
 
 enum OnboardingStatus {

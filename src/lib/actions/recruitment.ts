@@ -4,7 +4,6 @@ import type {
   FinalDecision,
   GateResult,
   RecruiterRecommendation,
-  TrainingAssignment,
 } from "@prisma/client";
 import { logActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
@@ -96,11 +95,10 @@ export async function decide(
   const now = new Date();
 
   if (finalDecision === "invite_tenhr") {
-    const assignment = await db.trainingAssignment.findFirst({
-      where: { active: true },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!assignment) throw new Error("No active training assignment is configured.");
+    const taskCount = await db.trainingAssignment.count({ where: { active: true } });
+    if (taskCount === 0) {
+      throw new Error("No skills-trial tasks are set up yet. Add them in Recruitment → Skills-Trial Tasks first.");
+    }
 
     const settings = await loadSettings();
     const token = randomUUID();
@@ -112,8 +110,8 @@ export async function decide(
         decidedAt: now,
         followUpNotes: note ?? undefined,
         tenhrDeadline: addDays(now, 7),
-        tenhrAssignmentTitle: assignment.task,
-        tenhrAssignmentLink: assignment.instructionsLink ?? null,
+        tenhrAssignmentTitle: "VA skills trial",
+        tenhrAssignmentLink: null,
         trainingAccessToken: token,
         currentStage: "tenhr_in_progress",
       },
@@ -122,10 +120,10 @@ export async function decide(
     await logActivity({
       source: "recruitment",
       eventType: "tenhr_invited",
-      summary: `10-hour training invite sent to ${candidateLabel(candidate)} by ${actorEmail}`,
+      summary: `Skills-trial invite sent to ${candidateLabel(candidate)} by ${actorEmail}`,
     });
 
-    await emailTenHrInvite(candidate, assignment, token, settings);
+    await emailSkillsTrialInvite(candidate, token, taskCount, settings);
     return candidate;
   }
 
@@ -287,6 +285,73 @@ export async function markContractSigned(candidateId: string) {
   return provisioned.candidate;
 }
 
+/**
+ * Email the candidate their intro video and/or interview-booking link, and move
+ * them to "interview scheduled". The links live in settings (intro_video_url /
+ * interview_booking_url) and can be set from the console.
+ */
+export async function sendInterviewInvite(candidateId: string, actorEmail: string) {
+  const candidate = await db.candidate.findUnique({
+    where: { candidateId },
+    select: { candidateId: true, name: true, email: true },
+  });
+  if (!candidate) throw new Error("Candidate not found.");
+
+  const settings = await loadSettings();
+  const videoUrl = settingStr(settings, "intro_video_url", "").trim();
+  const bookingUrl = settingStr(settings, "interview_booking_url", "").trim();
+  if (!videoUrl && !bookingUrl) {
+    throw new Error("No intro-video or interview-booking link is set yet. Set one in “Interview links” at the top of the pipeline.");
+  }
+
+  const lines = [
+    `Hi ${firstName(candidate.name) || "there"},`,
+    "",
+    "Thanks for applying to the Pure Water Automations virtual assistant team — we'd like to move you to the interview step.",
+    "",
+  ];
+  if (videoUrl) lines.push(`▶ Watch this short intro video first: ${videoUrl}`, "");
+  if (bookingUrl) lines.push(`📅 Then book / complete your interview here: ${bookingUrl}`, "");
+  lines.push("Reply to this email if you have any questions. We look forward to speaking with you!", "", "— Pure Water Automations Recruitment");
+
+  const email = await sendSystemEmail({
+    from: systemEmailFrom(settings),
+    to: candidate.email,
+    subject: "Next step: your Pure Water VA interview",
+    body: lines.join("\n"),
+  });
+
+  const updated = await db.candidate.update({
+    where: { candidateId },
+    data: { currentStage: "interview_scheduled" },
+  });
+
+  await logActivity({
+    source: "recruitment",
+    eventType: "interview_invite_sent",
+    summary: `Interview invite emailed to ${candidateLabel(updated)} by ${actorEmail}`,
+  });
+  return { candidate: updated, email };
+}
+
+/** Set the recruitment links used by the interview invite (admin/HR). */
+export async function setRecruitmentLinks(
+  bookingUrl: string | undefined,
+  videoUrl: string | undefined,
+  actorEmail: string,
+) {
+  const ups: Promise<unknown>[] = [];
+  if (bookingUrl !== undefined) {
+    ups.push(db.setting.upsert({ where: { key: "interview_booking_url" }, update: { value: bookingUrl.trim() }, create: { key: "interview_booking_url", value: bookingUrl.trim() } }));
+  }
+  if (videoUrl !== undefined) {
+    ups.push(db.setting.upsert({ where: { key: "intro_video_url" }, update: { value: videoUrl.trim() }, create: { key: "intro_video_url", value: videoUrl.trim() } }));
+  }
+  await Promise.all(ups);
+  await logActivity({ source: "recruitment", eventType: "recruitment_links_set", summary: `Interview/video links updated by ${actorEmail}` });
+  return { ok: true };
+}
+
 async function createVaFromCandidate(
   candidate: { candidateId: string; name: string | null; email: string },
   vaName: string,
@@ -439,32 +504,30 @@ async function uniqueVaId(baseVaId: string): Promise<string> {
   throw new Error(`Could not allocate a unique VA ID for ${base}.`);
 }
 
-async function emailTenHrInvite(
+async function emailSkillsTrialInvite(
   candidate: { name: string | null; email: string },
-  assignment: Pick<TrainingAssignment, "task" | "instructions" | "instructionsLink">,
   token: string,
+  taskCount: number,
   settings: Map<string, string>,
 ): Promise<void> {
   const trackerLink = `${appBaseUrl(settings)}/track/${token}`;
-  const assignmentLink = assignment.instructionsLink
-    ? `\nAssignment link: ${assignment.instructionsLink}`
-    : "";
-  const instructions = assignment.instructions ? `\n\nInstructions:\n${assignment.instructions}` : "";
 
   await sendSystemEmail({
     from: systemEmailFrom(settings),
     to: candidate.email,
-    subject: "Your 10-hour training assignment",
+    subject: "Next step: your Pure Water VA skills trial",
     body: [
       `Hi ${firstName(candidate.name) || "there"},`,
       "",
-      "You have been invited to the 10-hour training stage.",
+      `Congratulations — you're invited to our short VA skills trial. It's ${taskCount} quick tasks (about 10–30 minutes each) covering the core skills our VAs use day to day.`,
       "",
-      `Tracker: ${trackerLink}`,
-      `Assignment: ${assignment.task}${assignmentLink}`,
-      instructions,
+      `Open your checklist here: ${trackerLink}`,
       "",
-      "Use the tracker link to log your training time and submit your work for review.",
+      "For each task: start the timer, do the work, and mark it done (you can paste a link to your work). Once all tasks are complete, you're automatically submitted for review — no need to email us back.",
+      "",
+      "Take your time and do your best — we're excited to see what you can do!",
+      "",
+      "— Pure Water Automations Recruitment",
     ].join("\n"),
   });
 }

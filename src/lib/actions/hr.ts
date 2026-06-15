@@ -368,6 +368,57 @@ export async function resolveCapacityFlag(
   return event;
 }
 
+/** Carry-over cumulative hours from the old tool for one VA. */
+export async function setVaBaseline(vaId: string, baselineHours: number, actorEmail: string) {
+  const id = requireText(vaId, "vaId");
+  if (!Number.isFinite(baselineHours) || baselineHours < 0) {
+    throw new Error("Baseline hours must be a non-negative number.");
+  }
+  const va = await db.va.update({ where: { vaId: id }, data: { baselineHours } });
+  await logActivity({
+    source: "hr_action",
+    eventType: "baseline_set",
+    vaId: id,
+    severity: "info",
+    summary: `Baseline hours for ${va.name} set to ${baselineHours} by ${actorEmail}`,
+  });
+  return va;
+}
+
+/** Email TEST MODE — redirect ALL system mail to one address (empty = off). */
+export async function setEmailTestRedirect(email: string | undefined, actorEmail: string) {
+  const value = (email ?? "").trim();
+  await db.setting.upsert({
+    where: { key: "email_redirect_to" },
+    update: { value },
+    create: { key: "email_redirect_to", value },
+  });
+  await logActivity({
+    source: "hr_action",
+    eventType: "email_test_mode",
+    severity: "warning",
+    summary: value ? `Email TEST MODE ON — all mail redirected to ${value} by ${actorEmail}` : `Email test mode turned OFF by ${actorEmail}`,
+  });
+  return { ok: true, value };
+}
+
+/** Global cutover date — DeskLog hours before this don't count (baseline does). */
+export async function setBaselineCutover(date: string | undefined, actorEmail: string) {
+  const value = (date ?? "").trim();
+  await db.setting.upsert({
+    where: { key: "cumulative_baseline_date" },
+    update: { value },
+    create: { key: "cumulative_baseline_date", value },
+  });
+  await logActivity({
+    source: "hr_action",
+    eventType: "baseline_cutover_set",
+    severity: "info",
+    summary: `Cumulative baseline cutover date set to ${value || "(cleared)"} by ${actorEmail}`,
+  });
+  return { ok: true, date: value };
+}
+
 async function nextVaId(): Promise<string> {
   const rows = await db.va.findMany({ select: { vaId: true } });
   let max = 0;

@@ -1,9 +1,10 @@
 import { action } from "@/lib/api";
+import { getEffectiveVaId } from "@/lib/auth/access";
 import { submitCheckIn } from "@/lib/actions/va";
 
 export const POST = action(
-  ({ user, body }) =>
-    submitCheckIn(user.va?.vaId, {
+  async ({ user, body }) =>
+    submitCheckIn(await getEffectiveVaId(user), {
       targetHoursWeekly: body.targetHoursWeekly,
       availabilityNotes: body.availabilityNotes,
       capacityFlag: body.capacityFlag,

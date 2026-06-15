@@ -7,6 +7,7 @@
 import type { TierReviewStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { computeEligibility } from "@/lib/services/tier-eligibility";
+import { baselineCutover, deskLogSinceCutover, withBaseline } from "@/lib/services/cumulative";
 import { logActivity } from "@/lib/activity";
 
 const OPEN: TierReviewStatus[] = ["hours_triggered", "form_sent", "under_review"];
@@ -15,10 +16,11 @@ async function main() {
   const run = await db.syncRun.create({ data: { worker: "tier-check", status: "FAILED" } });
   let queued = 0;
   try {
+    const cutover = await baselineCutover();
     const [vas, roles, hours] = await Promise.all([
       db.va.findMany({ where: { status: { in: ["active", "training"] } } }),
       db.compensationRole.findMany(),
-      db.deskLogHours.groupBy({ by: ["vaId"], _sum: { taskSpentHrs: true } }),
+      db.deskLogHours.groupBy({ by: ["vaId"], where: deskLogSinceCutover(cutover), _sum: { taskSpentHrs: true } }),
     ]);
     const roleById = new Map(roles.map((r) => [r.roleId, r]));
     const cumByVa = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
@@ -26,7 +28,7 @@ async function main() {
     for (const va of vas) {
       const role = roleById.get(va.compensationRole);
       if (!role) continue;
-      const cumulative = cumByVa.get(va.vaId) ?? 0;
+      const cumulative = withBaseline(va.baselineHours, cumByVa.get(va.vaId) ?? 0);
       const elig = computeEligibility({
         currentRole: va.compensationRole,
         cumulativeHours: cumulative,

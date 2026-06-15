@@ -19,6 +19,7 @@
     "worker:payroll-close": "tsx worker/payroll-close.ts",
     "worker:checkin": "tsx worker/monthly-checkin.ts",
     "worker:intake": "tsx worker/application-intake-poll.ts",
+    "worker:screen": "tsx worker/application-screen.ts",
     "worker:mirror": "tsx worker/sheet-mirror-export.ts"
   },
   "dependencies": {

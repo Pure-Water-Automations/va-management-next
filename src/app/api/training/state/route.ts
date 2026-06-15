@@ -1,4 +1,4 @@
-import { getCandidateState } from "@/lib/actions/training";
+import { getChecklistState } from "@/lib/actions/training";
 
 function readToken(body: unknown): string {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -12,7 +12,7 @@ function readToken(body: unknown): string {
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as unknown;
-    const result = await getCandidateState(readToken(body));
+    const result = await getChecklistState(readToken(body));
     return Response.json({ ok: true, result });
   } catch (err) {
     const error = err instanceof Error ? err.message : "Action failed";

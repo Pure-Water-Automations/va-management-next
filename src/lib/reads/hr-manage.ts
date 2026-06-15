@@ -1,20 +1,22 @@
 import { db } from "@/lib/db";
 import { computeEligibility } from "@/lib/services/tier-eligibility";
+import { baselineCutover, deskLogSinceCutover, withBaseline } from "@/lib/services/cumulative";
 
 const DAY = 24 * 60 * 60 * 1000;
 
 export async function getRegistry() {
+  const cutover = await baselineCutover();
   const [vas, roles, hours] = await Promise.all([
     db.va.findMany({ orderBy: [{ status: "asc" }, { name: "asc" }] }),
     db.compensationRole.findMany(),
-    db.deskLogHours.groupBy({ by: ["vaId"], _sum: { taskSpentHrs: true } }),
+    db.deskLogHours.groupBy({ by: ["vaId"], where: deskLogSinceCutover(cutover), _sum: { taskSpentHrs: true } }),
   ]);
   const roleById = new Map(roles.map((r) => [r.roleId, r]));
   const cumByVa = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
 
   return vas.map((va) => {
     const role = roleById.get(va.compensationRole);
-    const cumulative = cumByVa.get(va.vaId) ?? 0;
+    const cumulative = withBaseline(va.baselineHours, cumByVa.get(va.vaId) ?? 0);
     const eligibility = role
       ? computeEligibility({
           currentRole: va.compensationRole,

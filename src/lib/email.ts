@@ -1,6 +1,23 @@
 import { gmail as gmailApi } from "@googleapis/gmail";
 import { OAuth2Client } from "google-auth-library";
 import { env } from "@/lib/env";
+import { db } from "@/lib/db";
+
+/**
+ * TEST MODE: when the `email_redirect_to` setting holds an address, every system
+ * email is redirected there instead of its real recipient (subject/body are
+ * annotated with the original recipient). Lets us test flows without mailing
+ * real applicants/VAs. Empty setting = normal sending.
+ */
+async function emailRedirectTo(): Promise<string | null> {
+  try {
+    const row = await db.setting.findUnique({ where: { key: "email_redirect_to" }, select: { value: true } });
+    const v = (row?.value || "").trim();
+    return v || null;
+  } catch {
+    return null;
+  }
+}
 
 export type SystemEmailOptions = {
   from: string;
@@ -18,7 +35,7 @@ export type SystemEmailResult =
 type TokenJson = Record<string, unknown>;
 
 export async function sendSystemEmail(opts: SystemEmailOptions): Promise<SystemEmailResult> {
-  const tokenFile = opts.tokenFile ?? env.GOOGLE_WORKSPACE_TOKEN_FILE;
+  const tokenFile = opts.tokenFile ?? env.GMAIL_SENDER_TOKEN_FILE ?? env.GOOGLE_WORKSPACE_TOKEN_FILE;
   if (!tokenFile) {
     console.warn("sendSystemEmail skipped: GOOGLE_WORKSPACE_TOKEN_FILE is not configured.");
     return { ok: false, skipped: true, reason: "missing_token_file" };
@@ -29,12 +46,25 @@ export async function sendSystemEmail(opts: SystemEmailOptions): Promise<SystemE
     return { ok: false, skipped: true, reason: "unreadable_token_file" };
   }
 
+  const redirect = await emailRedirectTo();
+  const effective: SystemEmailOptions = redirect
+    ? {
+        ...opts,
+        to: redirect,
+        subject: `[TEST] ${opts.subject}`,
+        body: `⚠️ TEST MODE — this email would normally go to: ${Array.isArray(opts.to) ? opts.to.join(", ") : opts.to}\n\n${opts.body}`,
+        htmlBody: opts.htmlBody
+          ? `<p style="color:#999;font-size:13px">⚠️ TEST MODE — normally to: ${Array.isArray(opts.to) ? opts.to.join(", ") : opts.to}</p>${opts.htmlBody}`
+          : undefined,
+      }
+    : opts;
+
   const auth = oauthClientFromToken(token);
   const gmail = gmailApi({ version: "v1", auth });
   const response = await gmail.users.messages.send({
     userId: "me",
     requestBody: {
-      raw: base64UrlEncode(buildRawMessage(opts)),
+      raw: base64UrlEncode(buildRawMessage(effective)),
     },
   });
 
@@ -83,7 +113,7 @@ function buildRawMessage(opts: SystemEmailOptions): string {
   const headers = [
     ["From", sanitizeHeader(opts.from)],
     ["To", sanitizeHeader(to)],
-    ["Subject", sanitizeHeader(opts.subject)],
+    ["Subject", encodeHeaderWord(opts.subject)],
     ["MIME-Version", "1.0"],
   ];
 
@@ -124,6 +154,33 @@ function base64UrlEncode(value: string): string {
 
 function sanitizeHeader(value: string): string {
   return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+/**
+ * RFC 2047 "encoded-word" for header values containing non-ASCII (em-dashes,
+ * accented names, emoji). Without this, raw UTF-8 bytes in a Subject header are
+ * misread by mail clients and show up as mojibake (Ã¢Â€Â…). ASCII values pass
+ * through unchanged. Long values are split into ≤75-char words on UTF-8
+ * character boundaries, as the spec requires.
+ */
+function encodeHeaderWord(value: string): string {
+  const clean = sanitizeHeader(value);
+  if (/^[\x00-\x7F]*$/.test(clean)) return clean;
+  const chunks: string[] = [];
+  let cur = "";
+  let curBytes = 0;
+  for (const ch of clean) {
+    const b = Buffer.byteLength(ch, "utf8");
+    if (curBytes + b > 45) {
+      chunks.push(cur);
+      cur = "";
+      curBytes = 0;
+    }
+    cur += ch;
+    curBytes += b;
+  }
+  if (cur) chunks.push(cur);
+  return chunks.map((c) => `=?UTF-8?B?${Buffer.from(c, "utf8").toString("base64")}?=`).join("\r\n ");
 }
 
 function readString(obj: TokenJson, keys: readonly string[]): string | null {

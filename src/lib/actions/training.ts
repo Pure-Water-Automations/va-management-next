@@ -164,15 +164,15 @@ async function refreshCandidateRollups(candidateId: string, mode: RollupMode) {
       .map((session) => session.endTime ?? session.startTime)
       .filter((value): value is Date => value instanceof Date)
       .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
-  const requiredMinutes = await requiredTrainingMinutes();
 
+  // Readiness is now driven by the task checklist (all tasks done), not raw
+  // minutes — see recomputeChecklistReadiness. We only refresh the time rollups.
   return db.candidate.update({
     where: { candidateId },
     data: {
       trainingTotalMinutes,
       trainingSessionCount: counted.length,
       trainingLastSessionAt,
-      trainingReadyForReview: trainingTotalMinutes >= requiredMinutes,
     },
     select: {
       trainingTotalMinutes: true,
@@ -372,4 +372,184 @@ export async function generateLink(candidateId: string, rotate = false): Promise
   });
 
   return url;
+}
+
+// ── Skills-trial checklist (short tasks worked through the timer) ───────────
+
+export type ChecklistTaskView = {
+  assignmentId: string;
+  kind: string;
+  task: string;
+  instructions: string | null;
+  instructionsLink: string | null;
+  skill: string | null;
+  estMinutes: number | null;
+  status: string; // not_started | in_progress | done
+  minutesSpent: number;
+  outputLink: string | null;
+  note: string | null;
+  running: boolean;
+};
+
+export type ChecklistState = {
+  name: string | null;
+  deadline: Date | null;
+  tasks: ChecklistTaskView[];
+  openTaskId: string | null;
+  openSince: Date | null;
+  doneCount: number;
+  totalCount: number;
+  readyForReview: boolean;
+};
+
+function cleanField(value?: string): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed : null;
+}
+
+async function buildChecklistState(candidateId: string): Promise<ChecklistState> {
+  const [candidate, tasks, progress, openSession] = await Promise.all([
+    db.candidate.findUnique({ where: { candidateId }, select: { name: true, tenhrDeadline: true, trainingReadyForReview: true } }),
+    db.trainingAssignment.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
+    db.trainingTaskProgress.findMany({ where: { candidateId } }),
+    db.trainingSession.findFirst({ where: { candidateId, status: "active" }, orderBy: { startTime: "desc" } }),
+  ]);
+  if (!candidate) throw new Error(INVALID_TOKEN_MESSAGE);
+
+  const byTask = new Map(progress.map((p) => [p.assignmentId, p]));
+  const openTaskId = openSession?.assignmentId ?? null;
+  const views: ChecklistTaskView[] = tasks.map((t) => {
+    const p = byTask.get(t.id);
+    return {
+      assignmentId: t.id,
+      kind: t.kind,
+      task: t.task,
+      instructions: t.instructions,
+      instructionsLink: t.instructionsLink,
+      skill: t.skill,
+      estMinutes: t.estMinutes,
+      status: p?.status ?? "not_started",
+      minutesSpent: p?.minutesSpent ?? 0,
+      outputLink: p?.outputLink ?? null,
+      note: p?.note ?? null,
+      running: openTaskId === t.id,
+    };
+  });
+
+  return {
+    name: candidate.name,
+    deadline: candidate.tenhrDeadline,
+    tasks: views,
+    openTaskId,
+    openSince: openSession?.startTime ?? null,
+    doneCount: views.filter((v) => v.status === "done").length,
+    totalCount: views.length,
+    readyForReview: candidate.trainingReadyForReview,
+  };
+}
+
+/** Ready for review once every active task has a `done` progress row. */
+async function recomputeChecklistReadiness(candidateId: string): Promise<boolean> {
+  const tasks = await db.trainingAssignment.findMany({ where: { active: true }, select: { id: true } });
+  if (tasks.length === 0) return false;
+  const done = await db.trainingTaskProgress.count({
+    where: { candidateId, status: "done", assignmentId: { in: tasks.map((t) => t.id) } },
+  });
+  const ready = done >= tasks.length;
+  await db.candidate.update({ where: { candidateId }, data: { trainingReadyForReview: ready } });
+  return ready;
+}
+
+export async function getChecklistState(token: string): Promise<ChecklistState> {
+  const candidate = await candidateForToken(token);
+  return buildChecklistState(candidate.candidateId);
+}
+
+export async function startTask(token: string, assignmentId: string): Promise<ChecklistState> {
+  const candidate = await candidateForToken(token);
+  if (!START_ALLOWED_STAGES.has(candidate.currentStage)) {
+    throw new Error("Your skills trial isn't open right now. Please contact your recruiter.");
+  }
+  const task = await db.trainingAssignment.findFirst({ where: { id: assignmentId, active: true }, select: { id: true, task: true, instructionsLink: true } });
+  if (!task) throw new Error("That task isn't available.");
+
+  const open = await db.trainingSession.findFirst({ where: { candidateId: candidate.candidateId, status: "active" }, select: { sessionId: true } });
+  if (open) throw new Error("You have a timer running. Finish or stop it before starting another task.");
+
+  const now = new Date();
+  await db.trainingSession.create({
+    data: {
+      candidateId: candidate.candidateId,
+      candidateEmail: candidate.email,
+      candidateName: candidate.name,
+      assignmentId: task.id,
+      assignmentTitle: task.task,
+      assignmentLink: task.instructionsLink,
+      startTime: now,
+      status: "active",
+      reviewStatus: "needs_review",
+    },
+  });
+  await db.trainingTaskProgress.upsert({
+    where: { candidateId_assignmentId: { candidateId: candidate.candidateId, assignmentId: task.id } },
+    update: { status: "in_progress", startedAt: now },
+    create: { candidateId: candidate.candidateId, assignmentId: task.id, status: "in_progress", startedAt: now },
+  });
+
+  await logActivity({ source: "training_tracker", eventType: "task_started", summary: `${activityName({ candidateName: candidate.name, candidateEmail: candidate.email })} started "${task.task}"` });
+  return buildChecklistState(candidate.candidateId);
+}
+
+/** End the open session (if any), banking its minutes onto the task. */
+async function endOpenSession(candidateId: string): Promise<{ assignmentId: string | null; minutes: number } | null> {
+  const open = await db.trainingSession.findFirst({ where: { candidateId, status: "active" }, orderBy: { startTime: "desc" } });
+  if (!open || !open.startTime) return null;
+  const endTime = new Date();
+  const minutes = durationMinutes(open.startTime, endTime);
+  const maxMinutes = await maxSingleSessionMinutes();
+  const reviewStatus: ReviewStatus = minutes > maxMinutes ? "question" : "needs_review";
+
+  await db.trainingSession.update({
+    where: { sessionId: open.sessionId },
+    data: { endTime, durationMinutes: minutes, status: "completed", reviewStatus },
+  });
+  if (open.assignmentId) {
+    await db.trainingTaskProgress.upsert({
+      where: { candidateId_assignmentId: { candidateId, assignmentId: open.assignmentId } },
+      update: { minutesSpent: { increment: minutes } },
+      create: { candidateId, assignmentId: open.assignmentId, status: "in_progress", minutesSpent: minutes, startedAt: open.startTime },
+    });
+  }
+  await refreshCandidateRollups(candidateId, "logged");
+  return { assignmentId: open.assignmentId, minutes };
+}
+
+export async function stopTask(token: string): Promise<ChecklistState> {
+  const candidate = await candidateForToken(token);
+  const ended = await endOpenSession(candidate.candidateId);
+  if (!ended) throw new Error("You don't have a timer running.");
+  await logActivity({ source: "training_tracker", eventType: "task_paused", summary: `${activityName({ candidateName: candidate.name, candidateEmail: candidate.email })} paused a task (${ended.minutes}m)` });
+  return buildChecklistState(candidate.candidateId);
+}
+
+export async function completeTask(token: string, assignmentId: string, outputLink?: string, note?: string): Promise<ChecklistState> {
+  const candidate = await candidateForToken(token);
+  const task = await db.trainingAssignment.findFirst({ where: { id: assignmentId }, select: { id: true, task: true } });
+  if (!task) throw new Error("That task isn't available.");
+
+  const open = await db.trainingSession.findFirst({ where: { candidateId: candidate.candidateId, status: "active" }, select: { assignmentId: true } });
+  if (open && open.assignmentId && open.assignmentId !== assignmentId) {
+    throw new Error("Finish or stop your running timer first.");
+  }
+  if (open) await endOpenSession(candidate.candidateId);
+
+  await db.trainingTaskProgress.upsert({
+    where: { candidateId_assignmentId: { candidateId: candidate.candidateId, assignmentId } },
+    update: { status: "done", completedAt: new Date(), outputLink: cleanField(outputLink), note: cleanField(note) },
+    create: { candidateId: candidate.candidateId, assignmentId, status: "done", completedAt: new Date(), outputLink: cleanField(outputLink), note: cleanField(note) },
+  });
+  const ready = await recomputeChecklistReadiness(candidate.candidateId);
+
+  await logActivity({ source: "training_tracker", eventType: "task_completed", summary: `${activityName({ candidateName: candidate.name, candidateEmail: candidate.email })} completed "${task.task}"${ready ? " — all tasks done, ready for review" : ""}` });
+  return buildChecklistState(candidate.candidateId);
 }

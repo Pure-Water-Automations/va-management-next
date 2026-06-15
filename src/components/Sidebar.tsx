@@ -1,5 +1,5 @@
 import type { Role } from "@prisma/client";
-import { viewForRole } from "@/lib/auth/roles";
+import type { ConsoleView } from "@/lib/auth/roles";
 
 type NavItem = { href: string; label: string };
 
@@ -10,6 +10,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       items: [
         { href: "/hr", label: "Dashboard" },
         { href: "/hr/reviews", label: "Tier Reviews" },
+        { href: "/hr/evaluations", label: "Evaluations" },
         { href: "/hr/capacity", label: "Capacity Alerts" },
       ],
     },
@@ -27,6 +28,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/recruitment", label: "Pipeline" },
         { href: "/recruitment/training", label: "Training Log" },
         { href: "/recruitment/gate", label: "Gate Review" },
+        { href: "/recruitment/tasks", label: "Training Module" },
         { href: "/recruitment/onboarding", label: "Onboarding" },
       ],
     },
@@ -55,14 +57,14 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       items: [
         { href: "/va", label: "Overview" },
         { href: "/va/tier", label: "Tier Progress" },
+        { href: "/va/evaluation", label: "Evaluation" },
         { href: "/va/checkin", label: "Monthly Check-in" },
       ],
     },
   ],
 };
 
-export function Sidebar({ role, name }: { role: Role; name: string }) {
-  const view = viewForRole(role);
+export function Sidebar({ view, role, name }: { view: ConsoleView; role: Role; name: string }) {
   const sections = NAV[view] ?? NAV.VA;
   return (
     <aside className="sidebar">
@@ -74,7 +76,7 @@ export function Sidebar({ role, name }: { role: Role; name: string }) {
         <div key={section.label}>
           <div className="nav-label">{section.label}</div>
           {section.items.map((item) => (
-            <a key={item.href} href={item.href} className="nav-item">
+            <a key={item.href} href={item.href} className="nav-item" data-tour={item.href}>
               {item.label}
             </a>
           ))}

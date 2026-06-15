@@ -18,7 +18,8 @@ export function action(handler: Handler, opts?: { allow?: (role: Role) => boolea
       return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
     }
 
-    if (opts?.allow && !opts.allow(user.role)) {
+    // Admins bypass role guards so they can test every console's actions.
+    if (opts?.allow && !user.isAdmin && !opts.allow(user.role)) {
       await audit({ actorEmail: user.email, action: "denied", ok: false });
       return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
     }
