@@ -1,6 +1,7 @@
 import { getCheckins } from "@/lib/reads/hr-extra";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ const td: React.CSSProperties = { padding: "11px 16px", borderBottom: "1px solid
 export default async function CheckinsPage() {
   const rows = await getCheckins();
   const done = rows.filter((r) => r.thisMonth).length;
+  const applyUrl = `${(env.APP_BASE_URL ?? "https://team.pwasecondbrain.uk").replace(/\/+$/, "")}/apply`;
   return (
     <>
       <div className="page-head">
@@ -22,6 +24,31 @@ export default async function CheckinsPage() {
         </div>
         <span className="small">{done} / {rows.length} checked in this month</span>
       </div>
+
+      <Card style={{ marginBottom: 24 }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>VA application form</div>
+        <p className="small" style={{ marginTop: 0, marginBottom: 12 }}>
+          The public form prospective VAs fill in. Share this link — submissions appear in{" "}
+          <strong>Recruitment → Pipeline</strong> as <strong>Applied</strong> (each gets an automatic AI first-pass screen).
+        </p>
+        <a
+          href={applyUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "inline-block",
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--color-border)",
+            background: "var(--color-bg-secondary)",
+            fontFamily: "var(--font-mono, monospace)",
+            fontSize: "var(--text-sm)",
+            color: "var(--color-sky-600, #0369a1)",
+          }}
+        >
+          {applyUrl} ↗
+        </a>
+      </Card>
 
       <Card padding={0} style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
