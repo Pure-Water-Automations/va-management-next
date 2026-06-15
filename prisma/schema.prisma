@@ -368,6 +368,7 @@ model Candidate {
   contractDeadline DateTime?
   signedAt         DateTime?
   bunnydocRequestId String?
+  contractSignToken String? @unique
 
   vaId          String?
   notionPageId  String?
@@ -392,6 +393,21 @@ model Candidate {
   taskProgress TrainingTaskProgress[]
 
   @@index([currentStage])
+}
+
+model ContractSignature {
+  id             String   @id @default(cuid())
+  candidateId    String   @unique
+  signerName     String
+  signerEmail    String
+  signedAt       DateTime @default(now())
+  signerIp       String?
+  userAgent      String?
+  signatureImage String?  @db.Text
+  templateHash   String
+  pdfDriveFileId String?
+  pdfWebViewLink String?
+  createdAt      DateTime @default(now())
 }
 
 enum SessionStatus {
