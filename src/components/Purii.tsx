@@ -296,7 +296,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                 )}
               </div>
               <form onSubmit={(e) => { e.preventDefault(); send(input); }} style={{ display: "flex", gap: 8, padding: 12, borderTop: power ? "1px solid #1e3a5f" : "1px solid var(--color-border)", background: power ? "#0b1220" : undefined }}>
-                <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={matrix ? "Ask about the system or tell me what to change…" : power ? "Tell me what to do…" : "How do I…?"} style={power ? askInputBypass : askInput} />
+                <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={matrix ? "Ask about the system or tell me what to change…" : power ? "Tell me what to do…" : "How do I…?"} style={matrix ? askInputMatrix : bypass ? askInputBypass : askInput} />
                 <button type="submit" disabled={loading} style={matrix ? sendBtnMatrix : bypass ? sendBtnBypass : sendBtn}>{power ? "Go" : "Ask"}</button>
               </form>
             </>
@@ -348,6 +348,7 @@ const confirmBtn: CSSProperties = { flex: 1, border: "none", borderRadius: 999, 
 const cancelBtn: CSSProperties = { flex: 1, border: "1px solid rgba(255,255,255,.2)", borderRadius: 999, padding: "9px", background: "transparent", color: "#cbd5e1", fontWeight: 600, cursor: "pointer" };
 const askInput: CSSProperties = { flex: 1, border: "1px solid var(--color-border)", borderRadius: "var(--radius-input)", padding: "9px 11px", font: "inherit", fontSize: "var(--text-sm)" };
 const askInputBypass: CSSProperties = { ...askInput, background: "#13233f", border: "1px solid #1e3a5f", color: "#fff" };
+const askInputMatrix: CSSProperties = { ...askInput, background: "#0f2a1a", border: "1px solid #14532d", color: "#fff" };
 const sendBtn: CSSProperties = { border: "none", borderRadius: "var(--radius-input)", padding: "0 16px", background: "var(--color-navy-900)", color: "#fff", fontWeight: 600, cursor: "pointer" };
 const sendBtnBypass: CSSProperties = { ...sendBtn, background: "linear-gradient(180deg,#22d3ee,#0ea5e9)", color: "#06121f", fontWeight: 700 };
 // Matrix mode — green-themed variants (vs Bypass's cyan).

@@ -42,9 +42,9 @@ Justin wants a **third, more capable tier** that actually understands the codeba
 Bypass is single-shot. Matrix runs a **bounded read-think-act loop** server-side, within one request:
 
 ```
-matrixAct(messages, role, actor) -> { type:"answer", text } | { type:"proposal", proposal }
+matrixAct(question, role, actor) -> { type:"answer", text } | { type:"proposal", proposal }
 
-convo = [system: MATRIX_PROMPT, ...messages]      // messages = the chat history (final answers only)
+convo = [system: MATRIX_PROMPT, user: question]   // single-turn, mirrors /api/purii/act (multi-turn is out of scope)
 for step in 0..MAX_STEPS (default 8):
   resp = openrouterChat({ model, messages: convo, tools: MATRIX_TOOLS, tool_choice:"auto" })
   msg  = resp.choices[0].message
@@ -127,7 +127,7 @@ Guards (build-time, before any proposal is shown):
 
 ### New API route
 
-`src/app/api/purii/matrix/route.ts` — `POST`, admin-enforced (`action(..., { allow: () => false })`, admins bypass), body `{ messages }`, calls `matrixAct(messages, user.role, user.email)`, returns `{ ok, result }` where result is `{ type:"answer"|"proposal", … }`. Mirrors `/api/purii/act`.
+`src/app/api/purii/matrix/route.ts` — `POST`, admin-enforced (`action(..., { allow: () => false })`, admins bypass), body `{ question }`, calls `matrixAct(question, user.role, user.email)`, returns `{ ok, result }` where result is `{ type:"answer"|"proposal", … }`. Mirrors `/api/purii/act` (single-turn `{ question }`; multi-turn history is out of scope).
 
 ## Safety boundaries (explicit "can't destroy the system")
 
@@ -142,7 +142,7 @@ Guards (build-time, before any proposal is shown):
 ## Data flow
 
 1. Admin types `enter the matrix` → client flips to Matrix mode (persisted).
-2. Admin asks something → `POST /api/purii/matrix { messages }`.
+2. Admin asks something → `POST /api/purii/matrix { question }`.
 3. `matrixAct` loops: model reads code / runs queries (auto) until it answers **or** proposes a write.
 4. Answer → rendered. Proposal → confirmation card.
 5. On confirm → `POST /api/purii/execute { tool, args }` → `executeRecordEdit` or `executeAction` → audited result.

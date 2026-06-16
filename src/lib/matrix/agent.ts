@@ -15,6 +15,14 @@ const MATRIX_TOOLS = [...BYPASS_TOOLS, EDIT_RECORD_TOOL, ...CODE_TOOLS];
 const MAX_STEPS = 8;
 type ChatFn = (body: { messages: unknown[]; tools?: unknown[]; tool_choice?: unknown; temperature?: number; max_tokens?: number }) => Promise<ORResponse>;
 
+/** OpenAI-compatible chat message shapes the loop appends to the conversation. */
+type ConvoMsg = {
+  role: "system" | "user" | "assistant" | "tool";
+  content?: string | null;
+  tool_call_id?: string;
+  tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
+};
+
 function isWriteTool(name: string): boolean {
   return toolKind(name) === "action" || name === "edit_record";
 }
@@ -30,7 +38,7 @@ export async function matrixAct(question: string, role: Role, actor: string, cha
   if (chat === openrouterChat && !env.OPENROUTER_API_KEY) {
     return { type: "error", text: "Matrix core offline — the OpenRouter key isn't wired up yet." };
   }
-  const convo: any[] = [
+  const convo: ConvoMsg[] = [
     { role: "system", content: `${MATRIX_PROMPT}\n\n(Operator: admin ${actor}, role ${role.replace(/_/g, " ")}.)` },
     { role: "user", content: question.slice(0, 2000) },
   ];
@@ -41,7 +49,9 @@ export async function matrixAct(question: string, role: Role, actor: string, cha
       const calls = msg?.tool_calls ?? [];
       if (!calls.length) return { type: "answer", text: (msg?.content || "Standing by.").trim() };
 
-      convo.push(msg);
+      // Force role:"assistant" so the message always conforms to the OpenAI chat
+      // protocol on the next turn, regardless of what the gateway echoes back.
+      convo.push({ role: "assistant", content: msg?.content ?? null, tool_calls: msg?.tool_calls });
       let writeCall: { id: string; name: string; args: Record<string, unknown> } | null = null;
       for (const call of calls) {
         const name = call.function?.name;
