@@ -83,6 +83,13 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     const m = typeof window !== "undefined" && localStorage.getItem("purii_muted") === "1";
     setMutedState(m); setMuted(m);
   }, []);
+
+  // Keep Permission Bypass mode unlocked across navigations/windows (admins only).
+  useEffect(() => {
+    if (canBypass && typeof window !== "undefined" && localStorage.getItem("purii_bypass") === "1") {
+      setBypass(true); setFace("hero");
+    }
+  }, [canBypass]);
   function toggleMute() {
     const m = !muted;
     setMutedState(m); setMuted(m);
@@ -105,11 +112,13 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     // Password unlock / lock toggles
     if (canBypass && text.toLowerCase() === BYPASS_PASSWORD) {
       setInput(""); setBypass(true); setProposal(null); setFace("hero"); sndPowerUp();
+      if (typeof window !== "undefined") localStorage.setItem("purii_bypass", "1");
       say("⚡ **Permission Bypass mode engaged.** I can take real actions now — just tell me what to do. I'll confirm before anything changes.");
       return;
     }
     if (bypass && (text.toLowerCase() === "exit" || text.toLowerCase() === "exit bypass")) {
       setInput(""); setBypass(false); setProposal(null);
+      if (typeof window !== "undefined") localStorage.setItem("purii_bypass", "0");
       say("Back to normal mode. 🌊");
       return;
     }
