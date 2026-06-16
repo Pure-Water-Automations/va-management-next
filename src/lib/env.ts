@@ -28,6 +28,9 @@ const envSchema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().default("gpt-4o-mini"),
   ),
+  OPENROUTER_API_KEY: optionalEnvString(z.string()),
+  OPENROUTER_BASE_URL: optionalEnvString(z.string()),
+  OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
 });
 
 export const env = envSchema.parse(process.env);
