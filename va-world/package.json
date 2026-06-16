@@ -1,0 +1,26 @@
+{
+  "name": "va-world",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gather.town-style 2D virtual space for VAs. Separate deployable; reads VA identity from the management app via the read-only /api/external bridge.",
+  "type": "module",
+  "scripts": {
+    "dev:client": "vite",
+    "dev:server": "tsx watch server/src/index.ts",
+    "start:server": "tsx server/src/index.ts",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.15.57",
+    "@colyseus/ws-transport": "^0.15.0",
+    "colyseus": "^0.15.17",
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}
