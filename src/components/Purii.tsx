@@ -53,6 +53,7 @@ const SUGGESTIONS = [
   "Where do I see capacity alerts?",
 ];
 const BYPASS_PASSWORD = "permission bypass";
+const MATRIX_PASSWORD = "enter the matrix";
 
 const sprite = (name: string) => `/purii/${name}.png`;
 const bsprite = (name: string) => `/purii/bypass/${name}.png`;
@@ -66,6 +67,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
   const [face, setFace] = useState("happy");
   const [step, setStep] = useState(0);
   const [bypass, setBypass] = useState(false);
+  const [matrix, setMatrix] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [muted, setMutedState] = useState(false);
   const [popKey, setPopKey] = useState(0); // bumps to replay the mascot "pop"
@@ -90,6 +92,12 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
       setBypass(true); setFace("hero");
     }
   }, [canBypass]);
+  // Keep Matrix mode unlocked across navigations/windows (admins only).
+  useEffect(() => {
+    if (canBypass && typeof window !== "undefined" && localStorage.getItem("purii_matrix") === "1") {
+      setMatrix(true); setFace("hero");
+    }
+  }, [canBypass]);
   function toggleMute() {
     const m = !muted;
     setMutedState(m); setMuted(m);
@@ -110,10 +118,22 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     if (!text || loading) return;
 
     // Password unlock / lock toggles
+    if (canBypass && text.toLowerCase() === MATRIX_PASSWORD) {
+      setInput(""); setMatrix(true); setBypass(false); setProposal(null); setFace("hero"); sndPowerUp();
+      if (typeof window !== "undefined") { localStorage.setItem("purii_matrix", "1"); localStorage.setItem("purii_bypass", "0"); }
+      say("🟢 **Matrix mode online.** I can see the code and act on the system — ask me anything or tell me what to change. I'll confirm before any change.");
+      return;
+    }
     if (canBypass && text.toLowerCase() === BYPASS_PASSWORD) {
-      setInput(""); setBypass(true); setProposal(null); setFace("hero"); sndPowerUp();
-      if (typeof window !== "undefined") localStorage.setItem("purii_bypass", "1");
+      setInput(""); setBypass(true); setMatrix(false); setProposal(null); setFace("hero"); sndPowerUp();
+      if (typeof window !== "undefined") { localStorage.setItem("purii_bypass", "1"); localStorage.setItem("purii_matrix", "0"); }
       say("⚡ **Permission Bypass mode engaged.** I can take real actions now — just tell me what to do. I'll confirm before anything changes.");
+      return;
+    }
+    if (matrix && (text.toLowerCase() === "exit" || text.toLowerCase() === "exit matrix")) {
+      setInput(""); setMatrix(false); setProposal(null);
+      if (typeof window !== "undefined") localStorage.setItem("purii_matrix", "0");
+      say("Back to normal mode. 🌊");
       return;
     }
     if (bypass && (text.toLowerCase() === "exit" || text.toLowerCase() === "exit bypass")) {
@@ -126,10 +146,11 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     say(text, "you");
     setInput("");
     setLoading(true);
-    setFace(bypass ? "scan" : "thinking");
+    setFace(matrix || bypass ? "scan" : "thinking");
 
-    if (bypass) {
-      const res = await postAction("/api/purii/act", { question: text });
+    if (matrix || bypass) {
+      const path = matrix ? "/api/purii/matrix" : "/api/purii/act";
+      const res = await postAction(path, { question: text });
       setLoading(false);
       const r = res.result as { type?: string; text?: string; proposal?: Proposal } | undefined;
       if (!res.ok) { setFace("warning"); sndError(); say(res.error || "That didn't go through."); return; }
@@ -160,6 +181,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
   }
 
   const cur = tour[Math.min(step, tour.length - 1)];
+  const power = matrix || bypass; // Matrix and Bypass share the "charged" look.
 
   // Tour spotlight (in-page element, else sidebar item) with render retries.
   useEffect(() => {
@@ -177,61 +199,61 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     return () => { timers.forEach(clearTimeout); clear(); };
   }, [open, tab, step, cur.href, pathname]);
 
-  const headerSprite = bypass ? bsprite(face === "scan" ? "scan" : face === "warning" ? "warning" : face === "success" ? "success" : face === "charge" ? "charge" : "hero") : sprite(tab === "tour" ? cur.sprite : face);
+  const headerSprite = power ? bsprite(face === "scan" ? "scan" : face === "warning" ? "warning" : face === "success" ? "success" : face === "charge" ? "charge" : "hero") : sprite(tab === "tour" ? cur.sprite : face);
 
   return (
     <>
       <button
         onClick={() => {
           const next = !open; setOpen(next);
-          if (next) { sndOpen(); if (!bypass && notif && notif.count > 0 && !greeted) { setGreeted(true); say(notif.greeting); } }
+          if (next) { sndOpen(); if (!power && notif && notif.count > 0 && !greeted) { setGreeted(true); say(notif.greeting); } }
         }}
         aria-label="Open Purii helper"
-        className={bypass ? "purii-glow" : "purii-float"}
-        style={bypass ? fabBypass : fab}
+        className={power ? "purii-glow" : "purii-float"}
+        style={power ? fabBypass : fab}
       >
         <img
-          src={bypass ? "/purii/bypass/animated.gif" : open ? sprite("smile") : "/purii/animated.gif"}
+          src={power ? "/purii/bypass/animated.gif" : open ? sprite("smile") : "/purii/animated.gif"}
           alt="Purii"
-          style={{ width: bypass ? 76 : 60, height: bypass ? 76 : 60, objectFit: "contain", filter: bypass ? "drop-shadow(0 0 6px rgba(125,249,255,.8))" : "none" }}
+          style={{ width: power ? 76 : 60, height: power ? 76 : 60, objectFit: "contain", filter: power ? "drop-shadow(0 0 6px rgba(125,249,255,.8))" : "none" }}
         />
-        {!open && !bypass && notif && notif.count > 0 && <span style={badge}>{notif.count}</span>}
+        {!open && !power && notif && notif.count > 0 && <span style={badge}>{notif.count}</span>}
       </button>
 
       {open && (
-        <div className="purii-panel-in" style={bypass ? panelBypass : panel}>
-          <div style={bypass ? headerBypass : header}>
+        <div className="purii-panel-in" style={power ? panelBypass : panel}>
+          <div style={power ? headerBypass : header}>
             <img
               key={`${popKey}-${headerSprite}`}
               className="purii-pop"
               src={headerSprite}
               alt=""
-              style={{ width: bypass ? 56 : 50, height: bypass ? 56 : 50, objectFit: "contain", filter: bypass ? "drop-shadow(0 0 5px rgba(125,249,255,.7))" : "none" }}
+              style={{ width: power ? 56 : 50, height: power ? 56 : 50, objectFit: "contain", filter: power ? "drop-shadow(0 0 5px rgba(125,249,255,.7))" : "none" }}
             />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--text-md)", color: "#fff", lineHeight: 1 }}>
-                Purii {bypass && <span style={{ color: "#7df9ff", fontSize: "var(--text-xs)" }}>· BYPASS</span>}
+                Purii {matrix ? <span style={{ color: "#4ade80", fontSize: "var(--text-xs)" }}>· MATRIX</span> : bypass ? <span style={{ color: "#7df9ff", fontSize: "var(--text-xs)" }}>· BYPASS</span> : null}
               </div>
-              <div style={{ fontSize: "var(--text-xs)", color: bypass ? "#7df9ff" : "rgba(255,255,255,.7)" }}>
-                {bypass ? "permission bypass active" : "your console guide"}
+              <div style={{ fontSize: "var(--text-xs)", color: power ? (matrix ? "#4ade80" : "#7df9ff") : "rgba(255,255,255,.7)" }}>
+                {matrix ? "matrix mode active" : bypass ? "permission bypass active" : "your console guide"}
               </div>
             </div>
             <button onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"} title={muted ? "Unmute" : "Mute"} style={iconBtn}>{muted ? "🔇" : "🔊"}</button>
-            {bypass && <button onClick={() => { setBypass(false); setProposal(null); say("Back to normal mode. 🌊"); }} aria-label="Exit bypass" style={exitBtn}>exit</button>}
+            {power && <button onClick={() => { setBypass(false); setMatrix(false); setProposal(null); if (typeof window !== "undefined") { localStorage.setItem("purii_bypass", "0"); localStorage.setItem("purii_matrix", "0"); } say("Back to normal mode. 🌊"); }} aria-label="Exit power mode" style={exitBtn}>exit</button>}
             <button onClick={() => setOpen(false)} aria-label="Close" style={closeBtn}>×</button>
           </div>
 
-          {!bypass && (
+          {!power && (
             <div style={tabs}>
               <button onClick={() => setTab("ask")} style={tabBtn(tab === "ask")}>Ask Purii</button>
               <button onClick={() => { setTab("tour"); setStep(0); }} style={tabBtn(tab === "tour")}>Take the tour</button>
             </div>
           )}
 
-          {bypass || tab === "ask" ? (
+          {power || tab === "ask" ? (
             <>
-              <div ref={scroller} style={{ ...body, background: bypass ? "#0b1220" : undefined }}>
-                {!bypass && notif && notif.items.length > 0 && (
+              <div ref={scroller} style={{ ...body, background: power ? "#0b1220" : undefined }}>
+                {!power && notif && notif.items.length > 0 && (
                   <div style={notifBlock}>
                     <div style={{ fontWeight: 700, fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".12em", color: "var(--color-accent)", marginBottom: 8 }}>📌 Waiting for you</div>
                     {notif.items.map((it) => (
@@ -242,7 +264,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                     ))}
                   </div>
                 )}
-                {messages.length === 0 && !bypass && (
+                {messages.length === 0 && !power && (
                   <div style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
                     <p style={{ marginTop: 0 }}>Hi! Ask me how to do anything in the console.</p>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -252,10 +274,10 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                 )}
                 {messages.map((m, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: m.from === "you" ? "flex-end" : "flex-start", marginBottom: 8 }}>
-                    <div style={bubble(m.from === "you", bypass)}>{m.from === "you" ? m.text : renderRich(m.text)}</div>
+                    <div style={bubble(m.from === "you", power)}>{m.from === "you" ? m.text : renderRich(m.text)}</div>
                   </div>
                 ))}
-                {loading && <div style={{ ...bubble(false, bypass), opacity: 0.7 }}>{bypass ? "Purii is working…" : "Purii is thinking…"}</div>}
+                {loading && <div style={{ ...bubble(false, power), opacity: 0.7 }}>{power ? "Purii is working…" : "Purii is thinking…"}</div>}
                 {proposal && (
                   <div style={proposalCard}>
                     <div style={{ fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -269,9 +291,9 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                   </div>
                 )}
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); send(input); }} style={{ display: "flex", gap: 8, padding: 12, borderTop: bypass ? "1px solid #1e3a5f" : "1px solid var(--color-border)", background: bypass ? "#0b1220" : undefined }}>
-                <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={bypass ? "Tell me what to do…" : "How do I…?"} style={bypass ? askInputBypass : askInput} />
-                <button type="submit" disabled={loading} style={bypass ? sendBtnBypass : sendBtn}>{bypass ? "Go" : "Ask"}</button>
+              <form onSubmit={(e) => { e.preventDefault(); send(input); }} style={{ display: "flex", gap: 8, padding: 12, borderTop: power ? "1px solid #1e3a5f" : "1px solid var(--color-border)", background: power ? "#0b1220" : undefined }}>
+                <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={matrix ? "Ask about the system or tell me what to change…" : power ? "Tell me what to do…" : "How do I…?"} style={power ? askInputBypass : askInput} />
+                <button type="submit" disabled={loading} style={power ? sendBtnBypass : sendBtn}>{power ? "Go" : "Ask"}</button>
               </form>
             </>
           ) : (
