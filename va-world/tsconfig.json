@@ -14,7 +14,9 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
   },
-  "include": ["client/src", "server/src", "vite.config.ts"]
+  "include": ["client/src", "server/src", "tests", "vite.config.ts"]
 }

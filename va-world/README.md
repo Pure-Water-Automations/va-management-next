@@ -15,40 +15,55 @@ writes back.
 
 ## Status
 
-**Phase 0–1 (current): scaffold + runnable single-player world.**
-- Phaser client: tile world, WASD/arrow movement, wall collision, follow-camera.
-- Colyseus server: a stub `WorldRoom` (logs join/leave) ready for multiplayer.
-- Placeholder art is generated at runtime — no binary assets yet.
+**Phase 2 (current): authoritative multiplayer + VA identity binding.**
+- Phaser client connects to the Colyseus server, renders every player as a
+  sprite with a floating **name + tier** label, and interpolates remote avatars.
+- Colyseus server owns the player map; clients send throttled positions. On
+  join it resolves the player's email (Cloudflare Access header → dev `?email=`
+  → env fallback) and calls the manager's `/api/external/va-profile` bridge to
+  bind the avatar to a real VA. Unresolved users render as labeled guests.
+- Placeholder art is still generated at runtime — no binary assets yet.
 
-Later phases: multiplayer + VA identity binding (2), proximity A/V via LiveKit
-Cloud (3), meeting/stage zones (4), polish (5), deploy (6). See the plan for detail.
+Earlier: Phase 0–1 (scaffold + single-player world). Later: proximity A/V via
+LiveKit Cloud (3), meeting/stage zones (4), polish (5), deploy (6).
 
 ## Develop
 
 ```bash
 cd va-world
 npm install
+cp .env.example .env        # set MANAGER_BASE_URL + EXTERNAL_APP_SECRET to bind real VAs
 
-# Client (Phaser) — opens a Vite dev server
-npm run dev:client
-
-# Server (Colyseus) — in a second terminal
+# Server (Colyseus) — terminal 1
 npm run dev:server
+
+# Client (Phaser/Vite) — terminal 2
+npm run dev:client
 ```
 
-In Phase 0–1 the client does **not** connect to the server yet; both are run to
-prove the dev loop. Walk the avatar with **WASD** or the **arrow keys**.
+Open **two** browser tabs to see multiplayer. In dev (no Cloudflare Access),
+pick each tab's identity with a query param:
+
+```
+http://localhost:5180/?email=va-a@example.com
+http://localhost:5180/?email=va-b@example.com
+```
+
+Each avatar shows the VA's name/tier from the manager (or a guest label if the
+email isn't a VA / the bridge isn't configured). Walk with **WASD** / arrows.
 
 ## Checks
 
 ```bash
-npm run typecheck   # tsc --noEmit over client + server
+npm run typecheck   # tsc --noEmit over client + server + tests
 npm run build       # vite production build of the client
+npm test            # node:test unit tests (identity resolution, manager bridge)
 ```
 
 ## Layout
 
 ```
-client/   Phaser game (Vite). scenes/, world/ (tilemap + placeholder textures)
-server/   Colyseus server. rooms/WorldRoom.ts (stub for Phase 2)
+client/   Phaser game (Vite). scenes/, world/, net/ (colyseus.js client)
+server/   Colyseus server. rooms/WorldRoom.ts, state/, identity.ts, manager.ts, env.ts
+tests/    node:test unit tests
 ```
