@@ -8,17 +8,38 @@
 > (all join to tasks). Strategy context: Notion "Pure Water OS — App vs Notion/Google:
 > Migration Decisions".
 
-## 0. Prerequisite — reconcile first (do NOT skip)
+## 0. Canonical source — DECIDED (2026-06-16)
 
-The Notion side is ambiguous today:
+The canonical home is the **PWA Project Planner** page
+(`367063b66bf1806c97e5d74aab606d64`), which holds two inline databases — the
+migration's source of truth:
 
-- **Projects:** `projects--f190d316e397` vs `pure-water-projects--f575c4e886dc` (+ possibly a Northeast projects DB).
-- **Tasks:** `tasks--f1641ebddff0` vs `tasks-tracker--f2507e37da81`.
+- **Projects** — page `367063b66bf181da94a5f190d316e397`,
+  data source `collection://367063b6-6bf1-8169-aad9-000b0e032058` (~18 rows).
+- **Tasks** — page `367063b66bf181c9833af1641ebddff0`,
+  data source `collection://367063b6-6bf1-8129-b05a-000bf02e7dee` (~14 rows).
 
-**Decision needed (Justin):** pick ONE canonical Projects DB + ONE canonical Tasks DB;
-decide whether Northeast and PWA share one schema or stay separate (the `kind`
-discriminator handles both). Lock the 25-field task schema (handoff spec §4.2) + status/
-owner conventions **before** migrating — migrating ambiguity doubles it.
+These were copied here 2026-05-21 from the older **Pure Water Projects** +
+**Tasks Tracker** DBs (in "PWA Goals & Projects"); the Planner is now the
+actively-edited copy (newest edit 2026-06-16). `import:tasks` reads these two
+data sources.
+
+**Not in scope — a separate domain, do NOT merge.** A parallel Northeast/ministry
+planner is *also* titled "Projects"/"Tasks" (`projects--0149f33a280c`, ~45 rows;
+`tasks--01bbe6b31baf`, ~12 rows — e.g. "Ask True Parents", "Blessing Culture
+Media", "NE Leadership Courses", "Guest to Member Conversion"). That is Justin's
+Northeast portfolio, a different scope. The `ProjectKind.NORTHEAST` discriminator
+anticipates folding it in later, but **Phase 1 migrates only the PWA Planner DBs.**
+Recommended: rename the Northeast DBs so the title collision with the canon stops
+causing "duplicate DB" confusion.
+
+**One-time cleanup (needs Justin's OK — a Notion write).** Retire the old
+pre-copy originals ("Pure Water Projects" + "Tasks Tracker" in "PWA Goals &
+Projects") with a redirect banner or archive, so no one keeps editing the stale
+copy instead of the Planner.
+
+**Still to lock before code:** the task **field schema** + status/owner conventions
+(handoff spec §4.2).
 
 ## 1. Data model (Prisma) — reuse existing conventions
 
@@ -105,8 +126,10 @@ Track both via `SyncRun`.
 ## 4. Data migration (one-time)
 
 An `npm run import:tasks` script (mirroring the existing `import:sheet`) reads the
-canonical Notion Projects/Tasks DB → Postgres, mapping the 25 fields and storing each
-Notion page id in `notionRefId` for idempotent re-runs + the mirror back-link.
+two canonical data sources (Projects `collection://367063b6-6bf1-8169-aad9-000b0e032058`,
+Tasks `collection://367063b6-6bf1-8129-b05a-000bf02e7dee`) → Postgres, mapping the
+fields and storing each Notion page id in `notionRefId` for idempotent re-runs +
+the mirror back-link.
 
 ## 5. Phases
 
