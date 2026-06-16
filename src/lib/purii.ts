@@ -182,20 +182,31 @@ export async function bypassAct(question: string, role: Role): Promise<BypassRes
 export type TourStep = { sprite: string; title: string; body: string; href?: string; cta?: string };
 
 const HR_TOUR: TourStep[] = [
-  { sprite: "waving", title: "Welcome! I'm Purii 👋", body: "I'll walk you through the HR console in under a minute. Ready? Let's go." },
-  { sprite: "pointing", title: "Dashboard", body: "This is your daily heartbeat — pending tier reviews, capacity flags, efficiency watch, and recent activity, all at a glance.", href: "/hr", cta: "Open Dashboard" },
-  { sprite: "thinking", title: "Tier Reviews", body: "When a VA hits their hours threshold they're queued here. You review and Approve (it changes their pay) or Decline. The system never promotes automatically.", href: "/hr/reviews", cta: "Open Tier Reviews" },
+  { sprite: "waving", title: "Welcome! I'm Purii 👋", body: "I'll walk you through your whole HR console — every tab in the sidebar. Tap Next to step through, or skip anytime." },
+  // Daily
+  { sprite: "pointing", title: "Dashboard", body: "Your daily heartbeat — pending tier reviews, capacity flags, efficiency watch, and recent activity, all at a glance.", href: "/hr", cta: "Open Dashboard" },
+  { sprite: "thinking", title: "Tier Reviews", body: "When a VA hits their hours threshold they're queued here. Approve (it changes their pay) or Decline — the system never promotes automatically.", href: "/hr/reviews", cta: "Open Tier Reviews" },
+  { sprite: "thumbs-up", title: "Evaluations", body: "Start and review performance evaluations for your VAs — they feed tier progression and trainee graduation.", href: "/hr/evaluations", cta: "Open Evaluations" },
+  { sprite: "surprised", title: "Capacity Alerts", body: "Anyone over- or under-utilized over the last two weeks shows here. Mark them reviewed once you've checked in.", href: "/hr/capacity", cta: "Open Capacity" },
+  // Manage
   { sprite: "open-arms", title: "VA Registry", body: "Your roster — roles, status, target hours, cumulative hours, and check-in freshness. Deactivate someone right from their row.", href: "/hr/registry", cta: "Open Registry" },
-  { sprite: "surprised", title: "Capacity Alerts", body: "Anyone overburdened or underutilized over the last two weeks shows here. Mark them reviewed once you've checked in.", href: "/hr/capacity", cta: "Open Capacity" },
-  { sprite: "pointing", title: "Recruitment", body: "The full hiring pipeline — applied → interview → decide → 10-hour gate → contract → onboarding. Invite, pass/fail the gate, and run the onboarding checklist here.", href: "/recruitment", cta: "Open Pipeline" },
-  { sprite: "thumbs-up", title: "Payroll", body: "Bookkeepers (and HR) recalculate, lock & close a period, and mark it paid. Closed periods live in the Archive.", href: "/payroll", cta: "Open Payroll" },
-  { sprite: "celebrating", title: "That's the tour! 🎉", body: "You're set. Tap me anytime and ask 'how do I…' — I'll point you to the exact spot." },
+  { sprite: "pointing", title: "Compensation Roles", body: "The tier ladder — each role's hourly rate and the hours threshold to reach it. This is what tier reviews promote toward.", href: "/hr/roles", cta: "Open Comp Roles" },
+  { sprite: "thinking", title: "Forms & Check-ins", body: "Your VAs' monthly check-in responses, plus the form/application links you share with them.", href: "/hr/checkins", cta: "Open Forms & Check-ins" },
+  { sprite: "thumbs-up", title: "Contract template", body: "The agreement candidates e-sign. Edit the template here — changes apply to the next contract you send.", href: "/admin/contract", cta: "Open Contract template" },
+  // Recruitment
+  { sprite: "pointing", title: "Recruitment — Pipeline", body: "Every candidate by stage — from applied and interviewed, through the hiring decision, the pre-trial review, the 10-hour trial and gate, to contract, signing and onboarding.", href: "/recruitment", cta: "Open Pipeline" },
+  { sprite: "thinking", title: "Training Log", body: "Each invited candidate's progress through the 10-hour skills trial — hours logged and tasks completed.", href: "/recruitment/training", cta: "Open Training Log" },
+  { sprite: "surprised", title: "Gate Reviews", body: "Two review points: the pre-trial check (approve to start the trial) and the 10-hour gate (pass to send a contract).", href: "/recruitment/gate", cta: "Open Gate Reviews" },
+  { sprite: "open-arms", title: "Training Module", body: "The editable 10-hour training module every candidate works through — readings, videos, a quiz, hands-on tasks, and submission. Add, edit, or reorder items here.", href: "/recruitment/tasks", cta: "Open Training Module" },
+  { sprite: "thumbs-up", title: "Onboarding", body: "Once a contract is signed, run the new VA's onboarding checklist to completion here.", href: "/recruitment/onboarding", cta: "Open Onboarding" },
+  { sprite: "celebrating", title: "That's the full tour! 🎉", body: "You've seen every tab. Tap me anytime and ask 'how do I…' — I'll point you to the exact spot." },
 ];
 
 const VA_TOUR: TourStep[] = [
   { sprite: "waving", title: "Hi! I'm Purii 👋", body: "Quick tour of your console — just a few stops." },
   { sprite: "pointing", title: "Overview", body: "Your hours (last 7 and 14 days), cumulative total, and how your utilization is tracking.", href: "/va", cta: "Open Overview" },
   { sprite: "open-arms", title: "Tier Progress", body: "See how close you are to your next role and what's still needed.", href: "/va/tier", cta: "Open Tier Progress" },
+  { sprite: "thumbs-up", title: "Evaluation", body: "Complete your performance self-assessment and review your supervisor's feedback — your rating feeds promotion decisions.", href: "/va/evaluation", cta: "Open Evaluation" },
   { sprite: "thinking", title: "Monthly Check-in", body: "Once a month, tell us your target hours, availability, and how your workload feels. It only takes a moment.", href: "/va/checkin", cta: "Open Check-in" },
   { sprite: "celebrating", title: "All done! 🎉", body: "That's it. Tap me whenever you need a hand." },
 ];
