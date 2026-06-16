@@ -193,6 +193,7 @@ const HR_TOUR: TourStep[] = [
   { sprite: "pointing", title: "Compensation Roles", body: "The tier ladder — each role's hourly rate and the hours threshold to reach it. This is what tier reviews promote toward.", href: "/hr/roles", cta: "Open Comp Roles" },
   { sprite: "thinking", title: "Forms & Check-ins", body: "Your VAs' monthly check-in responses, plus the form/application links you share with them.", href: "/hr/checkins", cta: "Open Forms & Check-ins" },
   { sprite: "thumbs-up", title: "Contract template", body: "The agreement candidates e-sign. Edit the template here — changes apply to the next contract you send.", href: "/admin/contract", cta: "Open Contract template" },
+  { sprite: "thinking", title: "Email sender", body: "Connect the Gmail account that sends contracts, invites, and alerts — and control the test-mode redirect while the team trials the app.", href: "/admin/email", cta: "Open Email sender" },
   // Recruitment
   { sprite: "pointing", title: "Recruitment — Pipeline", body: "Every candidate by stage — from applied and interviewed, through the hiring decision, the pre-trial review, the 10-hour trial and gate, to contract, signing and onboarding.", href: "/recruitment", cta: "Open Pipeline" },
   { sprite: "thinking", title: "Training Log", body: "Each invited candidate's progress through the 10-hour skills trial — hours logged and tasks completed.", href: "/recruitment/training", cta: "Open Training Log" },

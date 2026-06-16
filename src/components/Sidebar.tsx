@@ -21,6 +21,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/hr/roles", label: "Compensation Roles" },
         { href: "/hr/checkins", label: "Forms & Check-ins" },
         { href: "/admin/contract", label: "Contract template" },
+        { href: "/admin/email", label: "Email sender" },
       ],
     },
     {
