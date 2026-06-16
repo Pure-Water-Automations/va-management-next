@@ -57,6 +57,7 @@ const MATRIX_PASSWORD = "enter the matrix";
 
 const sprite = (name: string) => `/purii/${name}.png`;
 const bsprite = (name: string) => `/purii/bypass/${name}.png`;
+const msprite = (name: string) => `/purii/matrix/${name}.png`;
 
 export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -182,6 +183,9 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
 
   const cur = tour[Math.min(step, tour.length - 1)];
   const power = matrix || bypass; // Matrix and Bypass share the "charged" look.
+  const mode = matrix ? "matrix" : bypass ? "bypass" : null; // null = normal
+  const powerFace = face === "scan" ? "scan" : face === "warning" ? "warning" : face === "success" ? "success" : face === "charge" ? "charge" : "hero";
+  const glow = matrix ? "rgba(74,222,128,.85)" : "rgba(125,249,255,.8)"; // green for Matrix, cyan for Bypass
 
   // Tour spotlight (in-page element, else sidebar item) with render retries.
   useEffect(() => {
@@ -199,7 +203,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     return () => { timers.forEach(clearTimeout); clear(); };
   }, [open, tab, step, cur.href, pathname]);
 
-  const headerSprite = power ? bsprite(face === "scan" ? "scan" : face === "warning" ? "warning" : face === "success" ? "success" : face === "charge" ? "charge" : "hero") : sprite(tab === "tour" ? cur.sprite : face);
+  const headerSprite = matrix ? msprite(powerFace) : bypass ? bsprite(powerFace) : sprite(tab === "tour" ? cur.sprite : face);
 
   return (
     <>
@@ -210,25 +214,25 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
         }}
         aria-label="Open Purii helper"
         className={power ? "purii-glow" : "purii-float"}
-        style={power ? fabBypass : fab}
+        style={matrix ? fabMatrix : bypass ? fabBypass : fab}
       >
         <img
-          src={power ? "/purii/bypass/animated.gif" : open ? sprite("smile") : "/purii/animated.gif"}
+          src={matrix ? "/purii/matrix/animated.gif" : bypass ? "/purii/bypass/animated.gif" : open ? sprite("smile") : "/purii/animated.gif"}
           alt="Purii"
-          style={{ width: power ? 76 : 60, height: power ? 76 : 60, objectFit: "contain", filter: power ? "drop-shadow(0 0 6px rgba(125,249,255,.8))" : "none" }}
+          style={{ width: power ? 76 : 60, height: power ? 76 : 60, objectFit: "contain", filter: power ? `drop-shadow(0 0 6px ${glow})` : "none" }}
         />
         {!open && !power && notif && notif.count > 0 && <span style={badge}>{notif.count}</span>}
       </button>
 
       {open && (
-        <div className="purii-panel-in" style={power ? panelBypass : panel}>
-          <div style={power ? headerBypass : header}>
+        <div className="purii-panel-in" style={matrix ? panelMatrix : bypass ? panelBypass : panel}>
+          <div style={matrix ? headerMatrix : bypass ? headerBypass : header}>
             <img
               key={`${popKey}-${headerSprite}`}
               className="purii-pop"
               src={headerSprite}
               alt=""
-              style={{ width: power ? 56 : 50, height: power ? 56 : 50, objectFit: "contain", filter: power ? "drop-shadow(0 0 5px rgba(125,249,255,.7))" : "none" }}
+              style={{ width: power ? 56 : 50, height: power ? 56 : 50, objectFit: "contain", filter: power ? `drop-shadow(0 0 5px ${glow})` : "none" }}
             />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--text-md)", color: "#fff", lineHeight: 1 }}>
@@ -274,10 +278,10 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                 )}
                 {messages.map((m, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: m.from === "you" ? "flex-end" : "flex-start", marginBottom: 8 }}>
-                    <div style={bubble(m.from === "you", power)}>{m.from === "you" ? m.text : renderRich(m.text)}</div>
+                    <div style={bubble(m.from === "you", mode)}>{m.from === "you" ? m.text : renderRich(m.text)}</div>
                   </div>
                 ))}
-                {loading && <div style={{ ...bubble(false, power), opacity: 0.7 }}>{power ? "Purii is working…" : "Purii is thinking…"}</div>}
+                {loading && <div style={{ ...bubble(false, mode), opacity: 0.7 }}>{power ? "Purii is working…" : "Purii is thinking…"}</div>}
                 {proposal && (
                   <div style={proposalCard}>
                     <div style={{ fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -293,7 +297,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
               </div>
               <form onSubmit={(e) => { e.preventDefault(); send(input); }} style={{ display: "flex", gap: 8, padding: 12, borderTop: power ? "1px solid #1e3a5f" : "1px solid var(--color-border)", background: power ? "#0b1220" : undefined }}>
                 <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={matrix ? "Ask about the system or tell me what to change…" : power ? "Tell me what to do…" : "How do I…?"} style={power ? askInputBypass : askInput} />
-                <button type="submit" disabled={loading} style={power ? sendBtnBypass : sendBtn}>{power ? "Go" : "Ask"}</button>
+                <button type="submit" disabled={loading} style={matrix ? sendBtnMatrix : bypass ? sendBtnBypass : sendBtn}>{power ? "Go" : "Ask"}</button>
               </form>
             </>
           ) : (
@@ -338,7 +342,7 @@ const tabs: CSSProperties = { display: "flex", borderBottom: "1px solid var(--co
 const tabBtn = (active: boolean): CSSProperties => ({ flex: 1, padding: "10px", border: "none", cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600, background: active ? "var(--color-surface)" : "var(--color-bg-secondary)", color: active ? "var(--color-navy-900)" : "var(--color-text-secondary)", borderBottom: active ? "2px solid var(--color-sky-400)" : "2px solid transparent" });
 const body: CSSProperties = { flex: 1, overflowY: "auto", padding: 14 };
 const chip: CSSProperties = { textAlign: "left", padding: "8px 12px", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)", background: "var(--color-bg-secondary)", cursor: "pointer", fontSize: "var(--text-sm)", color: "var(--color-navy-800)" };
-const bubble = (you: boolean, bp: boolean): CSSProperties => ({ maxWidth: "82%", padding: "9px 12px", borderRadius: 14, fontSize: "var(--text-sm)", lineHeight: 1.45, whiteSpace: "pre-wrap", background: you ? (bp ? "#0ea5e9" : "var(--color-navy-900)") : (bp ? "#13233f" : "var(--color-bg-tertiary)"), color: you ? "#fff" : (bp ? "#dbeafe" : "var(--color-text-primary)") });
+const bubble = (you: boolean, mode: "matrix" | "bypass" | null): CSSProperties => ({ maxWidth: "82%", padding: "9px 12px", borderRadius: 14, fontSize: "var(--text-sm)", lineHeight: 1.45, whiteSpace: "pre-wrap", background: you ? (mode === "matrix" ? "#16a34a" : mode === "bypass" ? "#0ea5e9" : "var(--color-navy-900)") : (mode === "matrix" ? "#0f2a1a" : mode === "bypass" ? "#13233f" : "var(--color-bg-tertiary)"), color: you ? "#fff" : (mode === "matrix" ? "#dcfce7" : mode === "bypass" ? "#dbeafe" : "var(--color-text-primary)") });
 const proposalCard: CSSProperties = { border: "1px solid #38bdf8", background: "linear-gradient(145deg,#0c2545,#0a1830)", borderRadius: 12, padding: 14, margin: "6px 0", boxShadow: "0 0 0 1px rgba(56,189,248,.25)" };
 const confirmBtn: CSSProperties = { flex: 1, border: "none", borderRadius: 999, padding: "9px", background: "linear-gradient(180deg,#22d3ee,#0ea5e9)", color: "#06121f", fontWeight: 700, cursor: "pointer" };
 const cancelBtn: CSSProperties = { flex: 1, border: "1px solid rgba(255,255,255,.2)", borderRadius: 999, padding: "9px", background: "transparent", color: "#cbd5e1", fontWeight: 600, cursor: "pointer" };
@@ -346,5 +350,10 @@ const askInput: CSSProperties = { flex: 1, border: "1px solid var(--color-border
 const askInputBypass: CSSProperties = { ...askInput, background: "#13233f", border: "1px solid #1e3a5f", color: "#fff" };
 const sendBtn: CSSProperties = { border: "none", borderRadius: "var(--radius-input)", padding: "0 16px", background: "var(--color-navy-900)", color: "#fff", fontWeight: 600, cursor: "pointer" };
 const sendBtnBypass: CSSProperties = { ...sendBtn, background: "linear-gradient(180deg,#22d3ee,#0ea5e9)", color: "#06121f", fontWeight: 700 };
+// Matrix mode — green-themed variants (vs Bypass's cyan).
+const fabMatrix: CSSProperties = { ...fab, width: 84, height: 84, background: "radial-gradient(circle at 50% 36%, #dcfce7 0%, #22c55e 48%, #166534 100%)" };
+const panelMatrix: CSSProperties = { ...panel, border: "1px solid #14532d", boxShadow: "0 0 0 1px rgba(74,222,128,.3), 0 24px 70px rgba(6,20,12,.6)" };
+const headerMatrix: CSSProperties = { ...header, background: "linear-gradient(145deg, #0c2a1a, #04140a)", borderBottom: "1px solid #14532d" };
+const sendBtnMatrix: CSSProperties = { ...sendBtn, background: "linear-gradient(180deg,#4ade80,#16a34a)", color: "#04140a", fontWeight: 700 };
 const tourLink: CSSProperties = { display: "inline-block", marginTop: 12, color: "var(--color-sky-600)", fontWeight: 600, fontSize: "var(--text-sm)" };
 const navBtn = (disabled: boolean): CSSProperties => ({ border: "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-button)", padding: "7px 16px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.4 : 1, fontSize: "var(--text-sm)", fontWeight: 600 });
