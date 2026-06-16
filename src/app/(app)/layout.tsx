@@ -32,7 +32,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
       <div className="app-shell">
         <label htmlFor="nav-toggle" className="nav-backdrop" aria-hidden="true" />
-        <Sidebar view={view} role={user.role} name={user.name ?? user.email} />
+        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} />
         <main className="content" style={{ padding: 0 }}>
           {user.isAdmin && <AdminBar currentView={view} vas={adminVas} currentVaId={impersonatedVaId} />}
           <div className="content-pad">{children}</div>

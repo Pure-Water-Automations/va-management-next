@@ -82,6 +82,7 @@ model Va {
   evaluations    Evaluation[]
   capacityEvents CapacityFlagEvent[]
   onboarding     Onboarding?
+  recordings     Recording[]
 }
 
 enum CompensationType {
@@ -391,6 +392,10 @@ model Candidate {
 
   sessions     TrainingSession[]
   taskProgress TrainingTaskProgress[]
+  recordings   Recording[]
+  // In-app screen recording used for the 10-hr walkthrough (augments tenhrLoomUrl).
+  // Wiring is deferred; the column exists now so no later migration is needed.
+  tenhrRecordingId String?
 
   @@index([currentStage])
 }
@@ -511,6 +516,94 @@ model Onboarding {
   notionOnboardingPageId String?
   notes          String?
   updatedAt      DateTime @updatedAt
+}
+
+// ── Recordings (in-app Loom-style screen/webcam recordings) ────────────────
+// Browser-captured screen+mic(+webcam) clips stored in Cloudflare R2. The DB row
+// holds metadata, the AI transcript/summary, and review/comment state. Video bytes
+// live in R2 under recordings/<id>/. Admin-only for now (gated in routes/pages);
+// public sharing + candidate/recruitment wiring are deferred (see docs/recordings-feature.md).
+
+enum RecordingStatus {
+  uploading // presigned PUT in progress (initial state)
+  processing // reserved: uploaded, heavy processing in flight
+  ready // playable
+  failed
+}
+
+enum RecordingVisibility {
+  private // owner + admins only
+  internal // owner + supervisor chain + HR/PeopleOps/TeamLead
+  link // anyone with the share token (public page — deferred)
+}
+
+model Recording {
+  id             String              @id @default(cuid())
+  // Ownership — typically exactly one of vaId / candidateId is set.
+  vaId           String?
+  va             Va?                 @relation(fields: [vaId], references: [vaId])
+  candidateId    String?
+  candidate      Candidate?          @relation(fields: [candidateId], references: [candidateId])
+  uploaderUserId String? // User.id when a signed-in user records; null for candidate captures
+  uploaderEmail  String? // denormalized for display / audit
+
+  title       String              @default("Untitled recording")
+  description String?
+  status      RecordingStatus     @default(uploading)
+  visibility  RecordingVisibility @default(internal)
+  shareToken  String?             @unique // present once a share link is minted (deferred)
+
+  // R2 storage
+  objectKey     String  @unique // recordings/<id>/source.webm
+  mimeType      String  @default("video/webm")
+  sizeBytes     Int? // bytes (length-capped client-side, well under Int max)
+  durationSec   Float?
+  thumbnailKey  String? // recordings/<id>/thumb.jpg
+  transcriptKey String? // recordings/<id>/transcript.json (raw segments)
+
+  // Tagging (aligns with DeskLogHours.project/task — free strings, no FK)
+  project String?
+  task    String?
+
+  // AI (best-effort, populated by worker/recordings-process.ts)
+  transcript     String? @db.Text
+  transcriptJson Json? // [{ start, end, text }] for click-to-seek
+  aiTitle        String?
+  aiSummary      String? @db.Text
+  aiStatus       String? // pending | running | done | failed | skipped
+
+  // Review workflow (supervisor / HR)
+  reviewStatus String? // needs_review | reviewed | flagged
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  reviewNotes  String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  uploadedAt DateTime?
+  readyAt    DateTime?
+
+  comments RecordingComment[]
+
+  @@index([vaId])
+  @@index([candidateId])
+  @@index([status])
+  @@index([uploaderUserId])
+}
+
+model RecordingComment {
+  id           String    @id @default(cuid())
+  recordingId  String
+  recording    Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  authorEmail  String? // null for anonymous public viewers (deferred)
+  authorName   String?
+  body         String?   @db.Text // null when it's a pure reaction
+  reaction     String? // emoji shorthand e.g. "👍"
+  timestampSec Float? // time-anchored position (null = general comment)
+  isPublic     Boolean   @default(false) // posted from the public share page (deferred)
+  createdAt    DateTime  @default(now())
+
+  @@index([recordingId])
 }
 
 // ── System / config / audit ───────────────────────────────────────────────

@@ -31,6 +31,19 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Cloudflare R2 (video storage for the in-app recorder). All optional so the
+  // app still boots without R2 configured; recording features no-op until set.
+  R2_ACCOUNT_ID: optionalEnvString(z.string()),
+  R2_ACCESS_KEY_ID: optionalEnvString(z.string()),
+  R2_SECRET_ACCESS_KEY: optionalEnvString(z.string()),
+  R2_BUCKET: optionalEnvString(z.string()),
+  R2_ENDPOINT: optionalEnvString(z.string().url()), // https://<accountid>.r2.cloudflarestorage.com
+  R2_PUBLIC_BASE_URL: optionalEnvString(z.string().url()), // optional public/CDN base; unset => always presign
+  // OpenAI speech-to-text model for recording transcripts.
+  OPENAI_TRANSCRIBE_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("whisper-1"),
+  ),
 });
 
 export const env = envSchema.parse(process.env);

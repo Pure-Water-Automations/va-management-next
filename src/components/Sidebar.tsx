@@ -66,7 +66,17 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
   ],
 };
 
-export function Sidebar({ view, role, name }: { view: ConsoleView; role: Role; name: string }) {
+export function Sidebar({
+  view,
+  role,
+  name,
+  isAdmin = false,
+}: {
+  view: ConsoleView;
+  role: Role;
+  name: string;
+  isAdmin?: boolean;
+}) {
   const sections = NAV[view] ?? NAV.VA;
   return (
     <aside className="sidebar">
@@ -84,6 +94,18 @@ export function Sidebar({ view, role, name }: { view: ConsoleView; role: Role; n
           ))}
         </div>
       ))}
+      {/* Recordings (Loom-style) — admin-only preview. Opens to all roles later. */}
+      {isAdmin && (
+        <div>
+          <div className="nav-label">Recordings</div>
+          <a href="/record" className="nav-item" data-tour="/record">
+            Record
+          </a>
+          <a href="/recordings" className="nav-item" data-tour="/recordings">
+            Recordings
+          </a>
+        </div>
+      )}
       <div className="foot">
         {name}
         <br />
