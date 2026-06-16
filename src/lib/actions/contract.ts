@@ -7,6 +7,7 @@ import { generateSignedPdf } from "@/lib/contract/pdf";
 import { deliverSignedContract } from "@/lib/contract/store";
 import { markContractSigned } from "@/lib/actions/recruitment";
 import { logActivity } from "@/lib/activity";
+import { runWithActor } from "@/lib/request-context";
 
 type Signable = { currentStage: string; contractDeadline: Date | null; signedAt: Date | null };
 
@@ -91,15 +92,19 @@ export async function signContract(
     .map((v) => (v ?? "").trim())
     .filter(Boolean) as string[];
 
-  const delivery = await deliverSignedContract({
-    pdf,
-    candidateName: vars.name,
-    candidateEmail: candidate.email,
-    hrRecipients,
-    from,
-    folderId: (settings.get("signed_contracts_folder_id") ?? "").trim(),
-    dateYmd: vars.date,
-  });
+  // Sign-flow emails (signed PDF, onboarding/welcome) route to the signer in test
+  // mode, so a tester playing the candidate receives them.
+  const delivery = await runWithActor(candidate.email, () =>
+    deliverSignedContract({
+      pdf,
+      candidateName: vars.name,
+      candidateEmail: candidate.email,
+      hrRecipients,
+      from,
+      folderId: (settings.get("signed_contracts_folder_id") ?? "").trim(),
+      dateYmd: vars.date,
+    }),
+  );
 
   await db.contractSignature.create({
     data: {
@@ -117,7 +122,7 @@ export async function signContract(
   });
 
   // Provision the VA (reuses the existing flow; passes its contract_sent guard here).
-  await markContractSigned(candidate.candidateId);
+  await runWithActor(candidate.email, () => markContractSigned(candidate.candidateId));
 
   // Consume the token so the link can't be reused.
   await db.candidate.update({

@@ -2,6 +2,7 @@ import type { Role } from "@prisma/client";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/access";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { audit } from "@/lib/activity";
+import { runWithActor } from "@/lib/request-context";
 
 type Handler = (ctx: { user: CurrentUser; body: Record<string, unknown> }) => Promise<unknown>;
 
@@ -33,7 +34,7 @@ export function action(handler: Handler, opts?: { allow?: (role: Role) => boolea
     }
 
     try {
-      const result = await handler({ user, body });
+      const result = await runWithActor(user.email, () => handler({ user, body }));
       await audit({ actorEmail: user.email, action: "action", ok: true });
       return Response.json({ ok: true, result: result ?? null });
     } catch (err) {

@@ -2,6 +2,7 @@ import { gmail as gmailApi } from "@googleapis/gmail";
 import { OAuth2Client } from "google-auth-library";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { currentActorEmail } from "@/lib/request-context";
 
 /**
  * TEST MODE: when the `email_redirect_to` setting holds an address, every system
@@ -9,11 +10,35 @@ import { env } from "@/lib/env";
  * annotated with the original recipient). Lets us test flows without mailing
  * real applicants/VAs. Empty setting = normal sending.
  */
+/**
+ * Decide where a system email actually goes in test mode (pure — unit-tested).
+ * - actorMode off: use the fixed redirect address (or null = no redirect).
+ * - actorMode on: redirect to whoever triggered the action, falling back to the
+ *   fixed address when there's no actor (background workers).
+ */
+export function resolveRedirectTarget(opts: {
+  redirectTo: string | null;
+  actorMode: boolean;
+  actorEmail?: string | null;
+}): string | null {
+  const fallback = opts.redirectTo?.trim() || null;
+  if (opts.actorMode) return opts.actorEmail?.trim() || fallback;
+  return fallback;
+}
+
 async function emailRedirectTo(): Promise<string | null> {
   try {
-    const row = await db.setting.findUnique({ where: { key: "email_redirect_to" }, select: { value: true } });
-    const v = (row?.value || "").trim();
-    return v || null;
+    const rows = await db.setting.findMany({
+      where: { key: { in: ["email_redirect_to", "email_redirect_to_actor"] } },
+      select: { key: true, value: true },
+    });
+    const map = new Map(rows.map((r) => [r.key, (r.value || "").trim()]));
+    const actorMode = (map.get("email_redirect_to_actor") || "").toUpperCase() === "TRUE";
+    return resolveRedirectTarget({
+      redirectTo: map.get("email_redirect_to") || null,
+      actorMode,
+      actorEmail: currentActorEmail(),
+    });
   } catch {
     return null;
   }
