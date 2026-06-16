@@ -35,7 +35,7 @@ export default async function ReviewsPage() {
               <div>
                 <div style={{ fontWeight: 600 }}>{r.vaName ?? r.vaId}</div>
                 <div className="small">
-                  {r.currentRole} → {r.targetRole ?? "next"} · {r.cumulativeHoursAtTrigger ?? 0}h ·{" "}
+                  {r.currentRole} → {r.targetRole ?? "next"} · {Math.round(r.cumulativeHoursAtTrigger ?? 0)}h ·{" "}
                   <Badge variant="warning">{r.status.replace(/_/g, " ")}</Badge>
                 </div>
               </div>

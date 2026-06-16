@@ -53,7 +53,7 @@ export default async function HrDashboard() {
                   <div>
                     <div style={{ fontWeight: 600 }}>{r.vaName ?? r.vaId}</div>
                     <div className="small">
-                      {r.currentRole} → {r.targetRole ?? "next"} · {r.cumulativeHoursAtTrigger ?? 0}h
+                      {r.currentRole} → {r.targetRole ?? "next"} · {Math.round(r.cumulativeHoursAtTrigger ?? 0)}h
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
