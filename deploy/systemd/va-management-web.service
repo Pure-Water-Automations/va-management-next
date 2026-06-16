@@ -7,6 +7,8 @@ Wants=postgresql.service
 Type=simple
 WorkingDirectory=/app/SecondBrain/va-management-console/current
 EnvironmentFile=/app/SecondBrain/va-management-console/shared/.env.production
+# Shared OpenRouter key (Matrix mode). Optional (-): unit still starts if absent.
+EnvironmentFile=-/etc/secondbrain/openrouter.env
 # Loopback only: trusts the Cf-Access-Authenticated-User-Email header, so it must
 # be reachable solely via the Cloudflare tunnel, never directly.
 ExecStart=/usr/bin/node /app/SecondBrain/va-management-console/current/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 8796
