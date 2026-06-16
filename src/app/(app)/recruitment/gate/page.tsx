@@ -1,4 +1,4 @@
-import { getGateQueue } from "@/lib/reads/hr-extra";
+import { getGateQueue, getPreTrialQueue } from "@/lib/reads/hr-extra";
 import { getCurrentUser } from "@/lib/auth/access";
 import { isGateReviewer } from "@/lib/auth/roles";
 import { Card } from "@/components/ui/Card";
@@ -17,7 +17,7 @@ const REC_LABEL: Record<string, string> = {
 };
 
 export default async function GateReviewPage() {
-  const [user, candidates] = await Promise.all([getCurrentUser(), getGateQueue()]);
+  const [user, candidates, preTrial] = await Promise.all([getCurrentUser(), getGateQueue(), getPreTrialQueue()]);
   const canReview = isGateReviewer(user.role) || user.isAdmin;
 
   return (
@@ -25,11 +25,65 @@ export default async function GateReviewPage() {
       <div className="page-head">
         <div>
           <div className="crumb">Recruitment</div>
-          <h1>10-hour gate review</h1>
+          <h1>Gate reviews</h1>
         </div>
-        <span className="small">{candidates.length} in review</span>
+        <span className="small">{preTrial.length + candidates.length} in review</span>
       </div>
 
+      <h2 style={sectionTitle}>Pre-trial reviews <span className="small" style={{ fontWeight: 400 }}>({preTrial.length}) — approve to start the 10-hour trial</span></h2>
+      {preTrial.length === 0 ? (
+        <Card style={{ marginBottom: 28 }}><div style={{ fontStyle: "italic", color: "var(--color-text-tertiary)" }}>No candidates awaiting pre-trial review.</div></Card>
+      ) : (
+        preTrial.map((c) => {
+          const scores = [
+            ["Communication", c.commScore],
+            ["Reliability", c.reliabilityScore],
+            ["Ownership", c.ownershipScore],
+            ["Skill fit", c.skillFitScore],
+          ] as const;
+          const hasInterview = c.interviewDate != null && scores.some(([, v]) => v != null);
+          return (
+            <Card key={c.candidateId} style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>{c.name ?? c.email}</div>
+                  <div className="small">{c.email}{c.decidedBy ? ` · recommended by ${c.decidedBy}` : ""}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <Badge variant="warning">Pre-trial</Badge>
+                  {canReview && (
+                    <>
+                      <ActionButton path="/api/recruitment/pretrial-gate" body={{ candidateId: c.candidateId, result: "approve" }} confirm={`Approve ${c.name ?? c.email} to start the 10-hour trial? They'll be emailed the tracker link.`} variant="secondary">Approve → start trial</ActionButton>
+                      <ActionButton path="/api/recruitment/pretrial-gate" body={{ candidateId: c.candidateId, result: "decline" }} confirm={`Decline ${c.name ?? c.email}'s pre-trial review? They'll go back to the waitlist.`} variant="ghost">Decline</ActionButton>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+                <div style={box}>
+                  <div style={boxTitle}>Interview</div>
+                  {hasInterview ? (
+                    <>
+                      {scores.map(([label, v]) => (<div key={label} style={scoreRow}><span>{label}</span><strong>{v != null ? `${v}/5` : "—"}</strong></div>))}
+                      {c.recruiterRecommendation && (<div style={{ marginTop: 6 }}><Badge variant={c.recruiterRecommendation === "recommend_hire" ? "success" : c.recruiterRecommendation === "pass" ? "default" : "warning"}>{REC_LABEL[c.recruiterRecommendation] ?? c.recruiterRecommendation}</Badge></div>)}
+                      {c.interviewNotes && <div className="small" style={{ marginTop: 8, color: "var(--color-text-secondary)" }}>“{c.interviewNotes}”</div>}
+                    </>
+                  ) : (<div className="small" style={{ fontStyle: "italic", color: "var(--color-text-tertiary)" }}>No interview recorded.</div>)}
+                </div>
+                <div style={box}>
+                  <div style={boxTitle}>AI first-pass</div>
+                  {c.screenedAt ? (
+                    <ScreeningPanel candidateId={c.candidateId} verdict={c.screenVerdict} score={c.screenScore} summary={c.screenSummary} flags={c.screenFlags} screenedAt={c.screenedAt} canScreen={canReview} />
+                  ) : (<div className="small" style={{ fontStyle: "italic", color: "var(--color-text-tertiary)" }}>{c.source === "native_form" ? "Not screened." : "No application form on file."}</div>)}
+                </div>
+              </div>
+              {c.source === "native_form" && <div style={{ marginTop: 12 }}><ApplicationDetails answers={c.applicationJson} /></div>}
+            </Card>
+          );
+        })
+      )}
+
+      <h2 style={sectionTitle}>10-hour gate <span className="small" style={{ fontWeight: 400 }}>({candidates.length}) — pass to send a contract</span></h2>
       {candidates.length === 0 ? (
         <Card><div style={{ fontStyle: "italic", color: "var(--color-text-tertiary)" }}>No candidates awaiting gate review.</div></Card>
       ) : (
@@ -140,6 +194,7 @@ export default async function GateReviewPage() {
   );
 }
 
+const sectionTitle: React.CSSProperties = { fontSize: "var(--text-md)", fontWeight: 700, margin: "8px 0 12px" };
 const box: React.CSSProperties = { background: "var(--color-bg-secondary)", borderRadius: "var(--radius-lg)", padding: 12 };
 const boxTitle: React.CSSProperties = { fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary)", fontWeight: 700, marginBottom: 8 };
 const scoreRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", padding: "2px 0" };

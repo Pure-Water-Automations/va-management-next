@@ -3,9 +3,11 @@ import type { ReviewStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { loadSettings, num } from "@/lib/settings";
+import { notifyPostTrialReviewPending } from "@/lib/actions/recruitment";
 
 const INVALID_TOKEN_MESSAGE = "This training link is invalid or has expired.";
-const START_ALLOWED_STAGES = new Set(["tenhr_invited", "tenhr_in_progress"]);
+// Only candidates whose pre-trial gate has passed (stage tenhr_in_progress) can train.
+const START_ALLOWED_STAGES = new Set(["tenhr_in_progress"]);
 const DEFAULT_REQUIRED_MINUTES = 10 * 60;
 const DEFAULT_MAX_SINGLE_SESSION_MINUTES = 360;
 
@@ -543,6 +545,8 @@ export async function completeTask(token: string, assignmentId: string, outputLi
   }
   if (open) await endOpenSession(candidate.candidateId);
 
+  const wasReady = (await db.candidate.findUnique({ where: { candidateId: candidate.candidateId }, select: { trainingReadyForReview: true } }))?.trainingReadyForReview ?? false;
+
   await db.trainingTaskProgress.upsert({
     where: { candidateId_assignmentId: { candidateId: candidate.candidateId, assignmentId } },
     update: { status: "done", completedAt: new Date(), outputLink: cleanField(outputLink), note: cleanField(note) },
@@ -551,5 +555,11 @@ export async function completeTask(token: string, assignmentId: string, outputLi
   const ready = await recomputeChecklistReadiness(candidate.candidateId);
 
   await logActivity({ source: "training_tracker", eventType: "task_completed", summary: `${activityName({ candidateName: candidate.name, candidateEmail: candidate.email })} completed "${task.task}"${ready ? " — all tasks done, ready for review" : ""}` });
+  // On the transition to "all done", ping the gate reviewers (Eunmi + HR).
+  if (ready && !wasReady) {
+    await notifyPostTrialReviewPending({ name: candidate.name, email: candidate.email }).catch((err) =>
+      console.warn("completeTask: post-trial review email failed:", err instanceof Error ? err.message : err),
+    );
+  }
   return buildChecklistState(candidate.candidateId);
 }

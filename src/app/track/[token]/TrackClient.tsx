@@ -108,6 +108,21 @@ export function TrackClient({ token }: { token: string }) {
           </div>
         </div>
 
+        <div style={{ ...box, background: "var(--color-sky-50)", border: "1px solid var(--color-sky-100)" }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>📋 How this works</div>
+          <div className="small" style={{ color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+            Work through each item below. <strong>Start the timer</strong> when you begin a task and <strong>mark it done</strong> when you finish. You can do this across multiple sittings — the timer just tracks effort, so it&apos;s fine to take breaks.
+          </div>
+          <div style={{ fontWeight: 700, margin: "12px 0 6px" }}>🛠️ Two tools you&apos;ll use</div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+            <li><strong>Google Doc</strong> — for written work, create a Google Doc, do your tasks there, then set sharing to <em>&ldquo;Anyone with the link → Viewer&rdquo;</em> and paste the link when you mark the task done.</li>
+            <li><strong>Loom</strong> — a free screen-recording tool (<a href="https://www.loom.com" target="_blank" rel="noreferrer" style={{ color: "var(--color-sky-600)", fontWeight: 600 }}>loom.com</a>). When a task asks for a short video walkthrough, record your screen while you talk through what you did, then paste the share link.</li>
+          </ul>
+          <div className="small" style={{ marginTop: 10, color: "var(--color-text-tertiary)" }}>
+            Tip: paste your Google Doc / Loom link in the &ldquo;Link to your work&rdquo; box when you mark each task done, so the reviewer can see it.
+          </div>
+        </div>
+
         <div style={box}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
             <span style={label}>Progress</span>

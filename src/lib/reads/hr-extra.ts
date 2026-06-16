@@ -42,14 +42,26 @@ export async function getCheckins() {
   });
 }
 
+const GATE_INCLUDE = {
+  sessions: { orderBy: { createdAt: "desc" } },
+  taskProgress: { include: { assignment: { select: { task: true, skill: true, sortOrder: true } } } },
+} as const;
+
+/** Post-trial gate queue: candidates doing / finished the 10-hour trial. */
 export async function getGateQueue() {
   return db.candidate.findMany({
-    where: { currentStage: { in: ["tenhr_in_progress", "tenhr_invited"] } },
-    include: {
-      sessions: { orderBy: { createdAt: "desc" } },
-      taskProgress: { include: { assignment: { select: { task: true, skill: true, sortOrder: true } } } },
-    },
+    where: { currentStage: "tenhr_in_progress" },
+    include: GATE_INCLUDE,
     orderBy: { trainingTotalMinutes: "desc" },
+  });
+}
+
+/** Pre-trial gate queue: recruiter-recommended candidates awaiting the onboarding-readiness review. */
+export async function getPreTrialQueue() {
+  return db.candidate.findMany({
+    where: { currentStage: "tenhr_invited" },
+    include: GATE_INCLUDE,
+    orderBy: { decidedAt: "desc" },
   });
 }
 

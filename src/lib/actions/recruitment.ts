@@ -100,8 +100,10 @@ export async function decide(
       throw new Error("No skills-trial tasks are set up yet. Add them in Recruitment → Skills-Trial Tasks first.");
     }
 
+    // The recruiter recommends the trial; the candidate now waits on the
+    // pre-trial (onboarding-readiness) gate. No trial link is sent until that
+    // review passes — see preTrialGate().
     const settings = await loadSettings();
-    const token = randomUUID();
     const candidate = await db.candidate.update({
       where: { candidateId },
       data: {
@@ -109,21 +111,20 @@ export async function decide(
         decidedBy: actorEmail,
         decidedAt: now,
         followUpNotes: note ?? undefined,
-        tenhrDeadline: addDays(now, 7),
         tenhrAssignmentTitle: "VA skills trial",
-        tenhrAssignmentLink: null,
-        trainingAccessToken: token,
-        currentStage: "tenhr_in_progress",
+        currentStage: "tenhr_invited",
       },
     });
 
     await logActivity({
       source: "recruitment",
-      eventType: "tenhr_invited",
-      summary: `Skills-trial invite sent to ${candidateLabel(candidate)} by ${actorEmail}`,
+      eventType: "pretrial_review_pending",
+      summary: `${candidateLabel(candidate)} recommended for the skills trial by ${actorEmail} — awaiting pre-trial review`,
     });
 
-    await emailSkillsTrialInvite(candidate, token, taskCount, settings);
+    await emailPreTrialReviewPending(candidate, settings).catch((err) =>
+      console.warn("decide: pre-trial review email failed:", err instanceof Error ? err.message : err),
+    );
     return candidate;
   }
 
@@ -179,6 +180,105 @@ export async function gateReview(
   });
 
   return candidate;
+}
+
+const PRETRIAL_RESULTS = ["approve", "decline"] as const;
+export type PreTrialResult = (typeof PRETRIAL_RESULTS)[number];
+
+/** Parse + validate the pre-trial gate result. */
+export function parsePreTrialResult(result: string): PreTrialResult {
+  if (!PRETRIAL_RESULTS.includes(result as PreTrialResult)) {
+    throw new Error(`Invalid pre-trial result: ${result}`);
+  }
+  return result as PreTrialResult;
+}
+
+/** Stage a candidate moves to after the pre-trial (onboarding-readiness) gate. */
+export function preTrialNextStage(result: PreTrialResult): CandidateStage {
+  return result === "approve" ? "tenhr_in_progress" : "decision";
+}
+
+/**
+ * The pre-trial onboarding-readiness gate (Eunmi). Approve starts the skills
+ * trial — generates the tracker token and emails the candidate the link. Decline
+ * sends the candidate back to the waitlist. Only valid while the candidate is
+ * awaiting this review (stage "tenhr_invited").
+ */
+export async function preTrialGate(
+  candidateId: string,
+  result: string,
+  notes: string | undefined,
+  actorEmail: string,
+) {
+  const decision = parsePreTrialResult(result);
+  const existing = await db.candidate.findUnique({
+    where: { candidateId },
+    select: { candidateId: true, currentStage: true },
+  });
+  if (!existing) throw new Error("Candidate not found.");
+  if (existing.currentStage !== "tenhr_invited") {
+    throw new Error("This candidate is not awaiting a pre-trial review.");
+  }
+
+  const now = new Date();
+  const settings = await loadSettings();
+
+  if (decision === "approve") {
+    const taskCount = await db.trainingAssignment.count({ where: { active: true } });
+    if (taskCount === 0) {
+      throw new Error("No skills-trial tasks are set up yet. Add them in Recruitment → Skills-Trial Tasks first.");
+    }
+    const token = randomUUID();
+    const candidate = await db.candidate.update({
+      where: { candidateId },
+      data: {
+        currentStage: "tenhr_in_progress",
+        tenhrDeadline: addDays(now, 7),
+        tenhrAssignmentTitle: "VA skills trial",
+        trainingAccessToken: token,
+        followUpNotes: notes ?? undefined,
+      },
+    });
+    await logActivity({
+      source: "recruitment",
+      eventType: "pretrial_approved",
+      summary: `Pre-trial review passed for ${candidateLabel(candidate)} by ${actorEmail} — skills-trial invite sent`,
+    });
+    await emailSkillsTrialInvite(candidate, token, taskCount, settings);
+    return candidate;
+  }
+
+  const candidate = await db.candidate.update({
+    where: { candidateId },
+    data: {
+      currentStage: "decision",
+      finalDecision: "waitlist",
+      followUpNotes: notes ?? undefined,
+    },
+  });
+  await logActivity({
+    source: "recruitment",
+    eventType: "pretrial_declined",
+    summary: `Pre-trial review declined for ${candidateLabel(candidate)} by ${actorEmail}${notes ? `: ${notes}` : ""} — moved to waitlist`,
+  });
+  return candidate;
+}
+
+/** Notify the gate reviewers (Eunmi + HR) that a candidate finished the trial. */
+export async function notifyPostTrialReviewPending(candidate: { name: string | null; email: string }): Promise<void> {
+  const settings = await loadSettings();
+  const recipients = reviewerRecipients(settings);
+  if (recipients.length === 0) return;
+  await sendSystemEmail({
+    from: systemEmailFrom(settings),
+    to: recipients,
+    subject: `10-hour gate review needed: ${candidate.name ?? candidate.email}`,
+    body: [
+      `${candidate.name ?? candidate.email} has completed the 10-hour skills trial and is ready for your gate review.`,
+      "",
+      `Review here: ${appBaseUrl(settings)}/recruitment/gate`,
+    ].join("\n"),
+  });
 }
 
 export async function markContractSent(candidateId: string) {
@@ -531,9 +631,40 @@ async function emailSkillsTrialInvite(
       "",
       "For each task: start the timer, do the work, and mark it done (you can paste a link to your work). Once all tasks are complete, you're automatically submitted for review — no need to email us back.",
       "",
+      "Two tools you'll use: put any written work in a Google Doc (set sharing to \"anyone with the link can view\") and paste the link; if a task asks for a video walkthrough, record it free with Loom (loom.com) and paste that link. The checklist page has full instructions.",
+      "",
       "Take your time and do your best — we're excited to see what you can do!",
       "",
       "— Pure Water Automations Recruitment",
+    ].join("\n"),
+  });
+}
+
+/** Gate reviewers (Eunmi + HR). Configurable via the gate_reviewer_email setting. */
+function reviewerRecipients(settings: Map<string, string>): string[] {
+  return uniqueStrings([
+    settingStr(settings, "gate_reviewer_email", "eunmirangala@gmail.com"),
+    settingStr(settings, "people_ops_email", ""),
+    settingStr(settings, "hr_manager_email", ""),
+  ]);
+}
+
+async function emailPreTrialReviewPending(
+  candidate: { name: string | null; email: string },
+  settings: Map<string, string>,
+): Promise<void> {
+  const recipients = reviewerRecipients(settings);
+  if (recipients.length === 0) return;
+  await sendSystemEmail({
+    from: systemEmailFrom(settings),
+    to: recipients,
+    subject: `Pre-trial review needed: ${candidate.name ?? candidate.email}`,
+    body: [
+      `${candidate.name ?? candidate.email} has been recommended for the 10-hour skills trial and is awaiting your pre-trial (onboarding-readiness) review.`,
+      "",
+      "Approve to start their trial and send the tracker link, or decline to send them back to the waitlist.",
+      "",
+      `Review here: ${appBaseUrl(settings)}/recruitment/gate`,
     ].join("\n"),
   });
 }

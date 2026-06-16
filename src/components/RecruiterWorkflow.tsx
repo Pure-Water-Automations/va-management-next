@@ -65,7 +65,7 @@ export function RecruiterWorkflow({ candidateId, name, email, stage, hasVideoOrB
     case "interviewed":
     case "decision":
       if (canDecide) {
-        buttons.push(<Button key="t10" size="sm" variant="secondary" loading={busy === "t10"} onClick={() => run("t10", "/api/recruitment/decide", { decision: "invite_tenhr" }, `Invite ${who} to the 10-hour training? They'll be emailed the tracker + assignment.`)}>Invite 10-hr</Button>);
+        buttons.push(<Button key="t10" size="sm" variant="secondary" loading={busy === "t10"} onClick={() => run("t10", "/api/recruitment/decide", { decision: "invite_tenhr" }, `Recommend ${who} for the 10-hour trial? They go to the pre-trial review (Eunmi) before the trial starts — no link is sent yet.`)}>Recommend 10-hr</Button>);
         if (stage === "interviewed") buttons.push(<Button key="wl" size="sm" variant="ghost" loading={busy === "wl"} onClick={() => run("wl", "/api/recruitment/decide", { decision: "waitlist" })}>Waitlist</Button>);
         buttons.push(<Button key="rj" size="sm" variant="ghost" loading={busy === "rj"} onClick={() => run("rj", "/api/recruitment/decide", { decision: "reject" }, `Reject ${who}?`)}>Reject</Button>);
       }
