@@ -45,6 +45,48 @@ const numMarker: CSSProperties = {
 type TourStep = { sprite: string; title: string; body: string; href?: string; cta?: string };
 type Proposal = { tool: string; args: Record<string, unknown>; summary: string };
 type Msg = { from: "you" | "purii"; text: string };
+type Conversation = { id: string; startedAt: number; messages: Msg[] };
+
+// Chat persistence: the live conversation survives navigation (the sidebar does
+// full-page reloads), and past chats are browsable for ~30 days. localStorage,
+// per-device, no backend.
+const CHAT_KEY = "purii_chat_v1";
+const CHAT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_CONVERSATIONS = 50;
+const MAX_MSGS = 400;
+
+function newConversation(): Conversation {
+  return { id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, startedAt: Date.now(), messages: [] };
+}
+function loadChatStore(): { conversations: Conversation[]; currentId: string } {
+  if (typeof window === "undefined") { const c = newConversation(); return { conversations: [c], currentId: c.id }; }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CHAT_KEY) || "null") as { conversations?: Conversation[]; currentId?: string } | null;
+    const cutoff = Date.now() - CHAT_RETENTION_MS;
+    const conversations = (parsed?.conversations ?? [])
+      .filter((c) => c && typeof c.id === "string" && typeof c.startedAt === "number" && Array.isArray(c.messages) && c.startedAt >= cutoff)
+      .slice(0, MAX_CONVERSATIONS);
+    if (conversations.length) {
+      const currentId = parsed?.currentId && conversations.some((c) => c.id === parsed.currentId) ? parsed.currentId : conversations[0].id;
+      return { conversations, currentId };
+    }
+  } catch { /* ignore corrupt store */ }
+  const c = newConversation();
+  return { conversations: [c], currentId: c.id };
+}
+function saveChatStore(conversations: Conversation[], currentId: string): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(CHAT_KEY, JSON.stringify({ conversations: conversations.slice(0, MAX_CONVERSATIONS), currentId })); } catch { /* quota — ignore */ }
+}
+function fmtWhen(ts: number): string {
+  const d = new Date(ts);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (day.getTime() === today.getTime()) return `Today ${time}`;
+  if (day.getTime() === today.getTime() - 86_400_000) return `Yesterday ${time}`;
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+}
 
 const SUGGESTIONS = [
   "How do I approve a VA's promotion?",
@@ -74,6 +116,9 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
   const [popKey, setPopKey] = useState(0); // bumps to replay the mascot "pop"
   const [notif, setNotif] = useState<{ count: number; items: { key: string; label: string; count: number; href: string }[]; greeting: string } | null>(null);
   const [greeted, setGreeted] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentId, setCurrentId] = useState<string>("");
+  const [showHistory, setShowHistory] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -99,6 +144,46 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
       setMatrix(true); setFace("hero");
     }
   }, [canBypass]);
+  // Restore the chat (live conversation + history) and the open state on mount.
+  useEffect(() => {
+    const store = loadChatStore();
+    setConversations(store.conversations);
+    setCurrentId(store.currentId);
+    const cur = store.conversations.find((c) => c.id === store.currentId);
+    if (cur) setMessages(cur.messages);
+    if (typeof window !== "undefined" && sessionStorage.getItem("purii_open") === "1") setOpen(true);
+  }, []);
+  // Persist the live conversation as messages change.
+  useEffect(() => {
+    if (!currentId) return;
+    setConversations((prev) => {
+      const base = prev.some((c) => c.id === currentId) ? prev : [{ id: currentId, startedAt: Date.now(), messages: [] }, ...prev];
+      const next = base.map((c) => (c.id === currentId ? { ...c, messages: messages.slice(-MAX_MSGS) } : c));
+      saveChatStore(next, currentId);
+      return next;
+    });
+  }, [messages, currentId]);
+
+  function setOpenPersist(v: boolean) {
+    setOpen(v);
+    if (typeof window !== "undefined") sessionStorage.setItem("purii_open", v ? "1" : "0");
+  }
+  function startNewChat() {
+    setShowHistory(false);
+    const cur = conversations.find((c) => c.id === currentId);
+    if (cur && cur.messages.length === 0) return; // already a blank chat
+    const c = newConversation();
+    const next = [c, ...conversations].slice(0, MAX_CONVERSATIONS);
+    setConversations(next); setCurrentId(c.id); setMessages([]); setProposal(null);
+    saveChatStore(next, c.id);
+  }
+  function openConversation(id: string) {
+    const convo = conversations.find((c) => c.id === id);
+    if (!convo) return;
+    setCurrentId(id); setMessages(convo.messages); setProposal(null); setShowHistory(false);
+    saveChatStore(conversations, id);
+  }
+
   function toggleMute() {
     const m = !muted;
     setMutedState(m); setMuted(m);
@@ -186,6 +271,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
   const mode = matrix ? "matrix" : bypass ? "bypass" : null; // null = normal
   const powerFace = face === "scan" ? "scan" : face === "warning" ? "warning" : face === "success" ? "success" : face === "charge" ? "charge" : "hero";
   const glow = matrix ? "rgba(74,222,128,.85)" : "rgba(125,249,255,.8)"; // green for Matrix, cyan for Bypass
+  const historyList = [...conversations].filter((c) => c.messages.length > 0 || c.id === currentId).sort((a, b) => b.startedAt - a.startedAt);
 
   // Tour spotlight (in-page element, else sidebar item) with render retries.
   useEffect(() => {
@@ -209,8 +295,8 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
     <>
       <button
         onClick={() => {
-          const next = !open; setOpen(next);
-          if (next) { sndOpen(); if (!power && notif && notif.count > 0 && !greeted) { setGreeted(true); say(notif.greeting); } }
+          const next = !open; setOpenPersist(next);
+          if (next) { sndOpen(); if (!power && messages.length === 0 && notif && notif.count > 0 && !greeted) { setGreeted(true); say(notif.greeting); } }
         }}
         aria-label="Open Purii helper"
         className={power ? "purii-glow" : "purii-float"}
@@ -242,9 +328,15 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                 {matrix ? "matrix mode active" : bypass ? "permission bypass active" : "your console guide"}
               </div>
             </div>
+            {(power || tab === "ask") && (
+              <>
+                <button onClick={() => setShowHistory((v) => !v)} aria-label="Chat history" title="Chat history" style={iconBtn}>🕘</button>
+                <button onClick={startNewChat} aria-label="New chat" title="New chat" style={iconBtn}>✎</button>
+              </>
+            )}
             <button onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"} title={muted ? "Unmute" : "Mute"} style={iconBtn}>{muted ? "🔇" : "🔊"}</button>
             {power && <button onClick={() => { setBypass(false); setMatrix(false); setProposal(null); if (typeof window !== "undefined") { localStorage.setItem("purii_bypass", "0"); localStorage.setItem("purii_matrix", "0"); } say("Back to normal mode. 🌊"); }} aria-label="Exit power mode" style={exitBtn}>exit</button>}
-            <button onClick={() => setOpen(false)} aria-label="Close" style={closeBtn}>×</button>
+            <button onClick={() => setOpenPersist(false)} aria-label="Close" style={closeBtn}>×</button>
           </div>
 
           {!power && (
@@ -255,13 +347,37 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
           )}
 
           {power || tab === "ask" ? (
+            showHistory ? (
+              <div style={body}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontWeight: 700 }}>Chat history</div>
+                  <button onClick={() => setShowHistory(false)} style={backBtn}>← Back</button>
+                </div>
+                {historyList.length === 0 ? (
+                  <div className="small" style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>No past chats yet. Chats are kept on this device for ~30 days.</div>
+                ) : (
+                  historyList.map((c) => {
+                    const preview = c.messages.find((m) => m.from === "you")?.text ?? c.messages[0]?.text ?? "(empty)";
+                    return (
+                      <button key={c.id} onClick={() => openConversation(c.id)} style={historyItem(c.id === currentId)}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: "var(--text-sm)" }}>{c.id === currentId ? "Current chat" : fmtWhen(c.startedAt)}</span>
+                          <span className="small" style={{ color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>{c.messages.length} msg</span>
+                        </div>
+                        <div className="small" style={{ color: "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preview}</div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
             <>
               <div ref={scroller} style={{ ...body, background: power ? "#0b1220" : undefined }}>
                 {!power && notif && notif.items.length > 0 && (
                   <div style={notifBlock}>
                     <div style={{ fontWeight: 700, fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".12em", color: "var(--color-accent)", marginBottom: 8 }}>📌 Waiting for you</div>
                     {notif.items.map((it) => (
-                      <button key={it.key} onClick={() => { setOpen(false); router.push(it.href); }} style={notifItem}>
+                      <button key={it.key} onClick={() => { setOpenPersist(false); router.push(it.href); }} style={notifItem}>
                         <span style={notifCount}>{it.count}</span>
                         <span>{it.label}</span>
                       </button>
@@ -300,6 +416,7 @@ export function Purii({ tour, canBypass = false }: { tour: TourStep[]; canBypass
                 <button type="submit" disabled={loading} style={matrix ? sendBtnMatrix : bypass ? sendBtnBypass : sendBtn}>{power ? "Go" : "Ask"}</button>
               </form>
             </>
+            )
           ) : (
             <div style={{ ...body, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 14px" }}>
@@ -347,6 +464,8 @@ const proposalCard: CSSProperties = { border: "1px solid #38bdf8", background: "
 const confirmBtn: CSSProperties = { flex: 1, border: "none", borderRadius: 999, padding: "9px", background: "linear-gradient(180deg,#22d3ee,#0ea5e9)", color: "#06121f", fontWeight: 700, cursor: "pointer" };
 const cancelBtn: CSSProperties = { flex: 1, border: "1px solid rgba(255,255,255,.2)", borderRadius: 999, padding: "9px", background: "transparent", color: "#cbd5e1", fontWeight: 600, cursor: "pointer" };
 const askInput: CSSProperties = { flex: 1, border: "1px solid var(--color-border)", borderRadius: "var(--radius-input)", padding: "9px 11px", font: "inherit", fontSize: "var(--text-sm)" };
+const historyItem = (active: boolean): CSSProperties => ({ display: "block", width: "100%", textAlign: "left", border: active ? "1px solid var(--color-sky-400)" : "1px solid var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", padding: "9px 11px", marginBottom: 8, cursor: "pointer" });
+const backBtn: CSSProperties = { background: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, padding: "3px 10px", fontSize: "var(--text-sm)", cursor: "pointer", color: "inherit" };
 const askInputBypass: CSSProperties = { ...askInput, background: "#13233f", border: "1px solid #1e3a5f", color: "#fff" };
 const askInputMatrix: CSSProperties = { ...askInput, background: "#0f2a1a", border: "1px solid #14532d", color: "#fff" };
 const sendBtn: CSSProperties = { border: "none", borderRadius: "var(--radius-input)", padding: "0 16px", background: "var(--color-navy-900)", color: "#fff", fontWeight: 600, cursor: "pointer" };
