@@ -15,17 +15,18 @@ writes back.
 
 ## Status
 
-**Phase 2 (current): authoritative multiplayer + VA identity binding.**
-- Phaser client connects to the Colyseus server, renders every player as a
-  sprite with a floating **name + tier** label, and interpolates remote avatars.
-- Colyseus server owns the player map; clients send throttled positions. On
-  join it resolves the player's email (Cloudflare Access header → dev `?email=`
-  → env fallback) and calls the manager's `/api/external/va-profile` bridge to
-  bind the avatar to a real VA. Unresolved users render as labeled guests.
-- Placeholder art is still generated at runtime — no binary assets yet.
+**Phase 3 (current): proximity audio/video via LiveKit Cloud.**
+- Everyone joins a single LiveKit room; the client subscribes to a peer's
+  tracks only when avatars are within range and fades audio volume with
+  distance. Mic/cam are user-toggled from a React overlay (control bar + video
+  tiles) layered over the Phaser canvas.
+- The Colyseus server mints a LiveKit token per connection (identity = the
+  session id) so each A/V participant maps to a synced position. If LiveKit
+  isn't configured, no token is sent and the overlay stays hidden — the rest of
+  the world still works.
 
-Earlier: Phase 0–1 (scaffold + single-player world). Later: proximity A/V via
-LiveKit Cloud (3), meeting/stage zones (4), polish (5), deploy (6).
+Earlier: Phase 2 (multiplayer + VA identity binding), Phase 0–1 (scaffold +
+single-player world). Later: meeting/stage zones (4), polish (5), deploy (6).
 
 ## Develop
 
@@ -52,18 +53,31 @@ http://localhost:5180/?email=va-b@example.com
 Each avatar shows the VA's name/tier from the manager (or a guest label if the
 email isn't a VA / the bridge isn't configured). Walk with **WASD** / arrows.
 
+To exercise **proximity A/V**, set `LIVEKIT_URL` / `LIVEKIT_API_KEY` /
+`LIVEKIT_API_SECRET` in `.env` (free project at https://cloud.livekit.io), then
+walk two avatars together: the video tiles appear and audio gets louder as they
+approach, and fades to silent past the proximity radius. Mic/cam are off until
+toggled (browsers require a user gesture to start capture).
+
 ## Checks
 
 ```bash
 npm run typecheck   # tsc --noEmit over client + server + tests
 npm run build       # vite production build of the client
-npm test            # node:test unit tests (identity resolution, manager bridge)
+npm test            # node:test unit tests (identity, manager bridge, proximity, livekit token)
+```
+
+A local multiplayer smoke test (no LiveKit needed):
+
+```bash
+PORT=2570 npm run dev:server          # terminal 1 (MANAGER_BASE_URL unset → guests)
+PORT=2570 npx tsx scripts/smoke.mts   # terminal 2
 ```
 
 ## Layout
 
 ```
-client/   Phaser game (Vite). scenes/, world/, net/ (colyseus.js client)
-server/   Colyseus server. rooms/WorldRoom.ts, state/, identity.ts, manager.ts, env.ts
+client/   Phaser game (Vite). scenes/, world/, net/ (colyseus.js), media/ (proximity + LiveKit), ui/ (React overlay)
+server/   Colyseus server. rooms/, state/, identity.ts, manager.ts, livekit.ts, env.ts
 tests/    node:test unit tests
 ```

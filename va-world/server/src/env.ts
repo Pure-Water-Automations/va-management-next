@@ -19,4 +19,9 @@ export const config = {
 
   /** CORS allow-list for the HTTP matchmaking endpoint. "*" in dev. */
   allowedOrigin: process.env.ALLOWED_ORIGIN ?? "*",
+
+  /** LiveKit Cloud connection for proximity A/V. Empty disables media. */
+  livekitUrl: process.env.LIVEKIT_URL ?? "",
+  livekitApiKey: process.env.LIVEKIT_API_KEY ?? "",
+  livekitApiSecret: process.env.LIVEKIT_API_SECRET ?? "",
 } as const;

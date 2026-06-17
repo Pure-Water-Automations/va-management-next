@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import { Room, type Client } from "@colyseus/core";
 import { config } from "../env";
 import { guestNameFromEmail, resolveEmail } from "../identity";
+import { mintToken } from "../livekit";
 import { fetchVaProfile } from "../manager";
 import { Player, WorldState } from "../state/WorldState";
 
@@ -71,7 +72,7 @@ export class WorldRoom extends Room<WorldState> {
     };
   }
 
-  onJoin(client: Client): void {
+  async onJoin(client: Client): Promise<void> {
     const identity = client.auth as Identity;
     const player = new Player();
     player.x = SPAWN.x;
@@ -84,6 +85,13 @@ export class WorldRoom extends Room<WorldState> {
     player.isGuest = identity.isGuest;
     this.state.players.set(client.sessionId, player);
     console.log(`[WorldRoom] join ${client.sessionId} as ${player.name} (${player.tier})`);
+
+    // Hand the client a LiveKit token (identity = sessionId) so proximity A/V
+    // participants map 1:1 to synced positions. Skipped if LiveKit is unset.
+    const token = await mintToken(client.sessionId, identity.name);
+    if (token) {
+      client.send("media", { url: config.livekitUrl, token });
+    }
   }
 
   onLeave(client: Client): void {

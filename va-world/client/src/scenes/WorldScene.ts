@@ -9,9 +9,11 @@ import {
 } from "../world/tilemap";
 import { TEX } from "../world/textures";
 import { joinWorld } from "../net/room";
+import { connectMedia, updateProximity } from "../media/livekitClient";
 
 const PLAYER_SPEED = 220;
 const SEND_INTERVAL_MS = 100;
+const PROXIMITY_INTERVAL_MS = 200;
 const REMOTE_LERP = 0.2;
 
 /** Shape of a player entry in the synced room state (see server WorldState). */
@@ -57,6 +59,7 @@ export class WorldScene extends Phaser.Scene {
   private localLabel?: Phaser.GameObjects.Text;
   private readonly remotes = new Map<string, Remote>();
   private lastSent = 0;
+  private lastProximity = 0;
 
   constructor() {
     super("WorldScene");
@@ -117,6 +120,13 @@ export class WorldScene extends Phaser.Scene {
           }
         });
         players.onRemove((_player, sessionId) => this.removeRemote(sessionId));
+
+        // The server pushes a LiveKit token only when media is configured.
+        room.onMessage("media", (msg: { url: string; token: string }) => {
+          connectMedia(msg.url, msg.token).catch((err) =>
+            console.error("[va-world] media connect failed:", err),
+          );
+        });
       })
       .catch((err) => console.error("[va-world] failed to join room:", err));
   }
@@ -185,6 +195,17 @@ export class WorldScene extends Phaser.Scene {
       remote.sprite.x = Phaser.Math.Linear(remote.sprite.x, remote.state.x, REMOTE_LERP);
       remote.sprite.y = Phaser.Math.Linear(remote.sprite.y, remote.state.y, REMOTE_LERP);
       remote.label.setPosition(remote.sprite.x, remote.sprite.y - 30);
+    }
+
+    // Drive proximity A/V from the synced positions (no-op until media connects).
+    if (time - this.lastProximity > PROXIMITY_INTERVAL_MS) {
+      this.lastProximity = time;
+      const peers = Array.from(this.remotes.entries()).map(([identity, r]) => ({
+        identity,
+        x: r.state.x,
+        y: r.state.y,
+      }));
+      updateProximity({ x: this.player.x, y: this.player.y }, peers);
     }
   }
 }
