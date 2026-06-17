@@ -126,6 +126,12 @@ export class WorldScene extends Phaser.Scene {
       left: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
+    // By default Phaser captures (preventDefault) the keys it tracks — including
+    // W/A/S/D and the arrows. That swallows those characters before they reach
+    // the HTML chat input, so you can't type "w"/"a"/"s"/"d". Clear all captures:
+    // the page is overflow:hidden (no scroll to suppress), key state is still
+    // tracked for movement, and the chat input now receives every keystroke.
+    keyboard.clearCaptures();
 
     this.connect();
 
