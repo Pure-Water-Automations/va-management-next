@@ -1,0 +1,16 @@
+[Unit]
+Description=PWA VA Management recordings AI worker (ffmpeg audio -> OpenRouter transcript/summary)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/app/SecondBrain/va-management-console/current
+EnvironmentFile=/app/SecondBrain/va-management-console/shared/.env.production
+# Shared OpenRouter key for transcription. Optional (-): the worker no-ops
+# (aiStatus="skipped") if absent, so the unit still runs cleanly.
+EnvironmentFile=-/etc/secondbrain/openrouter.env
+# Requires ffmpeg on the host (`apt install -y ffmpeg`). The worker claims each
+# pending recording atomically and is safe to run frequently / overlap.
+ExecStart=/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/recordings-process.ts
+User=root

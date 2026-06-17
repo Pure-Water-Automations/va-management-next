@@ -34,6 +34,27 @@ const envSchema = z.object({
   // Shared secret for trusted server-to-server callers (e.g. va-world) hitting
   // the read-only /api/external/* bridge. Never exposed to the browser.
   EXTERNAL_APP_SECRET: optionalEnvString(z.string().min(1)),
+  // Cheap multimodal model used to transcribe + summarize recording audio (via
+  // OpenRouter input_audio). Gemini Flash-lite accepts audio and returns JSON with
+  // timestamped segments for cheap (~$0.003 / 30-min recording). Fed compact mono
+  // 16kHz mp3 extracted by ffmpeg (see worker/lib/media.ts).
+  OPENROUTER_TRANSCRIBE_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("google/gemini-2.5-flash-lite"),
+  ),
+  // Cloudflare R2 (video storage for the in-app recorder). All optional so the
+  // app still boots without R2 configured; recording features no-op until set.
+  R2_ACCOUNT_ID: optionalEnvString(z.string()),
+  R2_ACCESS_KEY_ID: optionalEnvString(z.string()),
+  R2_SECRET_ACCESS_KEY: optionalEnvString(z.string()),
+  R2_BUCKET: optionalEnvString(z.string()),
+  R2_ENDPOINT: optionalEnvString(z.string().url()), // https://<accountid>.r2.cloudflarestorage.com
+  R2_PUBLIC_BASE_URL: optionalEnvString(z.string().url()), // optional public/CDN base; unset => always presign
+  // OpenAI speech-to-text model for recording transcripts.
+  OPENAI_TRANSCRIBE_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("whisper-1"),
+  ),
 });
 
 export const env = envSchema.parse(process.env);
