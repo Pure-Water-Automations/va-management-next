@@ -22,6 +22,7 @@ Build project and task management into the VA Management Console so Team Leads a
 | status | ProjectStatus | Planning, Active, Done, Paused |
 | type | ProjectType | Project, Event, Recurring, Report |
 | priority | Priority | Low, Medium, High |
+| client | String? | Free-text client name for filtering/sorting |
 | ownerId | String | FK → User (VA or Team Lead) |
 | createdById | String | FK → User |
 | dueDate | DateTime? | |
@@ -41,12 +42,16 @@ Relations: `tasks Task[]`, `comments ProjectComment[]`
 | strategy | TaskStrategy | Create, Research, Automate, Communicate, Plan, Delegate, Fix, TechSupport, Simplify, Recurring |
 | status | TaskStatus | NotStarted, InProgress, Done, Blocked |
 | priority | Priority | Low, Medium, High |
+| client | String? | Inherited from project if set; overridable on standalone tasks |
 | projectId | String? | FK → Project (optional) |
 | assignedToId | String | FK → User (VA) |
 | assignedById | String | FK → User |
 | dueDate | DateTime? | |
 | links | String? | |
 | emailSent | Boolean | default false |
+| relatedSops | Json? | Cached array of `{notionPageId, title, url}` from Notion SOP library |
+| relatedTrainings | Json? | Cached array of `{notionPageId, title, url}` from Notion training pages |
+| suggestedTools | Json? | Cached array of `{notionPageId, title, url, category}` from Notion Tools DB |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
 
@@ -108,7 +113,7 @@ Relations: `comments TaskComment[]`
 ### HR/Team Lead sidebar tab: "Projects"
 Sub-tabs:
 - **Projects** — list of all projects with task counts and progress bars
-- **All Tasks** — flat list of all tasks, filterable by VA / status / due date
+- **All Tasks** — flat list of all tasks, filterable by VA / status / due date / client
 - **Delegate** — quick-create task form with VA assignment
 
 ### VA sidebar: "My Tasks"
@@ -138,7 +143,7 @@ Sub-tabs:
 ## 5. Task Delegation Workflow
 
 1. **Team Lead creates task** — fills title, instructions, strategy, priority, due date, assigns to a VA, optionally links to a project
-2. **System saves + notifies** — task written to DB, email sent immediately via Gmail API (existing OAuth sender)
+2. **System saves + notifies** — task written to DB, email sent best-effort via Gmail API (existing OAuth sender; send failure is logged but non-fatal — task is always saved regardless)
 3. **VA receives email** — subject: "📋 New task assigned: [title]", body includes strategy, due date, priority, instructions excerpt, and a deep link into the console
 4. **VA works on task** — updates status via dropdown on their My Tasks view; adds comments to ask questions or post updates
 5. **Team Lead monitors** — project progress % auto-calculates from task completion; activity feed shows all status changes and comments in real time
@@ -177,7 +182,33 @@ No email on status changes or comments (keep noise low in v1).
 
 ---
 
-## 8. New Routes
+## 8. Notion-Linked Resource Fields
+
+Tasks have three optional resource fields that link to Notion content. All three are stored as cached JSON arrays on the Task row — populated at create/edit time from the local Notion mirror — so the console never needs to call the Notion API at read time.
+
+### Related SOPs
+- Source: Notion SOP Library DB (already mirrored at `tools/notion-mirror/notion_raw/sop-library--*/`)
+- UX: searchable picker when creating/editing a task; shows SOP title + link
+- Stored as: `[{notionPageId, title, url}]`
+- Displayed as: clickable links in the task detail drawer
+
+### Related Trainings
+- Source: Notion Training pages (mirrored; training DB already exists in the app via `TrainingSession` model)
+- UX: same searchable picker; shows training title + link
+- Stored as: `[{notionPageId, title, url}]`
+- Displayed as: clickable links in the task detail drawer
+
+### Suggested Tools
+- Source: **New Notion "Tools" DB** (to be created — Justin to add tools like Canva, ChatGPT, Claude Code, etc.)
+- Schema for the Notion Tools DB: Name, Category (AI / Design / Communication / Productivity / Dev), URL/link, Description (optional)
+- Once mirrored locally, the picker searches it the same way as SOPs/Trainings
+- Stored as: `[{notionPageId, title, url, category}]`
+- Displayed as: chips with category color in the task detail drawer
+- **v1 fallback**: if the Notion Tools DB doesn't exist yet at implementation time, seed a static list of ~15 common tools in the app config; swap to the Notion mirror once the DB is created
+
+---
+
+## 9. New Routes
 
 | Route | Role | Purpose |
 |---|---|---|
@@ -186,6 +217,7 @@ No email on status changes or comments (keep noise low in v1).
 | `/hr/tasks` | HR/TL/Senior VA | All-tasks flat view |
 | `/va/tasks` | VA | My Tasks queue |
 | `/va/tasks/[id]` | VA | Task detail + comments |
+| `/hr/tasks/[id]` | HR/TL/Senior VA | Task detail + comments (manager view) |
 
 ---
 
