@@ -1,0 +1,61 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/access";
+import { canManageTasks } from "@/lib/auth/roles";
+import { db } from "@/lib/db";
+import { getProjectsList } from "@/lib/reads/projects";
+import { readSopPicker, readTrainingPicker, readToolsPicker } from "@/lib/notion-picker";
+import { Card } from "@/components/ui/Card";
+import { DelegateTaskForm } from "@/components/DelegateTaskForm";
+
+export const dynamic = "force-dynamic";
+
+export default async function DelegateTaskPage() {
+  const user = await getCurrentUser();
+  if (!user.isAdmin && !canManageTasks(user.role)) {
+    redirect("/hr/tasks");
+  }
+
+  // Picker data: synchronous fs reads from the local Notion mirror.
+  const sops = readSopPicker();
+  const trainings = readTrainingPicker();
+  const tools = readToolsPicker();
+
+  // Assignable VAs and optional project links from Postgres.
+  const [assignees, projects] = await Promise.all([
+    db.user.findMany({
+      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    getProjectsList(),
+  ]);
+
+  const projectOptions = projects
+    .filter((p) => p.status !== "Done")
+    .map((p) => ({ id: p.id, name: p.name }));
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="crumb">
+            <a href="/hr/tasks" style={{ textDecoration: "none", color: "inherit" }}>
+              All Tasks
+            </a>
+          </div>
+          <h1>Delegate a Task</h1>
+        </div>
+      </div>
+
+      <Card padding={32} style={{ maxWidth: 640 }}>
+        <DelegateTaskForm
+          vas={assignees}
+          projects={projectOptions}
+          sops={sops}
+          trainings={trainings}
+          tools={tools}
+        />
+      </Card>
+    </>
+  );
+}
