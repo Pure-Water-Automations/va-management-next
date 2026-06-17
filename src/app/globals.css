@@ -241,3 +241,32 @@ a {
 @media (max-width: 560px) {
   .stat-grid { grid-template-columns: 1fr; }
 }
+
+/* Inline action buttons rendered as links (e.g. "New Project", "Delegate Task"). */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: filter var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+.btn-primary {
+  background: linear-gradient(180deg, var(--color-navy-800), var(--color-navy-900));
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-navy-sm);
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-secondary {
+  background: linear-gradient(180deg, var(--color-sky-400), var(--color-sky-500));
+  color: #fff;
+}
+.btn-secondary:hover { filter: brightness(1.05); }

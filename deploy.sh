@@ -10,10 +10,13 @@ BASE="/app/SecondBrain/va-management-console"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> rsync source -> $VPS:$BASE/current"
+# NOTE: va-world now lives in its own repo (github.com/okamotomiak/va-world) and is
+# deployed separately. It is EXCLUDED here so this --delete rsync never touches the
+# live va-world dir that still sits under current/va-world on the VPS.
 rsync -az --delete \
   --exclude node_modules/ --exclude .next/ --exclude .git/ \
   --exclude .env --exclude .env.local --exclude .env.production --exclude .secrets/ \
-  --exclude tsconfig.tsbuildinfo --exclude design-system/ \
+  --exclude tsconfig.tsbuildinfo --exclude design-system/ --exclude va-world/ \
   "$SRC/" "$VPS:$BASE/current/"
 
 echo "==> build + migrate + restart on VPS"

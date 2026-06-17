@@ -31,6 +31,9 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Shared secret for trusted server-to-server callers (e.g. va-world) hitting
+  // the read-only /api/external/* bridge. Never exposed to the browser.
+  EXTERNAL_APP_SECRET: optionalEnvString(z.string().min(1)),
   // Cheap multimodal model used to transcribe + summarize recording audio (via
   // OpenRouter input_audio). Gemini Flash-lite accepts audio and returns JSON with
   // timestamped segments for cheap (~$0.003 / 30-min recording). Fed compact mono

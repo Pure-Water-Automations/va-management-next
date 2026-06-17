@@ -23,6 +23,46 @@ enum Role {
   VA
 }
 
+enum ProjectStatus {
+  Planning
+  Active
+  Done
+  Paused
+}
+
+enum ProjectType {
+  Project
+  Event
+  Recurring
+  Report
+}
+
+enum Priority {
+  Low
+  Medium
+  High
+}
+
+enum TaskStatus {
+  NotStarted
+  InProgress
+  Done
+  Blocked
+}
+
+enum TaskStrategy {
+  Create
+  Research
+  Automate
+  Communicate
+  Plan
+  Delegate
+  Fix
+  TechSupport
+  Simplify
+  Recurring
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -34,6 +74,15 @@ model User {
   va        Va?      @relation(fields: [vaId], references: [vaId])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  projectsOwned    Project[]        @relation("ProjectOwner")
+  projectsCreated  Project[]        @relation("ProjectCreator")
+  tasksAssigned    Task[]           @relation("TaskAssignee")
+  tasksCreated     Task[]           @relation("TaskCreator")
+  taskComments     TaskComment[]    @relation("TaskCommentAuthor")
+  projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
+  savedViews       SavedView[]
+  notifications    Notification[]
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────
@@ -101,6 +150,8 @@ model CompensationRole {
   nextRoleId              CompRole?
   additionalRequirements  String?
   notes                   String?
+  canDelegateTasks        Boolean          @default(false)
+  canDelegateProjects     Boolean          @default(false)
   updatedAt               DateTime         @updatedAt
 }
 
@@ -689,4 +740,178 @@ model AuditLog {
   details   Json?
 
   @@index([timestamp])
+}
+
+// ── Projects & Task Management ────────────────────────────────────────────
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(Planning)
+  type        ProjectType   @default(Project)
+  priority    Priority      @default(Medium)
+  client      String?
+  ownerId     String
+  createdById String
+  dueDate     DateTime?
+  links       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner     User             @relation("ProjectOwner", fields: [ownerId], references: [id])
+  createdBy User             @relation("ProjectCreator", fields: [createdById], references: [id])
+  tasks     Task[]
+  comments  ProjectComment[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([client])
+}
+
+model Task {
+  id               String       @id @default(cuid())
+  title            String
+  instructions     String?
+  strategy         TaskStrategy @default(Create)
+  status           TaskStatus   @default(NotStarted)
+  priority         Priority     @default(Medium)
+  client           String?
+  projectId        String?
+  assignedToId     String
+  assignedById     String
+  dueDate          DateTime?
+  links            String?
+  emailSent        Boolean      @default(false)
+  relatedSops      Json?
+  relatedTrainings Json?
+  suggestedTools   Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  project    Project?      @relation(fields: [projectId], references: [id])
+  assignedTo User          @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedBy User          @relation("TaskCreator", fields: [assignedById], references: [id])
+  comments   TaskComment[]
+  checklist    ChecklistItem[]
+  dependencies TaskDependency[] @relation("DependentTask")
+  dependents   TaskDependency[] @relation("DependencyTask")
+
+  @@index([assignedToId])
+  @@index([projectId])
+  @@index([status])
+  @@index([client])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([taskId])
+}
+
+model ProjectComment {
+  id        String   @id @default(cuid())
+  projectId String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User    @relation("ProjectCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([projectId])
+}
+
+model SavedView {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  scope     String   @default("tasks")
+  query     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  text      String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model TaskDependency {
+  id              String   @id @default(cuid())
+  taskId          String
+  dependsOnTaskId String
+  createdAt       DateTime @default(now())
+
+  task      Task @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn Task @relation("DependencyTask", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([taskId])
+  @@index([dependsOnTaskId])
+}
+
+model ProjectTemplate {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  type        ProjectType @default(Project)
+  priority    Priority    @default(Medium)
+  tasksJson   Json?
+  createdById String?
+  createdAt   DateTime    @default(now())
+}
+
+model TaskTemplate {
+  id           String       @id @default(cuid())
+  name         String
+  title        String
+  instructions String?
+  strategy     TaskStrategy @default(Create)
+  priority     Priority     @default(Medium)
+  createdById  String?
+  createdAt    DateTime     @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  notionId  String?  @unique
+  status    String?
+  active    Boolean  @default(true)
+  syncedAt  DateTime @default(now())
+
+  @@index([active])
 }
