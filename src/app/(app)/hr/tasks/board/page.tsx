@@ -1,0 +1,30 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/access";
+import { canManageTasks } from "@/lib/auth/roles";
+import { getAllTasks } from "@/lib/reads/tasks";
+import { TaskViewTabs } from "@/components/TaskViewTabs";
+import { TaskBoard } from "@/components/TaskBoard";
+
+export const dynamic = "force-dynamic";
+
+export default async function HrTaskBoardPage() {
+  const user = await getCurrentUser();
+  if (!user.isAdmin && !canManageTasks(user.role)) redirect("/hr/tasks");
+
+  const tasks = await getAllTasks({});
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="crumb">Projects</div>
+          <h1>Task Board</h1>
+        </div>
+      </div>
+
+      <TaskViewTabs current="board" />
+
+      <TaskBoard tasks={tasks} />
+    </>
+  );
+}
