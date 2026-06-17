@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { PriorityBadge, DueChip, LinkChips } from "@/components/ui/task-format";
 import { StatusDropdown, CommentForm } from "@/components/TaskActions";
 import { TaskEditForm } from "@/components/TaskEditForm";
 
@@ -35,7 +35,7 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
         </div>
         <div style={{ display: "flex", gap: 8, alignSelf: "center", alignItems: "center" }}>
           <StatusDropdown taskId={task.id} current={task.status} />
-          <Badge variant={task.priority === "High" ? "danger" : "warning"}>{task.priority}</Badge>
+          <PriorityBadge value={task.priority} />
         </div>
       </div>
 
@@ -47,9 +47,18 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
               <Row label="Assigned by" value={task.assignedBy.name ?? "—"} />
               <Row label="Strategy" value={task.strategy} />
               <Row label="Status" value={task.status} />
-              <Row label="Due date" value={task.dueDate?.toLocaleDateString() ?? "—"} />
+              <div style={{ display: "flex", gap: 16 }}>
+                <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Due date</span>
+                {task.dueDate ? <DueChip date={task.dueDate} status={task.status} /> : <span>—</span>}
+              </div>
               {task.client && <Row label="Client" value={task.client} />}
               {task.project && <Row label="Project" value={task.project.name} />}
+              {task.links && (
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Links</span>
+                  <LinkChips links={task.links} />
+                </div>
+              )}
             </div>
           </Card>
 

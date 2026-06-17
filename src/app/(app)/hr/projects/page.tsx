@@ -3,7 +3,7 @@ import { canManageTasks, canManageProjects } from "@/lib/auth/roles";
 import { getProjectsList } from "@/lib/reads/projects";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { StatusBadge, PriorityBadge, DueChip, EmptyState } from "@/components/ui/task-format";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +49,11 @@ export default async function HrProjectsPage() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 24 }}>
         {projects.length === 0 ? (
-          <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>No projects yet.</p>
+          <EmptyState
+            title="No projects yet"
+            hint="Create your first project to start delegating work."
+            {...(canCreate ? { ctaHref: "/hr/projects/new", ctaLabel: "+ New project" } : {})}
+          />
         ) : (
           projects.map((p) => (
             <Card key={p.id} padding={20}>
@@ -66,18 +70,15 @@ export default async function HrProjectsPage() {
                       {p.client}
                     </span>
                   )}
-                  <div className="small" style={{ marginTop: 4, color: "var(--color-text-secondary)" }}>
-                    {p.owner.name ?? p.owner.email} ·{" "}
-                    {p.dueDate ? `Due ${p.dueDate.toLocaleDateString()}` : "No due date"}
+                  <div className="small" style={{ marginTop: 4, color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>{p.owner.name ?? p.owner.email}</span>
+                    <span>·</span>
+                    <DueChip date={p.dueDate} status={p.status} />
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Badge variant={p.priority === "High" ? "danger" : p.priority === "Medium" ? "warning" : "default"}>
-                    {p.priority}
-                  </Badge>
-                  <Badge variant={p.status === "Active" ? "primary" : p.status === "Done" ? "info" : "default"}>
-                    {p.status}
-                  </Badge>
+                  <PriorityBadge value={p.priority} />
+                  <StatusBadge value={p.status} kind="project" />
                 </div>
               </div>
               <div style={{ marginTop: 12 }}>

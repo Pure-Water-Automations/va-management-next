@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { DueChip, LinkChips } from "@/components/ui/task-format";
 import { StatusDropdown, CommentForm } from "@/components/TaskActions";
 
 export const dynamic = "force-dynamic";
@@ -72,9 +73,18 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
                   {task.priority}
                 </Badge>
               </div>
-              <Row label="Due date" value={task.dueDate?.toLocaleDateString() ?? "—"} />
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Due date</span>
+                {task.dueDate ? <DueChip date={task.dueDate} status={task.status} /> : <span>—</span>}
+              </div>
               {task.project && <Row label="Project" value={task.project.name} />}
               {task.client && <Row label="Client" value={task.client} />}
+              {task.links && (
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Links</span>
+                  <LinkChips links={task.links} />
+                </div>
+              )}
             </div>
           </Card>
 

@@ -3,6 +3,13 @@ import { getMyTasks } from "@/lib/reads/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import {
+  StatusBadge,
+  PriorityBadge,
+  DueChip,
+  AssigneeChip,
+  EmptyState,
+} from "@/components/ui/task-format";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +69,11 @@ export default async function VaTasksPage() {
           />
         )}
         {tasks.length === 0 && (
-          <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>
-            No tasks assigned yet.
-          </p>
+          <EmptyState
+            icon="✅"
+            title="No tasks assigned to you"
+            hint="You're all caught up."
+          />
         )}
       </div>
     </>
@@ -80,26 +89,35 @@ function Section({ title, tasks }: { title: string; tasks: TaskItem[] }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {tasks.map((t) => (
           <Card key={t.id} padding={16}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <div>
                 <a href={`/va/tasks/${t.id}`} style={{ fontWeight: 600, textDecoration: "none" }}>
                   {t.title}
                 </a>
-                <div className="small" style={{ marginTop: 2, color: "var(--color-text-secondary)" }}>
-                  {t.project ? `${t.project.name} · ` : ""}
-                  {t.assignedBy.name ? `From ${t.assignedBy.name} · ` : ""}
-                  {t.dueDate ? `Due ${t.dueDate.toLocaleDateString()}` : "No due date"}
+                <div
+                  className="small"
+                  style={{
+                    marginTop: 6,
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
+                  {t.project && <span>{t.project.name}</span>}
+                  {t.assignedBy.name && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      From <AssigneeChip name={t.assignedBy.name} />
+                    </span>
+                  )}
+                  <DueChip date={t.dueDate} status={t.status} />
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                 <Badge variant="default">{t.strategy}</Badge>
-                <Badge
-                  variant={
-                    t.status === "Done" ? "info" : t.status === "Blocked" ? "danger" : "default"
-                  }
-                >
-                  {t.status}
-                </Badge>
+                <PriorityBadge value={t.priority} />
+                <StatusBadge value={t.status} />
               </div>
             </div>
           </Card>

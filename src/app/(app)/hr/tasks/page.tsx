@@ -1,27 +1,167 @@
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
+import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import {
+  StatusBadge,
+  PriorityBadge,
+  DueChip,
+  Avatar,
+  EmptyState,
+} from "@/components/ui/task-format";
 
 export const dynamic = "force-dynamic";
+
+type SortKey = "title" | "assignee" | "project" | "priority" | "status" | "due";
+type SortDir = "asc" | "desc";
+
+const SORT_KEYS: readonly SortKey[] = [
+  "title",
+  "assignee",
+  "project",
+  "priority",
+  "status",
+  "due",
+];
+
+const PRIORITY_RANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+const STATUS_RANK: Record<string, number> = {
+  Blocked: 0,
+  InProgress: 1,
+  NotStarted: 2,
+  Done: 3,
+};
+
+const STATUS_FILTERS = ["NotStarted", "InProgress", "Blocked", "Done"] as const;
 
 export default async function HrTasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; client?: string; va?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    client?: string;
+    va?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
-  const { status, client, va } = await searchParams;
+  const { status, client, va, sort: rawSort, dir: rawDir } = await searchParams;
   const user = await getCurrentUser();
   if (!canManageTasks(user.role)) {
     return <p style={{ padding: 32 }}>Not authorized.</p>;
   }
 
-  const tasks = await getAllTasks({
-    ...(status ? { status } : {}),
-    ...(client ? { client } : {}),
-    ...(va ? { assignedToId: va } : {}),
+  const sort: SortKey = SORT_KEYS.includes(rawSort as SortKey)
+    ? (rawSort as SortKey)
+    : "due";
+  const dir: SortDir = rawDir === "desc" ? "desc" : "asc";
+
+  const [tasks, vas] = await Promise.all([
+    getAllTasks({
+      ...(status ? { status } : {}),
+      ...(client ? { client } : {}),
+      ...(va ? { assignedToId: va } : {}),
+    }),
+    db.user.findMany({
+      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  // ── Server-side sort ───────────────────────────────────────────────────────
+  const assigneeOf = (t: (typeof tasks)[number]) =>
+    (t.assignedTo.name ?? t.assignedTo.email ?? "").toLowerCase();
+
+  const sorted = [...tasks].sort((a, b) => {
+    let cmp = 0;
+    switch (sort) {
+      case "title":
+        cmp = (a.title ?? "").localeCompare(b.title ?? "");
+        break;
+      case "assignee":
+        cmp = assigneeOf(a).localeCompare(assigneeOf(b));
+        break;
+      case "project":
+        cmp = (a.project?.name ?? "").localeCompare(b.project?.name ?? "");
+        break;
+      case "priority":
+        cmp =
+          (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+        break;
+      case "status":
+        cmp = (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99);
+        break;
+      case "due": {
+        // Null due dates always sort last (regardless of direction).
+        const at = a.dueDate ? a.dueDate.getTime() : null;
+        const bt = b.dueDate ? b.dueDate.getTime() : null;
+        if (at === null && bt === null) cmp = 0;
+        else if (at === null) return 1;
+        else if (bt === null) return -1;
+        else cmp = at - bt;
+        break;
+      }
+    }
+    return dir === "desc" ? -cmp : cmp;
   });
+
+  // ── Helpers to build URLs while preserving other params ──────────────────────
+  const baseParams: Record<string, string> = {};
+  if (status) baseParams.status = status;
+  if (client) baseParams.client = client;
+  if (va) baseParams.va = va;
+
+  const buildHref = (overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams({ ...baseParams, sort, dir });
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v === undefined || v === "") params.delete(k);
+      else params.set(k, v);
+    }
+    const qs = params.toString();
+    return qs ? `/hr/tasks?${qs}` : "/hr/tasks";
+  };
+
+  const sortHref = (key: SortKey) => {
+    const nextDir = sort === key && dir === "asc" ? "desc" : "asc";
+    return buildHref({ sort: key, dir: nextDir });
+  };
+
+  const sortArrow = (key: SortKey) =>
+    sort === key ? (dir === "asc" ? " ▲" : " ▼") : "";
+
+  const hasFilters = Boolean(status || client || va);
+
+  const thStyle: React.CSSProperties = {
+    textAlign: "left",
+    padding: "8px 12px",
+    fontSize: "var(--text-xs)",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color: "var(--color-text-tertiary)",
+    borderBottom: "1px solid var(--color-border)",
+    whiteSpace: "nowrap",
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: "10px 12px",
+    borderBottom: "1px solid var(--color-border)",
+    verticalAlign: "middle",
+  };
+  const sortLinkStyle: React.CSSProperties = {
+    color: "inherit",
+    textDecoration: "none",
+    cursor: "pointer",
+  };
+
+  const columns: { key: SortKey; label: string }[] = [
+    { key: "title", label: "Task" },
+    { key: "assignee", label: "Assignee" },
+    { key: "project", label: "Project" },
+    { key: "priority", label: "Priority" },
+    { key: "status", label: "Status" },
+    { key: "due", label: "Due" },
+  ];
 
   return (
     <>
@@ -35,60 +175,139 @@ export default async function HrTasksPage({
         </a>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {(["NotStarted", "InProgress", "Blocked", "Done"] as const).map((s) => (
+      {/* Filters */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {STATUS_FILTERS.map((s) => {
+            const active = status === s;
+            return (
+              <a
+                key={s}
+                href={buildHref({ status: active ? undefined : s })}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  border: "1px solid var(--color-border)",
+                  fontSize: "var(--text-sm)",
+                  textDecoration: "none",
+                  background: active ? "var(--color-sky-500)" : undefined,
+                  color: active ? "#fff" : "var(--color-text-secondary)",
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                {s.replace(/([a-z])([A-Z])/g, "$1 $2")}
+              </a>
+            );
+          })}
+        </div>
+
+        {/* Assignee (VA) filter */}
+        <form method="get" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {status && <input type="hidden" name="status" value={status} />}
+          {client && <input type="hidden" name="client" value={client} />}
+          <input type="hidden" name="sort" value={sort} />
+          <input type="hidden" name="dir" value={dir} />
+          <select
+            name="va"
+            defaultValue={va ?? ""}
+            className="input"
+            style={{ fontSize: "var(--text-sm)", padding: "4px 8px", maxWidth: 220 }}
+          >
+            <option value="">All assignees</option>
+            {vas.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name ?? u.email}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="btn" style={{ fontSize: "var(--text-sm)", padding: "4px 10px" }}>
+            Filter
+          </button>
+        </form>
+
+        {hasFilters && (
           <a
-            key={s}
-            href={status === s ? "/hr/tasks" : `/hr/tasks?status=${s}`}
+            href="/hr/tasks"
             style={{
-              padding: "4px 10px",
-              borderRadius: 4,
-              border: "1px solid var(--color-border)",
               fontSize: "var(--text-sm)",
-              textDecoration: "none",
-              background: status === s ? "var(--color-sky-500)" : undefined,
-              color: status === s ? "#fff" : undefined,
+              color: "var(--color-text-tertiary)",
+              textDecoration: "underline",
             }}
           >
-            {s}
+            Clear filters
           </a>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {tasks.length === 0 ? (
-          <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>No tasks found.</p>
-        ) : (
-          tasks.map((t) => (
-            <Card key={t.id} padding={16}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <a href={`/hr/tasks/${t.id}`} style={{ fontWeight: 600, textDecoration: "none" }}>
-                    {t.title}
-                  </a>
-                  <div className="small" style={{ marginTop: 2, color: "var(--color-text-secondary)" }}>
-                    {t.assignedTo.name ?? t.assignedTo.email}
-                    {t.project ? ` · ${t.project.name}` : ""}
-                    {t.client ? ` · ${t.client}` : ""}
-                    {" · "}
-                    {t.dueDate ? `Due ${t.dueDate.toLocaleDateString()}` : "No due date"}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Badge variant="default">{t.strategy}</Badge>
-                  <Badge
-                    variant={
-                      t.status === "Done" ? "info" : t.status === "Blocked" ? "danger" : "default"
-                    }
-                  >
-                    {t.status}
-                  </Badge>
-                </div>
-              </div>
-            </Card>
-          ))
         )}
       </div>
+
+      {sorted.length === 0 ? (
+        <EmptyState
+          title="No tasks found"
+          hint="Try clearing filters, or delegate a new task."
+          ctaHref="/hr/tasks/new"
+          ctaLabel="+ Delegate a task"
+        />
+      ) : (
+        <Card padding={0}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+              <thead>
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col.key} style={thStyle}>
+                      <a href={sortHref(col.key)} style={sortLinkStyle}>
+                        {col.label}
+                        {sortArrow(col.key)}
+                      </a>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((t) => (
+                  <tr key={t.id}>
+                    <td style={tdStyle}>
+                      <a
+                        href={`/hr/tasks/${t.id}`}
+                        style={{ fontWeight: 600, textDecoration: "none" }}
+                      >
+                        {t.title}
+                      </a>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <Avatar name={t.assignedTo.name} email={t.assignedTo.email} size={22} />
+                        <span className="small" style={{ whiteSpace: "nowrap" }}>
+                          {t.assignedTo.name ?? t.assignedTo.email}
+                        </span>
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, color: "var(--color-text-secondary)" }}>
+                      {t.project?.name ?? (t.client ? t.client : "—")}
+                    </td>
+                    <td style={tdStyle}>
+                      <PriorityBadge value={t.priority} />
+                    </td>
+                    <td style={tdStyle}>
+                      <StatusBadge value={t.status} />
+                    </td>
+                    <td style={tdStyle}>
+                      <DueChip date={t.dueDate} status={t.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </>
   );
 }

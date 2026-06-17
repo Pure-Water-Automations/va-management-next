@@ -6,8 +6,8 @@ import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { StatusBadge, DueChip, Avatar } from "@/components/ui/task-format";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
@@ -104,18 +104,21 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                       >
                         {t.title}
                       </a>
-                      <div className="small" style={{ marginTop: 2, color: "var(--color-text-tertiary)" }}>
-                        {t.assignedTo.name ?? "Unassigned"} ·{" "}
-                        {t.dueDate ? `Due ${t.dueDate.toLocaleDateString()}` : "No due date"}
+                      <div
+                        className="small"
+                        style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}
+                      >
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <Avatar name={t.assignedTo.name} size={20} />
+                          <span style={{ color: "var(--color-text-tertiary)" }}>
+                            {t.assignedTo.name ?? "Unassigned"}
+                          </span>
+                        </span>
+                        <span style={{ color: "var(--color-text-tertiary)" }}>·</span>
+                        <DueChip date={t.dueDate} status={t.status} />
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        t.status === "Done" ? "info" : t.status === "Blocked" ? "danger" : "default"
-                      }
-                    >
-                      {t.status}
-                    </Badge>
+                    <StatusBadge value={t.status} />
                   </div>
                 </Card>
               ))}
