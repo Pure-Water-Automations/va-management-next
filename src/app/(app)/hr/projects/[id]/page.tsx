@@ -11,6 +11,7 @@ import { StatusBadge, DueChip, Avatar } from "@/components/ui/task-format";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
+import { EnhanceButton } from "@/components/EnhanceButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             priority={project.priority}
             canEdit={canEdit}
           />
+          {canEdit && (
+            <EnhanceButton projectId={project.id} projectName={project.name} assignees={assignees} />
+          )}
           {canEdit && (
             <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">
               Edit
