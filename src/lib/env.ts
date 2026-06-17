@@ -31,6 +31,9 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // SecondBrain cloud MCP endpoint (co-located on the same VPS). Used by the
+  // "Enhance with Second Brain" feature to search Notion/Drive/meeting mirrors.
+  SECONDBRAIN_MCP_URL: optionalEnvString(z.string().url()),
   // Shared secret for trusted server-to-server callers (e.g. va-world) hitting
   // the read-only /api/external/* bridge. Never exposed to the browser.
   EXTERNAL_APP_SECRET: optionalEnvString(z.string().min(1)),

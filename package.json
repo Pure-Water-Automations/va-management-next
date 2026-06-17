@@ -30,6 +30,7 @@
     "@googleapis/drive": "^8.0.0",
     "@googleapis/gmail": "^11.0.0",
     "@googleapis/sheets": "^9.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/client": "^5.20.0",
     "@react-pdf/renderer": "^4.5.1",
     "google-auth-library": "^9.0.0",
