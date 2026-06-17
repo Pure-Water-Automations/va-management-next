@@ -11,6 +11,7 @@ export class Player extends Schema {
   @type("string") profileUrl = "";
   @type("boolean") isGuest = true;
   @type("string") zone = "world";
+  @type("string") color = "#2dd4bf";
 }
 
 export class WorldState extends Schema {

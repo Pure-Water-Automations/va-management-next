@@ -84,3 +84,18 @@ test("toExternalVaProfile handles null roleStartedDate", async () => {
   const profile = toExternalVaProfile({ ...sampleVa, roleStartedDate: null } as Va);
   assert.equal(profile.roleStartedDate, null);
 });
+
+test("toExternalRosterEntry returns only directory fields", async () => {
+  const { toExternalRosterEntry } = await load();
+  const entry = toExternalRosterEntry(sampleVa) as Record<string, unknown>;
+  assert.deepEqual(entry, {
+    vaId: "VA-001",
+    name: "Jane Doe",
+    tier: "TIER_2",
+    status: "active",
+  });
+  // No contact or sensitive fields in the directory payload.
+  for (const leak of ["email", "skillSpecs", "notionProfileUrl", "targetHoursWeekly"]) {
+    assert.equal(leak in entry, false, `should not expose ${leak}`);
+  }
+});

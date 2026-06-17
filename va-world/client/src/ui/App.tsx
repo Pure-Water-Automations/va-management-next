@@ -2,6 +2,9 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import type { Track } from "livekit-client";
 import { mediaStore } from "../media/mediaStore";
 import { setCam, setMic } from "../media/livekitClient";
+import { Chat } from "./Chat";
+import { Directory } from "./Directory";
+import { AvatarPicker } from "./AvatarPicker";
 
 function VideoTile({ track, name }: { track: Track; name: string }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -22,7 +25,7 @@ function VideoTile({ track, name }: { track: Track; name: string }) {
   );
 }
 
-export function App() {
+function MediaHud() {
   const state = useSyncExternalStore(mediaStore.subscribe, mediaStore.getSnapshot);
   if (!state.available) return null;
 
@@ -55,5 +58,18 @@ export function App() {
         </button>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <>
+      <div className="vw-topbar">
+        <Directory />
+        <AvatarPicker />
+      </div>
+      <Chat />
+      <MediaHud />
+    </>
   );
 }

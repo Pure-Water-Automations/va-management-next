@@ -1,17 +1,20 @@
 import type { IncomingMessage } from "node:http";
 import { Room, type Client } from "@colyseus/core";
+import { normalizeColor } from "../../../client/src/world/avatars";
 import { zoneRoomFor } from "../../../client/src/world/zones";
+import { sanitizeChatText } from "../chat";
 import { config } from "../env";
 import { guestNameFromEmail, resolveEmail } from "../identity";
 import { mintToken } from "../livekit";
-import { fetchVaProfile } from "../manager";
+import { fetchRoster, fetchVaProfile, type RosterEntry } from "../manager";
 import { Player, WorldState } from "../state/WorldState";
 
 // Neutral open-floor spawn (center, row 10) — clear of the stage/meeting zones.
 const SPAWN = { x: 11 * 48 + 24, y: 10 * 48 + 24 };
 const WORLD_BOUNDS = { width: 24 * 48, height: 18 * 48 };
+const MAX_CHAT_LEN = 500;
 
-type JoinOptions = { email?: string };
+type JoinOptions = { email?: string; color?: string };
 
 /** Identity resolved during onAuth and consumed in onJoin. */
 type Identity = {
@@ -21,10 +24,21 @@ type Identity = {
   vaId: string;
   profileUrl: string;
   isGuest: boolean;
+  color: string;
 };
 
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
+
+// Active-VA directory, cached briefly so frequent joins don't hammer the manager.
+let rosterCache: { entries: RosterEntry[]; at: number } | null = null;
+const ROSTER_TTL_MS = 60_000;
+async function getRoster(): Promise<RosterEntry[]> {
+  if (rosterCache && Date.now() - rosterCache.at < ROSTER_TTL_MS) return rosterCache.entries;
+  const entries = await fetchRoster();
+  rosterCache = { entries, at: Date.now() };
+  return entries;
+}
 
 export class WorldRoom extends Room<WorldState> {
   /** Current LiveKit assignment signature per session ("room|canPublish"). */
@@ -43,6 +57,22 @@ export class WorldRoom extends Room<WorldState> {
       void this.syncZone(client, player);
     });
 
+    // Relay world chat to everyone, attributed to the sender's identity.
+    this.onMessage("chat", (client, message: { text?: unknown }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      const text = sanitizeChatText(message?.text, MAX_CHAT_LEN);
+      if (!text) return;
+      this.broadcast("chat", { from: player.name, vaId: player.vaId, text, ts: Date.now() });
+    });
+
+    // Live avatar color change (validated against the shared palette).
+    this.onMessage("avatar", (client, message: { color?: unknown }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.color = normalizeColor(message?.color);
+    });
+
     console.log(`[WorldRoom] created (roomId=${this.roomId})`);
   }
 
@@ -55,6 +85,7 @@ export class WorldRoom extends Room<WorldState> {
       fallbackEmail: config.devFallbackEmail,
     });
 
+    const color = normalizeColor(options?.color);
     const profile = email ? await fetchVaProfile(email) : null;
     if (profile) {
       return {
@@ -64,6 +95,7 @@ export class WorldRoom extends Room<WorldState> {
         vaId: profile.vaId,
         profileUrl: profile.notionProfileUrl ?? "",
         isGuest: false,
+        color,
       };
     }
 
@@ -74,6 +106,7 @@ export class WorldRoom extends Room<WorldState> {
       vaId: "",
       profileUrl: "",
       isGuest: true,
+      color,
     };
   }
 
@@ -88,9 +121,13 @@ export class WorldRoom extends Room<WorldState> {
     player.vaId = identity.vaId;
     player.profileUrl = identity.profileUrl;
     player.isGuest = identity.isGuest;
+    player.color = identity.color;
     player.zone = zoneRoomFor(player.x, player.y).room;
     this.state.players.set(client.sessionId, player);
     console.log(`[WorldRoom] join ${client.sessionId} as ${player.name} (${player.tier})`);
+
+    // Send the active-VA directory for the teammate list (empty if no manager).
+    client.send("roster", { entries: await getRoster() });
 
     // Assign the initial LiveKit room (no-op if LiveKit is unset).
     await this.syncZone(client, player);

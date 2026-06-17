@@ -33,9 +33,10 @@ export function createPlaceholderTextures(scene: Phaser.Scene): void {
   // Player: a rounded teal token, a bit smaller than a tile.
   const size = TILE_SIZE - 12;
   g.clear();
-  g.fillStyle(0x2dd4bf, 1);
+  // White base so per-avatar setTint() renders the chosen color accurately.
+  g.fillStyle(0xffffff, 1);
   g.fillRoundedRect(0, 0, size, size, 8);
-  g.lineStyle(2, 0x0f766e, 1);
+  g.lineStyle(2, 0x0f1115, 0.6);
   g.strokeRoundedRect(1, 1, size - 2, size - 2, 8);
   g.generateTexture(TEX.player, size, size);
 

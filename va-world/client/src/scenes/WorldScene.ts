@@ -9,12 +9,15 @@ import {
 } from "../world/tilemap";
 import { TEX } from "../world/textures";
 import { ZONE_OVERLAYS, rectPx } from "../world/zones";
+import { colorToTint, normalizeColor } from "../world/avatars";
 import { joinWorld } from "../net/room";
 import { connectMedia, updateProximity, type MediaMessage } from "../media/livekitClient";
+import { overlayBridge, type ChatMsg, type OnlinePlayer, type RosterEntry } from "../ui/overlayBridge";
 
 const PLAYER_SPEED = 220;
 const SEND_INTERVAL_MS = 100;
 const PROXIMITY_INTERVAL_MS = 200;
+const VISUALS_INTERVAL_MS = 300;
 const REMOTE_LERP = 0.2;
 
 /** Shape of a player entry in the synced room state (see server WorldState). */
@@ -23,9 +26,17 @@ type NetPlayer = {
   y: number;
   name: string;
   tier: string;
+  vaId: string;
   isGuest: boolean;
   profileUrl: string;
+  color: string;
 };
+
+/** True while the user is typing in an overlay field (don't move the avatar). */
+function isTypingInOverlay(): boolean {
+  const el = document.activeElement;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+}
 
 /** A MapSchema as exposed by colyseus.js — only the bits we use. */
 type PlayerMap = {
@@ -57,10 +68,13 @@ export class WorldScene extends Phaser.Scene {
 
   private room?: Room;
   private mySessionId?: string;
+  private myPlayer?: NetPlayer;
   private localLabel?: Phaser.GameObjects.Text;
   private readonly remotes = new Map<string, Remote>();
   private lastSent = 0;
   private lastProximity = 0;
+  private lastVisuals = 0;
+  private onlineSig = "";
 
   constructor() {
     super("WorldScene");
@@ -128,7 +142,10 @@ export class WorldScene extends Phaser.Scene {
 
         players.onAdd((player, sessionId) => {
           if (sessionId === this.mySessionId) {
+            this.myPlayer = player;
             this.ensureLocalLabel(player);
+            this.player.setTint(colorToTint(normalizeColor(player.color)));
+            overlayBridge.setMyColor(player.color);
           } else {
             this.addRemote(sessionId, player);
           }
@@ -142,8 +159,61 @@ export class WorldScene extends Phaser.Scene {
             console.error("[va-world] media connect failed:", err),
           );
         });
+
+        // World chat + teammate directory feed the React overlay.
+        room.onMessage("chat", (msg: ChatMsg) => overlayBridge.addChat(msg));
+        room.onMessage("roster", (msg: { entries: RosterEntry[] }) =>
+          overlayBridge.setRoster(msg.entries ?? []),
+        );
+
+        // Wire the overlay's imperative actions back to the room/scene.
+        overlayBridge.bindActions({
+          sendChat: (text) => room.send("chat", { text }),
+          setColor: (color) => {
+            const c = normalizeColor(color);
+            try {
+              localStorage.setItem("va-world-color", c);
+            } catch {
+              /* ignore storage failures */
+            }
+            overlayBridge.setMyColor(c);
+            this.player.setTint(colorToTint(c));
+            room.send("avatar", { color: c });
+          },
+          teleportTo: (sessionId) => {
+            const r = this.remotes.get(sessionId);
+            if (!r) return;
+            this.player.setPosition(r.sprite.x + 44, r.sprite.y);
+            room.send("move", { x: this.player.x, y: this.player.y });
+          },
+        });
       })
       .catch((err) => console.error("[va-world] failed to join room:", err));
+  }
+
+  private buildOnline(): OnlinePlayer[] {
+    const list: OnlinePlayer[] = [];
+    if (this.myPlayer && this.mySessionId) {
+      list.push({
+        sessionId: this.mySessionId,
+        vaId: this.myPlayer.vaId,
+        name: this.myPlayer.name,
+        tier: this.myPlayer.tier,
+        color: normalizeColor(this.myPlayer.color),
+        isSelf: true,
+      });
+    }
+    for (const [sessionId, r] of this.remotes) {
+      list.push({
+        sessionId,
+        vaId: r.state.vaId,
+        name: r.state.name,
+        tier: r.state.tier,
+        color: normalizeColor(r.state.color),
+        isSelf: false,
+      });
+    }
+    return list;
   }
 
   private makeLabel(player: NetPlayer): Phaser.GameObjects.Text {
@@ -171,7 +241,7 @@ export class WorldScene extends Phaser.Scene {
 
   private addRemote(sessionId: string, player: NetPlayer): void {
     const sprite = this.add.image(player.x, player.y, TEX.player).setDepth(10);
-    sprite.setTint(0x8b5cf6);
+    sprite.setTint(colorToTint(normalizeColor(player.color)));
     const label = this.makeLabel(player);
     this.remotes.set(sessionId, { sprite, label, state: player });
   }
@@ -185,10 +255,12 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number): void {
-    const left = this.cursors.left.isDown || this.wasd.left.isDown;
-    const right = this.cursors.right.isDown || this.wasd.right.isDown;
-    const up = this.cursors.up.isDown || this.wasd.up.isDown;
-    const down = this.cursors.down.isDown || this.wasd.down.isDown;
+    // Don't drive the avatar while the user is typing in chat.
+    const typing = isTypingInOverlay();
+    const left = !typing && (this.cursors.left.isDown || this.wasd.left.isDown);
+    const right = !typing && (this.cursors.right.isDown || this.wasd.right.isDown);
+    const up = !typing && (this.cursors.up.isDown || this.wasd.up.isDown);
+    const down = !typing && (this.cursors.down.isDown || this.wasd.down.isDown);
 
     const velocity = new Phaser.Math.Vector2(
       (right ? 1 : 0) - (left ? 1 : 0),
@@ -221,6 +293,22 @@ export class WorldScene extends Phaser.Scene {
         y: r.state.y,
       }));
       updateProximity({ x: this.player.x, y: this.player.y }, peers);
+    }
+
+    // Refresh avatar tints + the teammate directory (only push when changed).
+    if (time - this.lastVisuals > VISUALS_INTERVAL_MS) {
+      this.lastVisuals = time;
+      for (const r of this.remotes.values()) {
+        r.sprite.setTint(colorToTint(normalizeColor(r.state.color)));
+      }
+      if (this.myPlayer) this.player.setTint(colorToTint(normalizeColor(this.myPlayer.color)));
+
+      const online = this.buildOnline();
+      const sig = online.map((o) => `${o.sessionId}:${o.color}:${o.name}:${o.tier}`).join("|");
+      if (sig !== this.onlineSig) {
+        this.onlineSig = sig;
+        overlayBridge.setOnline(online);
+      }
     }
   }
 }

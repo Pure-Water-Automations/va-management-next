@@ -15,7 +15,18 @@ writes back.
 
 ## Status
 
-**Phase 4 (current): meeting room + event stage zones.**
+**Phase 5 (current): polish — world chat, avatar customization, teammate directory.**
+- **Chat**: a box (bottom-left) relays messages to everyone via Colyseus; typing
+  there doesn't move your avatar.
+- **Avatar color**: pick a color (top-right); it's remembered locally, sent at
+  join, and shown to others via synced state.
+- **Directory**: a "Teammates" list (top-left) of who's online (plus the active
+  VA roster from the manager when configured) with a **Walk to** teleport.
+
+Earlier: Phase 4 (zones), Phase 3 (proximity A/V), Phase 2 (multiplayer + VA
+identity), Phase 0–1 (scaffold). Later: deploy (6).
+
+### Phase 4: meeting room + event stage zones
 - Two tagged floor regions change the A/V rules, each backed by its **own**
   LiveKit room (privacy can't be done with subscription tricks in one shared
   room):
@@ -26,9 +37,6 @@ writes back.
 - The server is authoritative about which room you may join: it watches your
   position and, when your zone (or stage role) changes, mints a new token and
   the client switches rooms. Open floor stays proximity-based (Phase 3).
-
-Earlier: Phase 3 (proximity A/V), Phase 2 (multiplayer + VA identity), Phase 0–1
-(scaffold). Later: polish (5), deploy (6).
 
 ## Develop
 

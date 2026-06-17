@@ -39,3 +39,25 @@ export async function fetchVaProfile(
     return null;
   }
 }
+
+/** Directory entry from the manager's /api/external/roster. */
+export type RosterEntry = { vaId: string; name: string; tier: string; status: string };
+
+/**
+ * Fetch the active-VA directory from the manager. Returns [] when the bridge
+ * isn't configured or on any error — the directory just shows who's online.
+ */
+export async function fetchRoster(fetchImpl: FetchLike = fetch): Promise<RosterEntry[]> {
+  if (!config.managerBaseUrl || !config.externalAppSecret) return [];
+
+  try {
+    const res = await fetchImpl(`${config.managerBaseUrl}/api/external/roster`, {
+      headers: { authorization: `Bearer ${config.externalAppSecret}` },
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { entries?: RosterEntry[] };
+    return Array.isArray(body.entries) ? body.entries : [];
+  } catch {
+    return [];
+  }
+}

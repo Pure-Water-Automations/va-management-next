@@ -1,4 +1,5 @@
 import { Client, type Room } from "colyseus.js";
+import { normalizeColor } from "../world/avatars";
 
 /** WS endpoint: build-time override, else same host on the server port (dev). */
 function endpoint(): string {
@@ -14,7 +15,18 @@ function devEmail(): string | undefined {
   return value ?? undefined;
 }
 
+/** Remembered avatar color from a previous session (validated). */
+function savedColor(): string {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem("va-world-color");
+  } catch {
+    /* ignore storage failures */
+  }
+  return normalizeColor(stored);
+}
+
 export async function joinWorld(): Promise<Room> {
   const client = new Client(endpoint());
-  return client.joinOrCreate("world", { email: devEmail() });
+  return client.joinOrCreate("world", { email: devEmail(), color: savedColor() });
 }

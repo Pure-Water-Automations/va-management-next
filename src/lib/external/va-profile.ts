@@ -58,3 +58,15 @@ export function toExternalVaProfile(va: Va): ExternalVaProfile {
     roleStartedDate: va.roleStartedDate ? va.roleStartedDate.toISOString() : null,
   };
 }
+
+/** Lightweight roster entry for a world directory — identity only. */
+export type ExternalRosterEntry = {
+  vaId: string;
+  name: string;
+  tier: Va["compensationRole"];
+  status: Va["status"];
+};
+
+export function toExternalRosterEntry(va: Va): ExternalRosterEntry {
+  return { vaId: va.vaId, name: va.name, tier: va.compensationRole, status: va.status };
+}
