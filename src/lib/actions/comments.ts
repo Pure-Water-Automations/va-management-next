@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
 import { canUserActOnTask } from "@/lib/services/tasks";
+import { notifyMentions } from "@/lib/inbox";
 import type { Role } from "@prisma/client";
 
 export async function addTaskComment(
@@ -33,6 +34,8 @@ export async function addTaskComment(
     summary: `Comment added on task "${task.title}".`,
   });
 
+  await notifyMentions(comment.body, `/hr/tasks/${taskId}`, comment.author.name ?? "Someone");
+
   return comment;
 }
 
@@ -63,6 +66,8 @@ export async function addProjectComment(
     severity: "info",
     summary: `Note added on project "${project.name}".`,
   });
+
+  await notifyMentions(comment.body, `/hr/projects/${projectId}`, comment.author.name ?? "Someone");
 
   return comment;
 }

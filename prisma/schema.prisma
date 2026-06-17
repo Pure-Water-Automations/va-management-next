@@ -82,6 +82,7 @@ model User {
   taskComments     TaskComment[]    @relation("TaskCommentAuthor")
   projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
   savedViews       SavedView[]
+  notifications    Notification[]
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────
@@ -149,6 +150,8 @@ model CompensationRole {
   nextRoleId              CompRole?
   additionalRequirements  String?
   notes                   String?
+  canDelegateTasks        Boolean          @default(false)
+  canDelegateProjects     Boolean          @default(false)
   updatedAt               DateTime         @updatedAt
 }
 
@@ -886,4 +889,18 @@ model TaskTemplate {
   priority     Priority     @default(Medium)
   createdById  String?
   createdAt    DateTime     @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
 }

@@ -198,6 +198,29 @@ export async function saveRole(input: SaveRoleInput, actorEmail: string) {
   return role;
 }
 
+export async function setRoleDelegation(
+  actorEmail: string,
+  input: { roleId: CompRole; canDelegateTasks?: boolean; canDelegateProjects?: boolean },
+) {
+  const roleId = normalizeCompRole(input.roleId, "roleId");
+  const data: { canDelegateTasks?: boolean; canDelegateProjects?: boolean } = {};
+  if (input.canDelegateTasks !== undefined) data.canDelegateTasks = input.canDelegateTasks;
+  if (input.canDelegateProjects !== undefined) data.canDelegateProjects = input.canDelegateProjects;
+  if (data.canDelegateTasks === undefined && data.canDelegateProjects === undefined) {
+    throw new Error("No delegation flags provided.");
+  }
+
+  const role = await db.compensationRole.update({ where: { roleId }, data });
+
+  await logActivity({
+    source: "hr_action",
+    eventType: "role_delegation_set",
+    severity: "info",
+    summary: `Delegation authority for ${roleId} updated (tasks=${role.canDelegateTasks}, projects=${role.canDelegateProjects}) by ${actorEmail}`,
+  });
+  return role;
+}
+
 export async function approveTierReview(
   reviewId: string,
   vaId: string,

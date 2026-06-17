@@ -1,7 +1,8 @@
 import { action } from "@/lib/api";
 import { createTask } from "@/lib/actions/tasks";
-import { canManageTasks } from "@/lib/auth/roles";
 
+// No role gate here: createTask enforces tier-aware delegation authority itself
+// (managers + tier-flagged VAs delegate; any Tier-1+ VA may self-add to a project).
 export const POST = action(
   async ({ user, body }) =>
     createTask(user.id, user.role, {
@@ -18,5 +19,4 @@ export const POST = action(
       relatedTrainings: body.relatedTrainings,
       suggestedTools: body.suggestedTools,
     }),
-  { allow: (r) => canManageTasks(r) },
 );

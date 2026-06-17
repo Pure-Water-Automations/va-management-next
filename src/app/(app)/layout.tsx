@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId } from "@/lib/auth/access";
 import { db } from "@/lib/db";
+import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
 import { AdminBar } from "@/components/AdminBar";
+import { NotificationBell } from "@/components/NotificationBell";
+import { CommandPalette } from "@/components/CommandPalette";
 import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
 
@@ -11,6 +14,8 @@ import { tourForView } from "@/lib/purii";
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   const view = await getEffectiveView(user);
+  const notifications = await getNotifications(user.id);
+  const unread = notifications.filter((n) => !n.read).length;
 
   let adminVas: { vaId: string; name: string }[] = [];
   let impersonatedVaId: string | null = null;
@@ -35,9 +40,21 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} />
         <main className="content" style={{ padding: 0 }}>
           {user.isAdmin && <AdminBar currentView={view} vas={adminVas} currentVaId={impersonatedVaId} />}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 12,
+              padding: "8px 24px 0",
+            }}
+          >
+            <NotificationBell notifications={notifications} unreadCount={unread} />
+          </div>
           <div className="content-pad">{children}</div>
         </main>
       </div>
+      <CommandPalette />
       <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
     </>
   );

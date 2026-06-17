@@ -3,6 +3,8 @@ import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str as settingStr } from "@/lib/settings";
 import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateTasks, getActorTier } from "@/lib/auth/delegation";
+import { createNotification, supervisorUserId } from "@/lib/inbox";
 import { inheritTaskClient } from "@/lib/services/tasks";
 import type { Role, TaskStatus, TaskStrategy, Priority } from "@prisma/client";
 
@@ -95,14 +97,21 @@ async function sendTaskAssignmentEmail(opts: {
 }
 
 export async function createTask(actorId: string, actorRole: Role, input: CreateTaskInput) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can assign tasks");
-
   const title = requireText(input.title, "title");
   const assignedToId = requireText(input.assignedToId, "assignedToId");
+  const projectId = optionalText(input.projectId);
+
+  // Authority (cards #22/#24): managers + tier-flagged VAs may delegate freely;
+  // additionally any Tier-1+ VA may self-add a task onto a project.
+  const canDelegate = await canUserDelegateTasks(actorId, actorRole);
+  if (!canDelegate) {
+    const tier = await getActorTier(actorId);
+    const selfAddToProject = !!projectId && !!tier && tier !== "TRAINEE";
+    if (!selfAddToProject) throw new AuthorizationError("You don't have permission to create tasks");
+  }
 
   // Resolve client: task-level client or inherit from project
   let projectClient: string | null = null;
-  const projectId = optionalText(input.projectId);
   if (projectId) {
     const proj = await db.project.findUnique({ where: { id: projectId }, select: { client: true } });
     projectClient = proj?.client ?? null;
@@ -161,6 +170,19 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
     summary: `Task "${task.title}" assigned to ${task.assignedTo.name ?? task.assignedTo.email}.`,
   });
 
+  // In-console supervisor ping when a VA (non-manager) added the task (card #24).
+  if (actorRole === "VA" || actorRole === "SENIOR_VA") {
+    const supId = await supervisorUserId(actorId);
+    if (supId && supId !== actorId) {
+      await createNotification(
+        supId,
+        "task_added",
+        `${task.assignedBy.name ?? "A team member"} added task "${task.title}"`,
+        `/hr/tasks/${task.id}`,
+      );
+    }
+  }
+
   return { ...task, emailSent };
 }
 
@@ -172,7 +194,7 @@ export async function updateTaskStatus(
 ) {
   const task = await db.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: { assignedToId: true, assignedById: true, title: true },
+    select: { assignedToId: true, assignedById: true, title: true, projectId: true },
   });
 
   const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(actorRole);
@@ -191,6 +213,22 @@ export async function updateTaskStatus(
     severity: "info",
     summary: `Task "${updated.title}" status changed to ${status}.`,
   });
+
+  // Light automation (card #12): roll the parent project's status from its tasks.
+  if (task.projectId) {
+    const [siblings, proj] = await Promise.all([
+      db.task.findMany({ where: { projectId: task.projectId }, select: { status: true } }),
+      db.project.findUnique({ where: { id: task.projectId }, select: { status: true } }),
+    ]);
+    if (proj) {
+      const allDone = siblings.length > 0 && siblings.every((s) => s.status === "Done");
+      if (allDone && proj.status !== "Done") {
+        await db.project.update({ where: { id: task.projectId }, data: { status: "Done" } });
+      } else if (!allDone && proj.status === "Planning" && status !== "NotStarted") {
+        await db.project.update({ where: { id: task.projectId }, data: { status: "Active" } });
+      }
+    }
+  }
 
   return updated;
 }

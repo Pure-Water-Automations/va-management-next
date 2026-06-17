@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
-import { canManageProjects, AuthorizationError } from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateProjects } from "@/lib/auth/delegation";
 import type { Role, ProjectStatus, ProjectType, Priority } from "@prisma/client";
 
 export type CreateProjectInput = {
@@ -35,7 +36,8 @@ export async function createProject(
   actorRole: Role,
   input: CreateProjectInput,
 ) {
-  if (!canManageProjects(actorRole)) throw new AuthorizationError("Only HR managers and team leads can create projects");
+  if (!(await canUserDelegateProjects(actorId, actorRole)))
+    throw new AuthorizationError("You don't have permission to create projects");
 
   const name = requireText(input.name, "name");
   const ownerId = optionalText(input.ownerId) ?? actorId;
@@ -72,7 +74,8 @@ export async function updateProject(
   projectId: string,
   input: UpdateProjectInput,
 ) {
-  if (!canManageProjects(actorRole)) throw new AuthorizationError("Only HR managers and team leads can update projects");
+  if (!(await canUserDelegateProjects(actorId, actorRole)))
+    throw new AuthorizationError("You don't have permission to update projects");
 
   const project = await db.project.update({
     where: { id: projectId },
