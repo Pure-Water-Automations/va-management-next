@@ -170,6 +170,17 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
     summary: `Task "${task.title}" assigned to ${task.assignedTo.name ?? task.assignedTo.email}.`,
   });
 
+  // In-console notification for the assignee (any delegator, incl. managers) so the
+  // person the task was assigned to sees the bell — the email above is separate.
+  if (task.assignedToId !== actorId) {
+    await createNotification(
+      task.assignedToId,
+      "task_assigned",
+      `${task.assignedBy.name ?? "Someone"} assigned you a task: "${task.title}"`,
+      `/va/tasks/${task.id}`,
+    );
+  }
+
   // In-console supervisor ping when a VA (non-manager) added the task (card #24).
   if (actorRole === "VA" || actorRole === "SENIOR_VA") {
     const supId = await supervisorUserId(actorId);

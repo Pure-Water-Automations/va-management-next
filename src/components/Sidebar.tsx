@@ -30,6 +30,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/hr/projects", label: "Projects" },
         { href: "/hr/tasks", label: "All Tasks" },
         { href: "/hr/tasks/new", label: "Delegate" },
+        { href: "/hr/workload", label: "Workload" },
         { href: "/hr/templates", label: "Templates" },
       ],
     },

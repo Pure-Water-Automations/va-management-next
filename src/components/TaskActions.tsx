@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
+import { MentionTextarea } from "@/components/MentionTextarea";
 
 const STATUSES = ["NotStarted", "InProgress", "Done", "Blocked"] as const;
 
@@ -72,10 +73,10 @@ export function CommentForm({ taskId }: { taskId: string }) {
 
   return (
     <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-      <textarea
+      <MentionTextarea
         value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Add a comment…"
+        onChange={setBody}
+        placeholder="Add a comment… use @ to mention a teammate"
         rows={3}
         style={{ ...input, resize: "vertical", boxSizing: "border-box", width: "100%" }}
       />

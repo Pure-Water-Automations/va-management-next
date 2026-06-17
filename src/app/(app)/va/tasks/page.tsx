@@ -1,4 +1,5 @@
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveVaId } from "@/lib/auth/access";
+import { db } from "@/lib/db";
 import { getMyTasks } from "@/lib/reads/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -15,7 +16,17 @@ export const dynamic = "force-dynamic";
 
 export default async function VaTasksPage() {
   const user = await getCurrentUser();
-  const tasks = await getMyTasks(user.id);
+  // Honor admin "view as VA" impersonation like every other VA page, so a manager
+  // testing the VA console sees the impersonated VA's tasks, not their own.
+  let subjectUserId = user.id;
+  if (!user.vaId) {
+    const vaId = await getEffectiveVaId(user);
+    if (vaId) {
+      const linked = await db.user.findFirst({ where: { vaId, active: true }, select: { id: true } });
+      if (linked) subjectUserId = linked.id;
+    }
+  }
+  const tasks = await getMyTasks(subjectUserId);
 
   const now = new Date();
   const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);

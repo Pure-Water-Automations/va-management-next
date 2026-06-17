@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
+import { MentionTextarea } from "@/components/MentionTextarea";
 
 const input: React.CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -34,10 +35,10 @@ export function ProjectCommentForm({ projectId }: { projectId: string }) {
 
   return (
     <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-      <textarea
+      <MentionTextarea
         value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Add a project note…"
+        onChange={setBody}
+        placeholder="Add a project note… use @ to mention a teammate"
         rows={3}
         style={{ ...input, resize: "vertical", boxSizing: "border-box", width: "100%" }}
       />
