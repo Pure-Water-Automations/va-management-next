@@ -31,6 +31,14 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Cheap multimodal model used to transcribe + summarize recording audio (via
+  // OpenRouter input_audio). Gemini Flash-lite accepts audio and returns JSON with
+  // timestamped segments for cheap (~$0.003 / 30-min recording). Fed compact mono
+  // 16kHz mp3 extracted by ffmpeg (see worker/lib/media.ts).
+  OPENROUTER_TRANSCRIBE_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("google/gemini-2.5-flash-lite"),
+  ),
   // Cloudflare R2 (video storage for the in-app recorder). All optional so the
   // app still boots without R2 configured; recording features no-op until set.
   R2_ACCOUNT_ID: optionalEnvString(z.string()),

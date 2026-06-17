@@ -1,80 +1,24 @@
 /**
  * recordings-process — best-effort AI post-processing for uploaded recordings.
- * Polls for recordings with aiStatus="pending" (set at finalize), pulls the audio
- * from R2, runs OpenAI speech-to-text for a transcript, then a chat completion for
- * a title + summary, and writes the results back. Never blocks playback: a recording
- * is already "ready" before this runs; failures just mark aiStatus and move on.
- * Run on a short cron (every 1–2 min) or on demand: `npm run worker:recordings`.
+ * Polls for recordings with aiStatus="pending" (set at finalize), pulls the video
+ * from R2, extracts a compact audio track with ffmpeg, then sends it to a cheap
+ * OpenRouter multimodal model (default google/gemini-2.5-flash-lite) which returns
+ * a timestamped transcript + title + summary in one call. Writes the results back.
+ *
+ * Never blocks playback: a recording is already "ready" before this runs; failures
+ * just mark aiStatus and move on. Run on a short cron (every 1-2 min) or on demand:
+ * `npm run worker:recordings`. Requires ffmpeg on the host.
  */
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { r2Configured, r2GetObject, r2Put, transcriptKey } from "@/lib/r2";
+import { transcribeAudio } from "@/lib/recordings/transcription";
+import { extractAudioMp3, ffmpegAvailable } from "./lib/media";
 
 const BATCH = 3;
-
-type Segment = { start: number; end: number; text: string };
-
-async function transcribe(
-  bytes: Uint8Array,
-  mimeType: string,
-): Promise<{ text: string; segments: Segment[] } | null> {
-  if (!env.OPENAI_API_KEY) return null;
-  const ext = mimeType.includes("mp4") ? "mp4" : "webm";
-  const fd = new FormData();
-  // Copy into a plain ArrayBuffer so the Blob part type is unambiguous.
-  const ab = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(ab).set(bytes);
-  fd.append("file", new Blob([ab], { type: mimeType }), `audio.${ext}`);
-  fd.append("model", env.OPENAI_TRANSCRIBE_MODEL);
-  fd.append("response_format", "verbose_json");
-
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.OPENAI_API_KEY}` },
-    body: fd,
-  });
-  if (!res.ok) throw new Error(`transcribe ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = (await res.json()) as {
-    text?: string;
-    segments?: { start: number; end: number; text: string }[];
-  };
-  return {
-    text: (data.text ?? "").trim(),
-    segments: (data.segments ?? []).map((s) => ({ start: s.start, end: s.end, text: s.text.trim() })),
-  };
-}
-
-async function summarize(transcript: string): Promise<{ title: string; summary: string } | null> {
-  if (!env.OPENAI_API_KEY || !transcript) return null;
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${env.OPENAI_API_KEY}` },
-    body: JSON.stringify({
-      model: env.OPENAI_MODEL,
-      temperature: 0.3,
-      max_tokens: 250,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            'You summarize a screen-recording transcript from a virtual assistant\'s work log. Return ONLY JSON: {"title":"concise title, <=8 words","summary":"2-4 sentence summary of what was shown/done"}.',
-        },
-        { role: "user", content: transcript.slice(0, 8000) },
-      ],
-    }),
-  });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const raw = data.choices?.[0]?.message?.content;
-  if (!raw) return null;
-  try {
-    const p = JSON.parse(raw) as { title?: string; summary?: string };
-    return { title: (p.title ?? "").trim(), summary: (p.summary ?? "").trim() };
-  } catch {
-    return null;
-  }
-}
+// A claimed row that's still "running" after this long is treated as a crashed
+// attempt and re-queued (the previous worker died mid-process).
+const STALE_RUNNING_MS = 15 * 60 * 1000;
 
 async function processOne(rec: {
   id: string;
@@ -82,40 +26,44 @@ async function processOne(rec: {
   mimeType: string;
   title: string;
 }): Promise<void> {
-  await db.recording.update({ where: { id: rec.id }, data: { aiStatus: "running" } });
-
-  if (!env.OPENAI_API_KEY) {
+  // Row is already claimed (aiStatus="running") by the atomic claim in main().
+  if (!env.OPENROUTER_API_KEY) {
     await db.recording.update({ where: { id: rec.id }, data: { aiStatus: "skipped" } });
     return;
   }
 
   try {
     const bytes = await r2GetObject(rec.objectKey);
-    const tr = await transcribe(bytes, rec.mimeType);
-    if (!tr) {
-      await db.recording.update({ where: { id: rec.id }, data: { aiStatus: "failed" } });
+    const ext = rec.mimeType.includes("mp4") ? "mp4" : "webm";
+    const mp3 = await extractAudioMp3(bytes, ext);
+    const result = await transcribeAudio(mp3, "mp3");
+
+    if (!result) {
+      // No intelligible speech / model returned nothing usable — done, not failed.
+      await db.recording.update({ where: { id: rec.id }, data: { aiStatus: "done" } });
       return;
     }
 
     const tKey = transcriptKey(rec.id);
-    await r2Put(tKey, JSON.stringify(tr.segments), "application/json").catch(() => undefined);
-    const ai = await summarize(tr.text).catch(() => null);
+    await r2Put(tKey, JSON.stringify(result.segments), "application/json").catch(() => undefined);
 
     await db.recording.update({
       where: { id: rec.id },
       data: {
-        transcript: tr.text || null,
-        transcriptJson: tr.segments.length ? tr.segments : undefined,
+        transcript: result.text || null,
+        transcriptJson: result.segments.length ? result.segments : undefined,
         transcriptKey: tKey,
-        aiTitle: ai?.title || null,
-        aiSummary: ai?.summary || null,
+        aiTitle: result.title,
+        aiSummary: result.summary,
         aiStatus: "done",
-        ...(ai?.title && rec.title === "Untitled recording" ? { title: ai.title } : {}),
+        ...(result.title && rec.title === "Untitled recording" ? { title: result.title } : {}),
       },
     });
   } catch (err) {
     console.error(`  ${rec.id}: ${String(err).split("\n")[0]}`);
-    await db.recording.update({ where: { id: rec.id }, data: { aiStatus: "failed" } }).catch(() => undefined);
+    await db.recording
+      .update({ where: { id: rec.id }, data: { aiStatus: "failed" } })
+      .catch(() => undefined);
   }
 }
 
@@ -136,6 +84,28 @@ async function main() {
       return;
     }
 
+    // Transcription needs ffmpeg. If it's missing, leave rows pending (don't burn
+    // them) so they process once ffmpeg is installed.
+    if (env.OPENROUTER_API_KEY && !(await ffmpegAvailable())) {
+      await db.syncRun.update({
+        where: { id: run.id },
+        data: {
+          status: "SUCCESS",
+          finishedAt: new Date(),
+          firstErrorLine: "ffmpeg not installed — skipped",
+          detailsJson: { skipped: true, reason: "no-ffmpeg" },
+        },
+      });
+      console.log("recordings-process: skipped (ffmpeg not installed — `apt install -y ffmpeg`)");
+      return;
+    }
+
+    // Re-queue rows wedged in "running" from a crashed earlier attempt.
+    const reclaimed = await db.recording.updateMany({
+      where: { aiStatus: "running", updatedAt: { lt: new Date(Date.now() - STALE_RUNNING_MS) } },
+      data: { aiStatus: "pending" },
+    });
+
     const pending = await db.recording.findMany({
       where: { status: "ready", aiStatus: "pending" },
       orderBy: { createdAt: "asc" },
@@ -143,13 +113,27 @@ async function main() {
       select: { id: true, objectKey: true, mimeType: true, title: true },
     });
 
-    for (const rec of pending) await processOne(rec);
+    let processed = 0;
+    for (const rec of pending) {
+      // Atomic claim: only one worker can flip pending→running for this row.
+      const claim = await db.recording.updateMany({
+        where: { id: rec.id, aiStatus: "pending" },
+        data: { aiStatus: "running" },
+      });
+      if (claim.count !== 1) continue; // another worker grabbed it first
+      await processOne(rec);
+      processed += 1;
+    }
 
     await db.syncRun.update({
       where: { id: run.id },
-      data: { status: "SUCCESS", finishedAt: new Date(), detailsJson: { processed: pending.length } },
+      data: {
+        status: "SUCCESS",
+        finishedAt: new Date(),
+        detailsJson: { processed, reclaimed: reclaimed.count },
+      },
     });
-    console.log(`recordings-process: processed ${pending.length}`);
+    console.log(`recordings-process: processed ${processed} (reclaimed ${reclaimed.count})`);
   } catch (err) {
     await db.syncRun.update({
       where: { id: run.id },

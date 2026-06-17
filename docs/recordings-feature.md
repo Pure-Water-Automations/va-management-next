@@ -26,7 +26,7 @@ needs no migration.
 | Player | video via stream proxy, AI summary, transcript w/ click-to-seek, comments + reactions, review controls, edit/delete | `src/components/recorder/RecordingDetailClient.tsx` |
 | Pages | `/record`, `/recordings` (library), `/recordings/[id]` (player) — each `notFound()` for non-admins | `src/app/(app)/record`, `src/app/(app)/recordings` |
 | Nav | admin-only "Recordings" group | `src/components/Sidebar.tsx` (+ `src/app/(app)/layout.tsx`) |
-| AI | Whisper transcript + chat title/summary worker (best-effort, non-blocking) | `worker/recordings-process.ts` (`npm run worker:recordings`) |
+| AI | ffmpeg audio extraction → OpenRouter multimodal transcript + title/summary in one cheap call (best-effort, non-blocking) | `worker/recordings-process.ts` (`npm run worker:recordings`), `worker/lib/media.ts`, `src/lib/recordings/transcription.ts` |
 
 ### Admin gating
 - API: `action(handler, { allow: () => false })` — non-admins denied, admins bypass (see `src/lib/api.ts`).
@@ -65,7 +65,8 @@ as the row is `ready`; AI never blocks it.
    `/recordings`; build a filtered review queue when access opens to HR/supervisors.
 
 5. **Nice-to-haves:** multipart upload for very long videos, a floating recorder pill,
-   server-side ffmpeg thumbnails/audio extraction (Whisper 25 MB limit), viewer analytics.
+   server-side ffmpeg thumbnail generation, viewer analytics. (Audio extraction for AI is
+   now done — see "AI processing" below.)
 
 ---
 
@@ -77,9 +78,20 @@ as the row is `ready`; AI never blocks it.
    allowing `PUT` (and `GET`/`HEAD`) from the app origin, with `Content-Type` in
    `AllowedHeaders` and `ExposeHeaders: ["ETag"]` — direct browser upload fails silently
    without it. Playback uses the stream proxy, so GET CORS isn't strictly required for `<video>`.
-4. **AI (optional):** `OPENAI_API_KEY` enables transcript/summary; `OPENAI_TRANSCRIBE_MODEL`
-   defaults to `whisper-1`. Schedule `npm run worker:recordings` every 1–2 min (cron),
-   or run on demand. Without a key, `aiStatus` becomes `skipped` and playback is unaffected.
+4. **AI processing (optional):** transcripts + summaries come from a cheap OpenRouter
+   multimodal model fed ffmpeg-extracted audio (so it works for full-length recordings,
+   not just clips under Whisper's 25 MB cap). Requirements:
+   - **ffmpeg on the host** (`apt install -y ffmpeg` on the VPS). The worker extracts a
+     compact mono 16 kHz mp3 from the video before transcribing. No ffmpeg → the run
+     no-ops and rows stay `pending` until it's installed.
+   - **`OPENROUTER_API_KEY`** (the shared key — already on the VPS via
+     `/etc/secondbrain/openrouter.env`). `OPENROUTER_TRANSCRIBE_MODEL` defaults to
+     `google/gemini-2.5-flash-lite` (audio-in, JSON-out, ~$0.003 per 30-min recording;
+     returns timestamped segments for click-to-seek). No key → `aiStatus="skipped"`.
+   - Schedule `npm run worker:recordings` every 1–2 min (cron/systemd timer) or run on
+     demand. The worker claims each row atomically (`pending`→`running`) and re-queues
+     rows wedged in `running` for >15 min, so overlapping runs are safe. Playback never
+     waits on AI.
 
 ## Verify end-to-end
 - As an admin (`DEV_AUTH_EMAIL`), open `/record` in desktop Chrome → record ~20s with the
