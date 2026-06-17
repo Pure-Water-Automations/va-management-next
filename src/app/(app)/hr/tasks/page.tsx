@@ -1,10 +1,13 @@
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
+import { getSavedViews } from "@/lib/reads/views";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/task-format";
 import { TasksWorkspace } from "@/components/TasksWorkspace";
+import { TaskViewTabs } from "@/components/TaskViewTabs";
+import { SavedViewsBar } from "@/components/SavedViewsBar";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +33,15 @@ const STATUS_RANK: Record<string, number> = {
 
 const STATUS_FILTERS = ["NotStarted", "InProgress", "Blocked", "Done"] as const;
 
+type GroupKey = "project" | "assignee" | "status";
+const GROUP_KEYS: readonly GroupKey[] = ["project", "assignee", "status"];
+const GROUP_OPTIONS: readonly { value: GroupKey | ""; label: string }[] = [
+  { value: "", label: "None" },
+  { value: "project", label: "Project" },
+  { value: "assignee", label: "Assignee" },
+  { value: "status", label: "Status" },
+];
+
 export default async function HrTasksPage({
   searchParams,
 }: {
@@ -39,9 +51,17 @@ export default async function HrTasksPage({
     va?: string;
     sort?: string;
     dir?: string;
+    group?: string;
   }>;
 }) {
-  const { status, client, va, sort: rawSort, dir: rawDir } = await searchParams;
+  const {
+    status,
+    client,
+    va,
+    sort: rawSort,
+    dir: rawDir,
+    group: rawGroup,
+  } = await searchParams;
   const user = await getCurrentUser();
   if (!canManageTasks(user.role)) {
     return <p style={{ padding: 32 }}>Not authorized.</p>;
@@ -51,8 +71,11 @@ export default async function HrTasksPage({
     ? (rawSort as SortKey)
     : "due";
   const dir: SortDir = rawDir === "desc" ? "desc" : "asc";
+  const group: GroupKey | undefined = GROUP_KEYS.includes(rawGroup as GroupKey)
+    ? (rawGroup as GroupKey)
+    : undefined;
 
-  const [tasks, vas] = await Promise.all([
+  const [tasks, vas, views] = await Promise.all([
     getAllTasks({
       ...(status ? { status } : {}),
       ...(client ? { client } : {}),
@@ -63,6 +86,7 @@ export default async function HrTasksPage({
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
+    getSavedViews(user.id, "tasks"),
   ]);
 
   // ── Server-side sort ───────────────────────────────────────────────────────
@@ -110,6 +134,7 @@ export default async function HrTasksPage({
 
   const buildHref = (overrides: Record<string, string | undefined>) => {
     const params = new URLSearchParams({ ...baseParams, sort, dir });
+    if (group) params.set("group", group);
     for (const [k, v] of Object.entries(overrides)) {
       if (v === undefined || v === "") params.delete(k);
       else params.set(k, v);
@@ -117,6 +142,11 @@ export default async function HrTasksPage({
     const qs = params.toString();
     return qs ? `/hr/tasks?${qs}` : "/hr/tasks";
   };
+
+  // The active querystring (no leading "?"), used by the Saved Views bar.
+  const currentParams = new URLSearchParams({ ...baseParams, sort, dir });
+  if (group) currentParams.set("group", group);
+  const currentQuery = currentParams.toString();
 
   const hasFilters = Boolean(status || client || va);
 
@@ -137,6 +167,10 @@ export default async function HrTasksPage({
           + Delegate Task
         </a>
       </div>
+
+      <TaskViewTabs current="list" />
+
+      <SavedViewsBar views={views} currentQuery={currentQuery} />
 
       {/* Filters */}
       <div
@@ -208,6 +242,41 @@ export default async function HrTasksPage({
             Clear filters
           </a>
         )}
+
+        {/* Grouping control (preserves status/client/va/sort/dir) */}
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+          <span
+            style={{
+              fontSize: "var(--text-xs)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              color: "var(--color-text-tertiary)",
+            }}
+          >
+            Group
+          </span>
+          {GROUP_OPTIONS.map((opt) => {
+            const active = (group ?? "") === opt.value;
+            return (
+              <a
+                key={opt.value || "none"}
+                href={buildHref({ group: opt.value || undefined })}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  border: "1px solid var(--color-border)",
+                  fontSize: "var(--text-sm)",
+                  textDecoration: "none",
+                  background: active ? "var(--color-sky-500)" : undefined,
+                  color: active ? "#fff" : "var(--color-text-secondary)",
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                {opt.label}
+              </a>
+            );
+          })}
+        </div>
       </div>
 
       {sorted.length === 0 ? (
@@ -225,6 +294,7 @@ export default async function HrTasksPage({
             sort={sort}
             dir={dir}
             baseQuery={baseQuery}
+            group={group}
           />
         </Card>
       )}

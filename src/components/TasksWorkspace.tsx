@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   StatusBadge,
@@ -52,12 +52,14 @@ export function TasksWorkspace({
   sort,
   dir,
   baseQuery,
+  group,
 }: {
   tasks: WorkspaceTask[];
   assignees: Assignee[];
   sort: SortKey;
   dir: SortDir;
   baseQuery: Record<string, string>;
+  group?: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -154,6 +156,113 @@ export function TasksWorkspace({
     { key: "due", label: "Due" },
   ];
 
+  // Total columns in the table (checkbox + data columns) — for the group header colspan.
+  const totalColumns = columns.length + 1;
+
+  // ── Grouping: partition the (already-sorted) rows into labeled groups ─────────
+  function groupLabelOf(t: WorkspaceTask): string {
+    switch (group) {
+      case "project":
+        return t.project?.name ?? "No project";
+      case "assignee":
+        return t.assignedTo.name ?? t.assignedTo.email ?? "Unassigned";
+      case "status":
+        return humanize(t.status);
+      default:
+        return "";
+    }
+  }
+
+  const groups: { label: string; rows: WorkspaceTask[] }[] = [];
+  if (group) {
+    const index = new Map<string, { label: string; rows: WorkspaceTask[] }>();
+    for (const t of tasks) {
+      const label = groupLabelOf(t);
+      let g = index.get(label);
+      if (!g) {
+        g = { label, rows: [] };
+        index.set(label, g);
+        groups.push(g);
+      }
+      g.rows.push(t);
+    }
+  }
+
+  // Single row renderer reused for flat and grouped layouts.
+  const renderRow = (t: WorkspaceTask) => {
+    const isSelected = selected.has(t.id);
+    return (
+      <tr
+        key={t.id}
+        onClick={() => setDrawerTaskId(t.id)}
+        style={{
+          cursor: "pointer",
+          background: isSelected ? "var(--color-sky-50)" : undefined,
+        }}
+      >
+        <td
+          style={{ ...tdStyle, width: 36 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            aria-label={`Select ${t.title}`}
+            checked={isSelected}
+            onChange={() => toggleOne(t.id)}
+            style={{ cursor: "pointer" }}
+          />
+        </td>
+        <td style={tdStyle}>
+          <a
+            href={`/hr/tasks/${t.id}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontWeight: 600, textDecoration: "none" }}
+          >
+            {t.title}
+          </a>
+        </td>
+        <td style={tdStyle}>
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <Avatar
+              name={t.assignedTo.name}
+              email={t.assignedTo.email}
+              size={22}
+            />
+            <span className="small" style={{ whiteSpace: "nowrap" }}>
+              {t.assignedTo.name ?? t.assignedTo.email}
+            </span>
+          </span>
+        </td>
+        <td style={{ ...tdStyle, color: "var(--color-text-secondary)" }}>
+          {t.project?.name ?? (t.client ? t.client : "—")}
+        </td>
+        <td style={tdStyle}>
+          <PriorityBadge value={t.priority} />
+        </td>
+        <td style={tdStyle}>
+          <StatusBadge value={t.status} />
+        </td>
+        <td style={tdStyle}>
+          <DueChip date={t.dueDate} status={t.status} />
+        </td>
+      </tr>
+    );
+  };
+
+  const groupHeaderStyle: React.CSSProperties = {
+    padding: "8px 12px",
+    background: "var(--color-bg-secondary)",
+    borderBottom: "1px solid var(--color-border)",
+    borderTop: "1px solid var(--color-border)",
+    fontSize: "var(--text-xs)",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color: "var(--color-text-secondary)",
+    fontWeight: 700,
+  };
+
   return (
     <div style={{ position: "relative" }}>
       {/* Keyboard hint */}
@@ -230,78 +339,18 @@ export function TasksWorkspace({
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t) => {
-              const isSelected = selected.has(t.id);
-              return (
-                <tr
-                  key={t.id}
-                  onClick={() => setDrawerTaskId(t.id)}
-                  style={{
-                    cursor: "pointer",
-                    background: isSelected
-                      ? "var(--color-sky-50)"
-                      : undefined,
-                  }}
-                >
-                  <td
-                    style={{ ...tdStyle, width: 36 }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${t.title}`}
-                      checked={isSelected}
-                      onChange={() => toggleOne(t.id)}
-                      style={{ cursor: "pointer" }}
-                    />
-                  </td>
-                  <td style={tdStyle}>
-                    <a
-                      href={`/hr/tasks/${t.id}`}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ fontWeight: 600, textDecoration: "none" }}
-                    >
-                      {t.title}
-                    </a>
-                  </td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <Avatar
-                        name={t.assignedTo.name}
-                        email={t.assignedTo.email}
-                        size={22}
-                      />
-                      <span className="small" style={{ whiteSpace: "nowrap" }}>
-                        {t.assignedTo.name ?? t.assignedTo.email}
-                      </span>
-                    </span>
-                  </td>
-                  <td
-                    style={{
-                      ...tdStyle,
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    {t.project?.name ?? (t.client ? t.client : "—")}
-                  </td>
-                  <td style={tdStyle}>
-                    <PriorityBadge value={t.priority} />
-                  </td>
-                  <td style={tdStyle}>
-                    <StatusBadge value={t.status} />
-                  </td>
-                  <td style={tdStyle}>
-                    <DueChip date={t.dueDate} status={t.status} />
-                  </td>
-                </tr>
-              );
-            })}
+            {group
+              ? groups.map((g) => (
+                  <Fragment key={g.label}>
+                    <tr>
+                      <td colSpan={totalColumns} style={groupHeaderStyle}>
+                        {g.label} ({g.rows.length})
+                      </td>
+                    </tr>
+                    {g.rows.map(renderRow)}
+                  </Fragment>
+                ))
+              : tasks.map(renderRow)}
           </tbody>
         </table>
       </div>

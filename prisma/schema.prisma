@@ -81,6 +81,7 @@ model User {
   tasksCreated     Task[]           @relation("TaskCreator")
   taskComments     TaskComment[]    @relation("TaskCommentAuthor")
   projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
+  savedViews       SavedView[]
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────
@@ -820,4 +821,17 @@ model ProjectComment {
   author  User    @relation("ProjectCommentAuthor", fields: [authorId], references: [id])
 
   @@index([projectId])
+}
+
+model SavedView {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  scope     String   @default("tasks")
+  query     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
