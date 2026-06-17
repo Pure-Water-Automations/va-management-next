@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageProjects } from "@/lib/auth/roles";
+import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +14,10 @@ export const dynamic = "force-dynamic";
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageProjects(user.role)) {
-    redirect("/");
+  if (!user.isAdmin && !canManageTasks(user.role)) {
+    redirect("/hr/projects");
   }
+  const canEdit = user.isAdmin || canManageProjects(user.role);
 
   const [project, feed] = await Promise.all([
     getProjectDetail(id),
@@ -41,9 +43,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "center" }}>
           <Badge variant={project.status === "Active" ? "primary" : "default"}>{project.status}</Badge>
           <Badge variant={project.priority === "High" ? "danger" : "warning"}>{project.priority}</Badge>
+          {canEdit && (
+            <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">
+              Edit
+            </Button>
+          )}
         </div>
       </div>
 

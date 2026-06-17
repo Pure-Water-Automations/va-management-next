@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
+import { canManageTasks, canManageProjects } from "@/lib/auth/roles";
 import { getProjectsList } from "@/lib/reads/projects";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -14,6 +14,7 @@ export default async function HrProjectsPage() {
   }
 
   const projects = await getProjectsList();
+  const canCreate = user.isAdmin || canManageProjects(user.role);
 
   const activeCount = projects.filter((p) => p.status === "Active").length;
   const openTaskCount = projects.reduce((s, p) => s + p.openTaskCount, 0);
@@ -28,9 +29,16 @@ export default async function HrProjectsPage() {
           <div className="crumb">Projects</div>
           <h1>Projects</h1>
         </div>
-        <a href="/hr/tasks/new" className="btn btn-primary" style={{ alignSelf: "center" }}>
-          + Delegate Task
-        </a>
+        <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
+          {canCreate && (
+            <a href="/hr/projects/new" className="btn btn-primary">
+              + New Project
+            </a>
+          )}
+          <a href="/hr/tasks/new" className="btn btn-primary">
+            + Delegate Task
+          </a>
+        </div>
       </div>
 
       <div className="stat-grid">

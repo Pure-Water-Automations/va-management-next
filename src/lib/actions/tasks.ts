@@ -23,6 +23,8 @@ export type CreateTaskInput = {
 
 export type UpdateTaskInput = Partial<Omit<CreateTaskInput, "assignedToId"> & { status?: unknown }>;
 
+const TASK_STATUSES = new Set(["NotStarted", "InProgress", "Done", "Blocked"]);
+
 function requireText(val: unknown, field: string): string {
   if (typeof val !== "string" || !val.trim()) throw new Error(`${field} is required`);
   return val.trim();
@@ -207,7 +209,9 @@ export async function updateTask(
       ...(input.instructions !== undefined ? { instructions: optionalText(input.instructions) } : {}),
       ...(input.strategy !== undefined ? { strategy: optionalText(input.strategy) as TaskStrategy } : {}),
       ...(input.priority !== undefined ? { priority: optionalText(input.priority) as Priority } : {}),
-      ...(input.status !== undefined ? { status: optionalText(input.status) as TaskStatus } : {}),
+      ...(input.status !== undefined && TASK_STATUSES.has(optionalText(input.status) ?? "")
+        ? { status: optionalText(input.status) as TaskStatus }
+        : {}),
       ...(input.client !== undefined ? { client: optionalText(input.client) } : {}),
       ...(input.dueDate !== undefined ? { dueDate: optionalDate(input.dueDate) } : {}),
       ...(input.links !== undefined ? { links: optionalText(input.links) } : {}),

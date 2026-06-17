@@ -5,6 +5,7 @@ import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { StatusDropdown, CommentForm } from "@/components/TaskActions";
+import { TaskEditForm } from "@/components/TaskEditForm";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,25 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
               {sops.length > 0 && <ResourceList label="Related SOPs" items={sops} />}
               {trainings.length > 0 && <ResourceList label="Related Trainings" items={trainings} />}
               {tools.length > 0 && <ToolList label="Suggested Tools" items={tools} />}
+            </Card>
+          )}
+
+          {(user.isAdmin || canManageTasks(user.role)) && (
+            <Card padding={20}>
+              <h3 style={{ marginTop: 0, marginBottom: 12 }}>Edit task</h3>
+              <TaskEditForm
+                task={{
+                  id: task.id,
+                  title: task.title,
+                  instructions: task.instructions,
+                  strategy: task.strategy,
+                  priority: task.priority,
+                  status: task.status,
+                  client: task.client,
+                  dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : null,
+                  links: task.links,
+                }}
+              />
             </Card>
           )}
         </div>
