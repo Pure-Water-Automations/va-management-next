@@ -99,3 +99,35 @@ as the row is `ready`; AI never blocks it.
 - As a non-admin, confirm `/record`, `/recordings`, and the API routes 404/deny and the
   sidebar group is hidden.
 - Run `npm run worker:recordings` after an upload → transcript/summary populate, `aiStatus="done"`.
+
+## Go-live runbook (VPS)
+
+Ordered steps to take this live as the admin-only preview. R2 must be enabled first.
+
+1. **Enable R2** (dashboard, one-time): Cloudflare → R2 → Enable (needs a billing
+   profile; 10 GB free tier). Can't be done via API.
+2. **Bucket + CORS** (scriptable with the stored global key, or dashboard): create bucket
+   `va-recordings`; CORS rule — `AllowedOrigins: ["https://team.pwasecondbrain.uk"]`,
+   `AllowedMethods: ["PUT","GET","HEAD"]`, `AllowedHeaders: ["content-type"]`,
+   `ExposeHeaders: ["ETag"]`. (Add `http://localhost:3032` to origins for local upload tests.)
+3. **S3 API token**: R2 → Manage R2 API Tokens → Object Read & Write, scoped to the bucket
+   → copy the Access Key ID + Secret Access Key.
+4. **Env** → append to `shared/.env.production` on the VPS:
+   ```
+   R2_ACCOUNT_ID=b5d56e79af8c729a982e3e14f81aaad5
+   R2_ENDPOINT=https://b5d56e79af8c729a982e3e14f81aaad5.r2.cloudflarestorage.com
+   R2_BUCKET=va-recordings
+   R2_ACCESS_KEY_ID=<from step 3>
+   R2_SECRET_ACCESS_KEY=<from step 3>
+   ```
+   (OpenRouter for transcripts comes from `/etc/secondbrain/openrouter.env`, already wired
+   into the web + recordings units — no per-app key needed.)
+5. **ffmpeg on the host** (one-time): `ssh root@74.208.40.108 "apt-get install -y ffmpeg"`.
+6. **Deploy**: `./deploy.sh` (rsync → npm ci → prisma migrate deploy → build → restart).
+7. **Recordings worker timer** (one-time install of the units in `deploy/systemd/`):
+   ```
+   scp deploy/systemd/va-management-recordings.{service,timer} root@74.208.40.108:/etc/systemd/system/
+   ssh root@74.208.40.108 "systemctl daemon-reload && systemctl enable --now va-management-recordings.timer"
+   ```
+8. **Smoke**: open `/record` at team.pwasecondbrain.uk (as an allow-listed admin), record a
+   short clip, Save → plays back from R2; within ~2 min the transcript/summary populate.
