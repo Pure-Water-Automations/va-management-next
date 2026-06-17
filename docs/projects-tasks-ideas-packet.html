@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Projects &amp; Tasks — Ideas to Implement</title>
+<style>
+  :root{
+    --navy:#0a1f44;
+    --navy-2:#13294f;
+    --navy-soft:#1c3563;
+    --sky:#3a8dde;
+    --sky-soft:#e8f1fc;
+    --sky-line:#bcd9f5;
+    --ink:#1a2440;
+    --muted:#5a6b86;
+    --faint:#8696ad;
+    --paper:#f4f7fb;
+    --card:#ffffff;
+    --line:#e2e9f2;
+    --line-soft:#eef3f9;
+    --green:#1d9e75;--green-bg:#e1f5ee;--green-ink:#0f6e56;
+    --amber:#ba7517;--amber-bg:#faeeda;--amber-ink:#854f0b;
+    --red:#d8413f;--red-bg:#fcebeb;--red-ink:#a32d2d;
+    --gray-bg:#eef1f6;--gray-ink:#5f5e5a;
+    --shadow:0 1px 2px rgba(10,31,68,.05),0 6px 20px rgba(10,31,68,.06);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--sky)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px 80px}
+
+  /* ---------- header ---------- */
+  header.top{
+    background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 100%);
+    color:#fff;padding:46px 0 40px;
+  }
+  header.top .wrap{padding-bottom:0}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;color:#9dc2ee;font-weight:600;margin:0 0 14px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--sky)}
+  header.top h1{font-size:34px;line-height:1.15;margin:0 0 12px;font-weight:700;letter-spacing:-.01em}
+  header.top p.lede{font-size:16.5px;color:#cdddf2;max-width:760px;margin:0 0 26px}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;font-size:13px;color:#bcd2ee;
+    border-top:1px solid rgba(255,255,255,.14);padding-top:20px}
+  .legend b{color:#fff;font-weight:600}
+  .legend .chip{display:inline-flex;align-items:center;gap:6px}
+
+  /* ---------- chips ---------- */
+  .chip-i,.chip-e{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+    padding:3px 9px;border-radius:999px;letter-spacing:.02em;line-height:1}
+  .i-high{background:var(--green-bg);color:var(--green-ink)}
+  .i-med{background:var(--amber-bg);color:var(--amber-ink)}
+  .i-low{background:var(--gray-bg);color:var(--gray-ink)}
+  .e-s{background:#e6f1fb;color:#0c447c}
+  .e-m{background:#fde9d6;color:#854f0b}
+  .e-l{background:#f3e6f7;color:#6b2487}
+  .tool-tag{display:inline-block;font-size:11.5px;font-weight:600;color:var(--muted);
+    background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+
+  /* ---------- TOC ---------- */
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;margin:-28px 0 38px;box-shadow:var(--shadow);position:relative;z-index:2}
+  .toc h2{margin:0 0 4px;font-size:15px;color:var(--navy);letter-spacing:.02em;text-transform:uppercase;font-weight:700}
+  .toc .sub{font-size:13.5px;color:var(--muted);margin:0 0 16px}
+  .toc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .toc-grid a{display:flex;gap:12px;align-items:flex-start;text-decoration:none;color:inherit;
+    border:1px solid var(--line);border-radius:11px;padding:13px 15px;background:#fbfdff;transition:.15s}
+  .toc-grid a:hover{border-color:var(--sky-line);background:var(--sky-soft);transform:translateY(-1px)}
+  .toc-num{flex:0 0 auto;width:26px;height:26px;border-radius:8px;background:var(--navy);color:#fff;
+    font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .toc-t{font-weight:600;font-size:14.5px;color:var(--ink)}
+  .toc-d{font-size:12.5px;color:var(--faint);margin-top:2px}
+
+  /* ---------- sections ---------- */
+  section{margin:0 0 46px;scroll-margin-top:18px}
+  .sec-head{display:flex;align-items:flex-start;gap:16px;margin:0 0 22px;
+    border-bottom:2px solid var(--line);padding-bottom:16px}
+  .sec-badge{flex:0 0 auto;width:42px;height:42px;border-radius:12px;background:var(--navy);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700}
+  .sec-head h2{margin:0;font-size:23px;color:var(--navy);font-weight:700;letter-spacing:-.01em}
+  .sec-head p{margin:4px 0 0;color:var(--muted);font-size:14.5px;max-width:780px}
+
+  /* ---------- card grid ---------- */
+  .grid{display:grid;gap:20px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+
+  .idea{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;transition:.18s}
+  .idea:hover{box-shadow:0 2px 4px rgba(10,31,68,.06),0 14px 34px rgba(10,31,68,.10);transform:translateY(-2px)}
+  .idea.picked{outline:2.5px solid var(--green);outline-offset:-1px}
+  .idea.skipped{opacity:.5}
+  .idea-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+    padding:16px 18px 12px}
+  .idea-head h3{margin:0;font-size:16.5px;font-weight:700;color:var(--navy);line-height:1.25}
+  .idea-body{padding:0 18px;flex:1}
+  .idea-body .desc{font-size:14px;color:var(--ink);margin:0 0 14px}
+
+  /* ---------- mock canvas ---------- */
+  .mock{background:linear-gradient(180deg,#f7faff,#eef4fb);border:1px solid var(--line-soft);
+    border-radius:11px;padding:13px;margin:2px 0 14px;font-size:11.5px}
+  .mock-bar{display:flex;align-items:center;gap:6px;margin-bottom:9px;color:var(--faint);font-size:10.5px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.08em}
+  .mdot{width:7px;height:7px;border-radius:50%;background:#cdd8e8}
+  .m-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px}
+  .m-row{display:flex;align-items:center;gap:7px}
+  .m-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px}
+  .p-prog{background:var(--sky-soft);color:#0c447c}
+  .p-done{background:var(--green-bg);color:var(--green-ink)}
+  .p-block{background:var(--red-bg);color:var(--red-ink)}
+  .p-todo{background:var(--gray-bg);color:var(--gray-ink)}
+  .p-wait{background:var(--amber-bg);color:var(--amber-ink)}
+  .ava{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    font-size:9.5px;font-weight:700;color:#fff;flex:0 0 auto}
+  .a1{background:#3a8dde}.a2{background:#1d9e75}.a3{background:#d4537e}.a4{background:#ba7517}.a5{background:#7f77dd}
+  .col{flex:1;background:#eef3fb;border-radius:8px;padding:7px;min-width:0}
+  .col-h{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;
+    display:flex;justify-content:space-between}
+  .kcard{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 7px;margin-bottom:6px;font-size:11px}
+  .kcard:last-child{margin-bottom:0}
+  .bar{height:6px;border-radius:999px;background:#e2e9f2;overflow:hidden;margin-top:5px}
+  .bar > i{display:block;height:100%;background:var(--sky);border-radius:999px}
+
+  /* ---------- footer of card: meta + toggle ---------- */
+  .idea-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:12px 18px;border-top:1px solid var(--line-soft);background:#fbfdff;flex-wrap:wrap}
+  .meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .decide{display:flex;gap:6px}
+  .decide button{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;
+    border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--muted);transition:.12s}
+  .decide button:hover{border-color:var(--sky-line)}
+  .decide .b-build.on{background:var(--green);color:#fff;border-color:var(--green)}
+  .decide .b-skip.on{background:#eceff4;color:var(--red-ink);border-color:#dbe1ea}
+
+  /* in-progress banner */
+  .nowbar{display:flex;flex-wrap:wrap;gap:10px;background:#fff;border:1px dashed var(--sky-line);
+    border-radius:12px;padding:14px 16px;margin:0 0 30px}
+  .nowbar .lbl{font-size:12px;font-weight:700;color:var(--sky);text-transform:uppercase;letter-spacing:.08em;
+    align-self:center;margin-right:6px}
+  .nowbar .item{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink);
+    background:var(--sky-soft);border-radius:999px;padding:5px 12px}
+  .nowbar .item::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--sky)}
+
+  /* decision option cards (section 3) */
+  .dec-block{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:22px 24px;margin:0 0 26px}
+  .dec-block .q{display:flex;align-items:flex-start;gap:13px;margin:0 0 6px}
+  .dec-block .qn{flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:var(--sky);color:#fff;
+    font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .dec-block h3{margin:0;font-size:18.5px;color:var(--navy);font-weight:700}
+  .dec-block .ctx{font-size:14px;color:var(--muted);margin:8px 0 18px;padding-left:43px}
+  .opt-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .opt{border:1px solid var(--line);border-radius:12px;padding:15px 16px;background:#fbfdff;position:relative;display:flex;flex-direction:column}
+  .opt.rec{border:2px solid var(--green);background:#f3fbf8}
+  .opt .tag{position:absolute;top:-11px;left:14px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .opt.rec .tag{background:var(--green);color:#fff}
+  .opt .tag.neutral{background:#eceff4;color:var(--muted)}
+  .opt h4{margin:6px 0 8px;font-size:14.5px;color:var(--ink);font-weight:700}
+  .opt ul{margin:0 0 10px;padding-left:17px;font-size:13px;color:var(--ink)}
+  .opt ul li{margin-bottom:4px}
+  .opt .verdict{margin-top:auto;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line-soft);padding-top:9px}
+  .opt .verdict b{color:var(--green-ink)}
+  .reco{margin:16px 0 0;padding:13px 15px;background:var(--sky-soft);border-radius:11px;font-size:13.5px;color:#0c447c}
+  .reco b{font-weight:700}
+
+  /* toggle table mock for tiers */
+  table.tiers{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  table.tiers th{background:#f1f5fb;color:var(--muted);font-weight:700;text-align:left;padding:7px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+  table.tiers td{padding:7px 10px;border-top:1px solid var(--line-soft)}
+  .tog{display:inline-block;width:30px;height:17px;border-radius:999px;position:relative;vertical-align:middle}
+  .tog.on{background:var(--green)} .tog.off{background:#cdd6e2}
+  .tog::after{content:"";position:absolute;top:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:.15s}
+  .tog.on::after{right:2px} .tog.off::after{left:2px}
+
+  /* bell mock */
+  .bell-mock{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .bell-top{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--navy);color:#fff;font-size:12px;font-weight:600}
+  .bell-badge{background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px}
+  .bell-item{display:flex;gap:9px;padding:9px 12px;border-top:1px solid var(--line-soft);font-size:11.5px;align-items:flex-start}
+  .bell-item .un{width:7px;height:7px;border-radius:50%;background:var(--sky);margin-top:5px;flex:0 0 auto}
+
+  .endnote{background:var(--navy);color:#cdddf2;border-radius:var(--radius);padding:26px 28px;margin-top:18px}
+  .endnote h2{color:#fff;margin:0 0 10px;font-size:19px}
+  .endnote p{margin:0 0 8px;font-size:14px}
+  .endnote .count{font-size:13px;color:#9dc2ee;margin-top:14px;border-top:1px solid rgba(255,255,255,.14);padding-top:14px}
+  .endnote .count b{color:#fff;font-size:22px}
+
+  @media (max-width:640px){
+    header.top h1{font-size:26px}
+    .sec-head h2{font-size:20px}
+    .wrap{padding:0 16px 60px}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow"><span class="dot"></span> VA Management Console &middot; Decision packet</p>
+    <h1>Projects &amp; Tasks — ideas to implement</h1>
+    <p class="lede">A skimmable menu of UX upgrades for the Projects &amp; Task Management module, drawn from how
+      ClickUp, Asana, Monday, Linear, Notion, Trello and Height actually work in 2026 — then grounded in what our
+      console already has. Mark each card <b style="color:#7be0bf">&check; build</b> or <b style="color:#f3b5b5">&times; skip</b> as you go.</p>
+    <div class="legend">
+      <span class="chip"><b>Impact:</b></span>
+      <span class="chip"><span class="chip-i i-high">High</span></span>
+      <span class="chip"><span class="chip-i i-med">Med</span></span>
+      <span class="chip"><span class="chip-i i-low">Low</span></span>
+      <span class="chip" style="margin-left:14px"><b>Effort:</b></span>
+      <span class="chip"><span class="chip-e e-s">S</span> small</span>
+      <span class="chip"><span class="chip-e e-m">M</span> medium</span>
+      <span class="chip"><span class="chip-e e-l">L</span> large</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- TOC -->
+  <nav class="toc">
+    <h2>What's inside</h2>
+    <p class="sub">Three sections — read top to bottom or jump straight to the decisions you've been weighing.</p>
+    <div class="toc-grid">
+      <a href="#sec1">
+        <span class="toc-num">1</span>
+        <span><span class="toc-t">Big-rock UX ideas</span><span class="toc-d">New views &amp; power features from the best tools</span></span>
+      </a>
+      <a href="#sec2">
+        <span class="toc-num">2</span>
+        <span><span class="toc-t">Fixes &amp; enhancements</span><span class="toc-d">Polish for what we've already built</span></span>
+      </a>
+      <a href="#sec3">
+        <span class="toc-num">3</span>
+        <span><span class="toc-t">Your in-flight decisions</span><span class="toc-d">3 design calls, each with options + a recommendation</span></span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- in progress -->
+  <div class="nowbar">
+    <span class="lbl">Already in progress</span>
+    <span class="item">Click-to-edit status &amp; priority on project detail</span>
+    <span class="item">Inline quick-add task on project detail</span>
+  </div>
+
+  <!-- ============ SECTION 1 ============ -->
+  <section id="sec1">
+    <div class="sec-head">
+      <div class="sec-badge">1</div>
+      <div>
+        <h2>Big-rock UX ideas</h2>
+        <p>The view types and power-user features that make ClickUp, Asana and Linear feel effortless. Each shows a quick sketch, the tool it's inspired by, and an impact/effort read.</p>
+      </div>
+    </div>
+
+    <div class="grid g3">
+
+      <!-- Kanban -->
+      <div class="idea">
+        <div class="idea-head"><h3>Kanban / board view</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> Board by status</div>
+            <div style="display:flex;gap:7px">
+              <div class="col"><div class="col-h">Not started <span>2</span></div>
+                <div class="kcard"><span class="m-pill p-todo">To do</span><div style="margin-top:4px">Draft invoice</div></div>
+                <div class="kcard">Update SOP</div></div>
+              <div class="col"><div class="col-h">In progress <span>1</span></div>
+                <div class="kcard"><div class="m-row" style="justify-content:space-between"><span>Build deck</span><span class="ava a1">JO</span></div></div></div>
+              <div class="col"><div class="col-h">Done <span>1</span></div>
+                <div class="kcard"><span class="m-pill p-done">Done</span></div></div>
+            </div>
+          </div>
+          <p class="desc">Drag tasks between status columns instead of editing a dropdown. The single most-requested PM view — instantly visual, great for standups.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Trello / ClickUp</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Calendar -->
+      <div class="idea">
+        <div class="idea-head"><h3>Calendar view</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> June</div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;color:var(--faint)">
+              <div>M</div><div>T</div><div>W</div><div>T</div><div>F</div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:4px">
+              <div class="m-card" style="padding:6px">16</div>
+              <div class="m-card" style="padding:6px">17<div class="m-pill p-prog" style="margin-top:3px;display:block">2 due</div></div>
+              <div class="m-card" style="padding:6px">18</div>
+              <div class="m-card" style="padding:6px">19<div class="m-pill p-block" style="margin-top:3px;display:block">overdue</div></div>
+              <div class="m-card" style="padding:6px">20</div>
+            </div>
+          </div>
+          <p class="desc">Tasks &amp; projects plotted by due date. Lets you see crunch days and rebalance VA workload at a glance.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Asana / Notion</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Timeline / Gantt -->
+      <div class="idea">
+        <div class="idea-head"><h3>Timeline / Gantt</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> Project schedule</div>
+            <div class="m-card">
+              <div class="m-row" style="margin-bottom:6px"><span style="width:54px;color:var(--muted)">Research</span><div class="bar" style="flex:1"><i style="width:40%;margin-left:5%"></i></div></div>
+              <div class="m-row" style="margin-bottom:6px"><span style="width:54px;color:var(--muted)">Build</span><div class="bar" style="flex:1"><i style="width:45%;margin-left:30%;background:#7f77dd"></i></div></div>
+              <div class="m-row"><span style="width:54px;color:var(--muted)">Review</span><div class="bar" style="flex:1"><i style="width:25%;margin-left:70%;background:#1d9e75"></i></div></div>
+            </div>
+          </div>
+          <p class="desc">Horizontal bars per task across dates, with dependency lines. Best for multi-step events &amp; campaigns. (Start as a simple timeline; add dependencies later.)</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">ClickUp / Asana</span><span class="chip-i i-med">Impact Med</span><span class="chip-e e-l">L</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Grouping + saved views -->
+      <div class="idea">
+        <div class="idea-head"><h3>Grouping &amp; saved views</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> Group by: assignee</div>
+            <div class="m-card" style="margin-bottom:6px"><div class="m-row"><span class="ava a1">JO</span> Justin &middot; 4 open</div></div>
+            <div class="m-card"><div class="m-row"><span class="ava a3">RZ</span> Riza &middot; 2 open</div></div>
+            <div style="display:flex;gap:5px;margin-top:8px">
+              <span class="m-pill p-prog">My open tasks</span><span class="m-pill p-todo">Overdue</span><span class="m-pill p-wait">By client</span>
+            </div>
+          </div>
+          <p class="desc">Group the all-tasks list by assignee / status / client / project, then save the filter combo as a named view ("My overdue", "This week"). Pin it to the sidebar.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">ClickUp / Linear</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Command palette -->
+      <div class="idea">
+        <div class="idea-head"><h3>Command palette (Cmd+K)</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card" style="padding:0;overflow:hidden">
+              <div style="padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--faint)"><i>&#8984;K</i>&nbsp; create task…</div>
+              <div style="padding:7px 10px"><span class="m-pill p-prog">C</span> New task</div>
+              <div style="padding:7px 10px;background:var(--sky-soft)"><span class="m-pill p-prog">G P</span> Go to project</div>
+              <div style="padding:7px 10px"><span class="m-pill p-prog">A</span> Assign to…</div>
+            </div>
+          </div>
+          <p class="desc">One keystroke to jump anywhere or run any action — create a task, open a project, assign. The signature of fast tools; huge time-saver for power users (you + team leads).</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Linear / Height</span><span class="chip-i i-med">Impact Med</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Bulk edit -->
+      <div class="idea">
+        <div class="idea-head"><h3>Bulk actions</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> 3 selected</div>
+            <div class="m-card" style="display:flex;justify-content:space-between;align-items:center">
+              <span>&#9745; 3 tasks</span>
+              <span style="display:flex;gap:5px"><span class="m-pill p-prog">Reassign</span><span class="m-pill p-done">Done</span><span class="m-pill p-todo">Due&hellip;</span></span>
+            </div>
+          </div>
+          <p class="desc">Multi-select tasks with checkboxes, then reassign / set status / change due date in one move. Saves dozens of clicks when re-balancing a VA's queue.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Asana / ClickUp</span><span class="chip-i i-med">Impact Med</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Subtasks -->
+      <div class="idea">
+        <div class="idea-head"><h3>Subtasks / checklist</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card">
+              <div style="font-weight:700;margin-bottom:6px">Build client deck</div>
+              <div class="m-row" style="margin-bottom:3px">&#9745; <span style="text-decoration:line-through;color:var(--faint)">Gather assets</span></div>
+              <div class="m-row" style="margin-bottom:3px">&#9744; Draft slides</div>
+              <div class="m-row">&#9744; Internal review</div>
+              <div class="bar" style="margin-top:7px"><i style="width:33%"></i></div>
+            </div>
+          </div>
+          <p class="desc">Break a task into a checklist of steps. Progress rolls up to the parent. Lighter than full child-tasks but covers 80% of the need.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Notion / Trello</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Dependencies -->
+      <div class="idea">
+        <div class="idea-head"><h3>Task dependencies</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card">
+              <div class="m-row" style="margin-bottom:6px"><span class="m-pill p-done">Done</span> Approve copy</div>
+              <div style="text-align:center;color:var(--faint);margin:2px 0">&darr; unblocks</div>
+              <div class="m-row"><span class="m-pill p-todo">Blocked</span> Publish post</div>
+            </div>
+          </div>
+          <p class="desc">Mark "this task is blocked by that one." Blocked tasks stay greyed until their blocker is done. Powers true Gantt critical-path later.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">ClickUp / Asana</span><span class="chip-i i-low">Impact Low</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Templates -->
+      <div class="idea">
+        <div class="idea-head"><h3>Project &amp; task templates</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> New from template</div>
+            <div class="m-card" style="margin-bottom:6px">&#128203; Client onboarding &middot; 8 tasks</div>
+            <div class="m-card" style="margin-bottom:6px">&#127881; Event launch &middot; 12 tasks</div>
+            <div class="m-card">&#128260; Weekly report &middot; 4 tasks</div>
+          </div>
+          <p class="desc">Spin up a recurring project (onboarding, event, report) with its standard task list pre-filled. A natural fit for your existing <i>Recurring / Report</i> project types.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">ClickUp / Asana</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- @mentions -->
+      <div class="idea">
+        <div class="idea-head"><h3>@mentions in comments</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card">
+              <div class="m-row" style="margin-bottom:5px"><span class="ava a4">RZ</span> <b>Riza</b></div>
+              <div>Can <span style="color:var(--sky);font-weight:700;background:var(--sky-soft);border-radius:4px;padding:0 4px">@Justin</span> approve the budget?</div>
+            </div>
+          </div>
+          <p class="desc">Type @ to tag a teammate in a task comment; they get notified. Turns the comment thread into real collaboration instead of a one-way note.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Asana / Trello</span><span class="chip-i i-med">Impact Med</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Workload view -->
+      <div class="idea">
+        <div class="idea-head"><h3>Workload view</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="mock-bar"><span class="mdot"></span> Open tasks per VA</div>
+            <div class="m-card">
+              <div class="m-row" style="margin-bottom:5px"><span class="ava a1">JO</span><div class="bar" style="flex:1"><i style="width:80%;background:var(--red)"></i></div><span>8</span></div>
+              <div class="m-row" style="margin-bottom:5px"><span class="ava a3">RZ</span><div class="bar" style="flex:1"><i style="width:40%"></i></div><span>4</span></div>
+              <div class="m-row"><span class="ava a2">KN</span><div class="bar" style="flex:1"><i style="width:20%;background:var(--green)"></i></div><span>2</span></div>
+            </div>
+          </div>
+          <p class="desc">One bar per VA showing open-task load, so you spot who's overloaded vs free before assigning. Ties neatly into your capacity-flag system.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">ClickUp / Asana</span><span class="chip-i i-med">Impact Med</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- Automations -->
+      <div class="idea">
+        <div class="idea-head"><h3>Light automations</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card">
+              <span style="color:var(--faint)">WHEN</span> status &rarr; Done<br>
+              <span style="color:var(--faint)">THEN</span> notify project owner<br>
+              <div style="border-top:1px solid var(--line-soft);margin-top:6px;padding-top:6px">
+              <span style="color:var(--faint)">WHEN</span> task overdue &rarr; flag red</div>
+            </div>
+          </div>
+          <p class="desc">Simple "when X then Y" rules — close a task &rarr; notify owner; overdue &rarr; auto-flag. Trello's Butler / Asana's Workflow Builder pattern, scoped small.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="tool-tag">Trello / Asana</span><span class="chip-i i-low">Impact Low</span><span class="chip-e e-l">L</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ SECTION 2 ============ -->
+  <section id="sec2">
+    <div class="sec-head">
+      <div class="sec-badge">2</div>
+      <div>
+        <h2>Fixes &amp; enhancements to our build</h2>
+        <p>Smaller, high-leverage polish specific to the pages we already shipped — empty states, color coding, avatars and the rough edges that make the console feel less finished than it is.</p>
+      </div>
+    </div>
+
+    <div class="grid g3">
+
+      <!-- status colors -->
+      <div class="idea">
+        <div class="idea-head"><h3>Color-coded status badges</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-row" style="gap:6px;flex-wrap:wrap">
+              <span class="m-pill p-todo">Not started</span>
+              <span class="m-pill p-prog">In progress</span>
+              <span class="m-pill p-done">Done</span>
+              <span class="m-pill p-block">Blocked</span>
+            </div>
+          </div>
+          <p class="desc">Give each status its own consistent color (grey / sky / green / red) everywhere it appears. Right now they read as plain pills — color makes a list scannable in a second.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-high">Impact High</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- due date coloring -->
+      <div class="idea">
+        <div class="idea-head"><h3>Due-date color coding</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card" style="margin-bottom:5px"><span class="m-pill p-block">Jun 12 &middot; overdue</span></div>
+            <div class="m-card" style="margin-bottom:5px"><span class="m-pill p-wait">Today</span></div>
+            <div class="m-card"><span class="m-pill p-todo">Jun 24</span></div>
+          </div>
+          <p class="desc">Red for overdue, amber for due today/soon, neutral otherwise — across all lists and the VA queue. Makes urgency obvious without reading dates.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-high">Impact High</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- assignee avatars -->
+      <div class="idea">
+        <div class="idea-head"><h3>Assignee avatars</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card"><div class="m-row" style="justify-content:space-between">
+              <span>Draft Q3 report</span>
+              <span class="m-row"><span class="ava a3">RZ</span></span></div></div>
+          </div>
+          <p class="desc">Show a small initials circle for the assignee on every task row instead of a text name. Faster to scan "who owns what", and consistent with the people pages.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-med">Impact Med</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- sortable columns -->
+      <div class="idea">
+        <div class="idea-head"><h3>Sortable / filterable columns</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card" style="padding:0">
+              <div style="display:flex;background:#f1f5fb;font-weight:700;color:var(--muted)">
+                <div style="flex:2;padding:6px 8px">Task &#8645;</div><div style="flex:1;padding:6px 8px">Due &#8595;</div><div style="flex:1;padding:6px 8px">Status</div></div>
+              <div style="display:flex;border-top:1px solid var(--line-soft)"><div style="flex:2;padding:6px 8px">Invoice</div><div style="flex:1;padding:6px 8px">Jun 18</div><div style="flex:1;padding:6px 8px"><span class="m-pill p-prog">Prog</span></div></div>
+            </div>
+          </div>
+          <p class="desc">Click a header on the all-tasks list to sort by due date, priority or status; quick filter chips on top. Today the list is flat — sorting is the cheapest big win.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-high">Impact High</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- empty state CTAs -->
+      <div class="idea">
+        <div class="idea-head"><h3>Empty-state CTAs</h3></div>
+        <div class="idea-body">
+          <div class="mock" style="text-align:center;padding:18px 13px">
+            <div style="font-size:22px">&#128203;</div>
+            <div style="font-weight:700;margin:5px 0 3px">No tasks yet</div>
+            <div style="color:var(--faint);margin-bottom:8px">Add the first task to get going</div>
+            <span class="m-pill p-prog" style="padding:5px 12px">+ Add task</span>
+          </div>
+        </div>
+          <p class="desc">When a project or queue is empty, show a friendly prompt with a one-click "add" button instead of a blank panel. Guides new VAs and managers.</p>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-med">Impact Med</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- styled links -->
+      <div class="idea">
+        <div class="idea-head"><h3>Styled link chips</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card"><div class="m-row" style="gap:6px;flex-wrap:wrap">
+              <span class="m-pill p-prog">&#128279; Brief doc</span>
+              <span class="m-pill p-prog">&#128279; Figma</span></div></div>
+          </div>
+          <p class="desc">Render the links / SOP / training / tool fields as tidy clickable chips with an icon, not raw blue URLs. Small fix, big perceived-polish gain on every detail page.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-med">Impact Med</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- keyboard quick add -->
+      <div class="idea">
+        <div class="idea-head"><h3>Keyboard quick-add</h3></div>
+        <div class="idea-body">
+          <div class="mock">
+            <div class="m-card" style="display:flex;justify-content:space-between;color:var(--faint)">
+              <span>Type a task, press &crarr;&hellip;</span><span class="m-pill p-todo">N</span></div>
+          </div>
+          <p class="desc">Press <b>N</b> (or focus the add row) to type a task and hit Enter — stay on the keyboard, add several in a row. Extends the inline quick-add you're already building.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-med">Impact Med</span><span class="chip-e e-s">S</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- mobile -->
+      <div class="idea">
+        <div class="idea-head"><h3>Mobile / responsive layout</h3></div>
+        <div class="idea-body">
+          <div class="mock" style="display:flex;justify-content:center">
+            <div style="width:90px;border:2px solid var(--navy);border-radius:12px;padding:6px;background:#fff">
+              <div class="kcard" style="margin-bottom:4px">Invoice<div class="bar" style="margin-top:4px"><i style="width:50%"></i></div></div>
+              <div class="kcard" style="margin:0">Report</div>
+            </div>
+          </div>
+          <p class="desc">Make project cards, the task list and detail panels stack cleanly on a phone — VAs often check their queue on mobile. Verify the new edit/quick-add controls work touch-first.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-med">Impact Med</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+      <!-- detail drawer -->
+      <div class="idea">
+        <div class="idea-head"><h3>Slide-over task detail</h3></div>
+        <div class="idea-body">
+          <div class="mock" style="display:flex;gap:6px;align-items:stretch">
+            <div style="flex:1;opacity:.4"><div class="kcard">Task A</div><div class="kcard">Task B</div></div>
+            <div style="flex:1.3;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px">
+              <div style="font-weight:700">Task B</div>
+              <span class="m-pill p-prog" style="margin-top:4px">In progress</span>
+              <div class="bar" style="margin-top:6px"><i style="width:40%"></i></div></div>
+          </div>
+          <p class="desc">Open a task in a side drawer over the list instead of navigating to a full page — keep context, edit fast, close. The Linear/Height pattern; pairs with the all-tasks list.</p>
+        </div>
+        <div class="idea-foot">
+          <div class="meta"><span class="chip-i i-med">Impact Med</span><span class="chip-e e-m">M</span></div>
+          <div class="decide"><button class="b-build">&check;</button><button class="b-skip">&times;</button></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ SECTION 3 ============ -->
+  <section id="sec3">
+    <div class="sec-head">
+      <div class="sec-badge">3</div>
+      <div>
+        <h2>Your in-flight decisions</h2>
+        <p>Three design calls you've been weighing. Each is laid out as options with a clearly-marked recommendation (the green card) — pick one to move it forward.</p>
+      </div>
+    </div>
+
+    <!-- DECISION A -->
+    <div class="dec-block">
+      <div class="q"><div class="qn">A</div><h3>Configurable delegation authority by comp tier</h3></div>
+      <p class="ctx">Let admin/HR decide, on the <b>Compensation Roles</b> screen, which comp tiers may delegate tasks and/or projects.
+        Default: Tier 3 (Senior VA) + Tier 4 (Lead) can delegate; lower tiers can't. A logged-in VA's authority then resolves through their comp tier.</p>
+
+      <div class="mock" style="max-width:560px;margin:0 auto 18px">
+        <div class="mock-bar"><span class="mdot"></span> Compensation roles &middot; delegation authority</div>
+        <table class="tiers">
+          <tr><th>Comp tier</th><th>Can delegate tasks</th><th>Can delegate projects</th></tr>
+          <tr><td>Trainee</td><td><span class="tog off"></span></td><td><span class="tog off"></span></td></tr>
+          <tr><td>Tier 1</td><td><span class="tog off"></span></td><td><span class="tog off"></span></td></tr>
+          <tr><td>Tier 2</td><td><span class="tog off"></span></td><td><span class="tog off"></span></td></tr>
+          <tr><td>Tier 3 &middot; Senior VA</td><td><span class="tog on"></span></td><td><span class="tog off"></span></td></tr>
+          <tr><td>Tier 4 &middot; Lead</td><td><span class="tog on"></span></td><td><span class="tog on"></span></td></tr>
+        </table>
+      </div>
+
+      <div class="opt-grid">
+        <div class="opt rec">
+          <span class="tag">Recommended</span>
+          <h4>Store flags on CompensationRole</h4>
+          <ul>
+            <li>Add <code>canDelegateTasks</code> / <code>canDelegateProjects</code> booleans to each comp role</li>
+            <li>Edited right on the comp-roles table (toggles above)</li>
+            <li>Authority resolves: VA &rarr; comp role &rarr; flags</li>
+          </ul>
+          <div class="verdict"><b>Why:</b> the data lives where you already manage tiers; one source of truth, easy UI, scales as tiers change.</div>
+        </div>
+        <div class="opt">
+          <span class="tag neutral">Option</span>
+          <h4>Global Setting list</h4>
+          <ul>
+            <li>One Setting like <code>delegating_tiers = [3,4]</code></li>
+            <li>Fastest to ship; no schema change</li>
+            <li>Less granular (can't split task vs project)</li>
+          </ul>
+          <div class="verdict">Good stop-gap, but you lose the task/project split and the in-context toggles.</div>
+        </div>
+        <div class="opt">
+          <span class="tag neutral">Option</span>
+          <h4>Keep access-role only</h4>
+          <ul>
+            <li>No change — delegation stays tied to HR/PEOPLE_OPS/TEAM_LEAD/SENIOR_VA</li>
+            <li>Zero effort</li>
+            <li>Comp tier &amp; authority stay decoupled</li>
+          </ul>
+          <div class="verdict">Status quo. Only if tier-based delegation isn't actually wanted.</div>
+        </div>
+      </div>
+      <p class="reco"><b>Recommendation:</b> flags on <code>CompensationRole</code>, defaulting Tier 3 + Tier 4 on for tasks (Tier 4 only for projects). It keeps tier and authority in one place and gives HR a clean per-tier toggle.</p>
+      <div class="idea-foot" style="background:transparent;border:0;padding:12px 0 0">
+        <div class="meta"><span class="tool-tag">Design call A</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-m">M</span></div>
+        <div class="decide"><button class="b-build">&check; build recommended</button><button class="b-skip">&times;</button></div>
+      </div>
+    </div>
+
+    <!-- DECISION B -->
+    <div class="dec-block">
+      <div class="q"><div class="qn">B</div><h3>All VAs can receive tasks regardless of tier</h3></div>
+      <p class="ctx">The assignee picker shows <b>every active VA</b>, not just the handful with manager logins. Prerequisite: VAs need login accounts —
+        today only ~6 manager accounts exist, so most VAs can be assigned to but can't yet log in to see their queue.</p>
+
+      <div class="mock" style="max-width:420px;margin:0 auto 18px">
+        <div class="mock-bar"><span class="mdot"></span> Assign to</div>
+        <div class="m-card" style="margin-bottom:5px"><div class="m-row" style="justify-content:space-between"><span><span class="ava a1">JO</span> Justin</span><span class="m-pill p-done">has login</span></div></div>
+        <div class="m-card" style="margin-bottom:5px"><div class="m-row" style="justify-content:space-between"><span><span class="ava a3">RZ</span> Riza</span><span class="m-pill p-wait">no login yet</span></div></div>
+        <div class="m-card"><div class="m-row" style="justify-content:space-between"><span><span class="ava a2">KN</span> Kanna</span><span class="m-pill p-wait">no login yet</span></div></div>
+      </div>
+
+      <div class="opt-grid">
+        <div class="opt rec">
+          <span class="tag">Recommended</span>
+          <h4>Show all, account on first assign</h4>
+          <ul>
+            <li>Picker lists every active VA immediately</li>
+            <li>First assignment auto-provisions a login (CF Access + User row)</li>
+            <li>Assignee still gets the email notification meanwhile</li>
+          </ul>
+          <div class="verdict"><b>Why:</b> unblocks delegation now and grows logins exactly as needed — no big-bang account rollout.</div>
+        </div>
+        <div class="opt">
+          <span class="tag neutral">Option</span>
+          <h4>Provision all logins first</h4>
+          <ul>
+            <li>Create accounts for every VA up front</li>
+            <li>Cleanest end state</li>
+            <li>Heaviest lift; many accounts may sit unused</li>
+          </ul>
+          <div class="verdict">Right eventually, but slow to start and front-loads work.</div>
+        </div>
+        <div class="opt">
+          <span class="tag neutral">Option</span>
+          <h4>Assignable-only (no login)</h4>
+          <ul>
+            <li>Show all VAs; assignment = email only, no console for them</li>
+            <li>Trivial to ship</li>
+            <li>VAs can't see/update their own queue in-app</li>
+          </ul>
+          <div class="verdict">Fine as a phase 1 if logins lag, but the queue value is lost until they sign in.</div>
+        </div>
+      </div>
+      <p class="reco"><b>Recommendation:</b> show all active VAs in the picker now, and auto-provision a login on first assignment. Pairs naturally with decision C (VAs need a login to self-add and get notified).</p>
+      <div class="idea-foot" style="background:transparent;border:0;padding:12px 0 0">
+        <div class="meta"><span class="tool-tag">Design call B</span><span class="chip-i i-high">Impact High</span><span class="chip-e e-m">M</span></div>
+        <div class="decide"><button class="b-build">&check; build recommended</button><button class="b-skip">&times;</button></div>
+      </div>
+    </div>
+
+    <!-- DECISION C -->
+    <div class="dec-block">
+      <div class="q"><div class="qn">C</div><h3>Tier 1+ VAs can self-add tasks to a project</h3></div>
+      <p class="ctx">Let Tier 1 and above add their own tasks to a project they're part of, with the VA's <b>supervisor notified in-console</b> (a bell/inbox, not email).
+        Open questions: how "supervisor" is determined, and how in-console notifications work.</p>
+
+      <div class="mock" style="max-width:360px;margin:0 auto 18px">
+        <div class="bell-mock">
+          <div class="bell-top"><span><i>&#128276;</i> Notifications</span><span class="bell-badge">2</span></div>
+          <div class="bell-item"><span class="un"></span><div><b>Riza</b> added "Draft outreach" to <b>Q3 Campaign</b><div style="color:var(--faint);margin-top:2px">2m ago &middot; you supervise Riza</div></div></div>
+          <div class="bell-item"><span class="un"></span><div><b>Kanna</b> added a task to <b>Onboarding</b><div style="color:var(--faint);margin-top:2px">1h ago</div></div></div>
+        </div>
+      </div>
+
+      <div class="opt-grid">
+        <div class="opt rec">
+          <span class="tag">Recommended</span>
+          <h4>Notification table + bell</h4>
+          <ul>
+            <li>New <code>Notification</code> rows; a sidebar bell with unread count</li>
+            <li>Supervisor = the project owner (or VA's assignedBy / team lead)</li>
+            <li>Self-add gated to Tier 1+ via comp tier (reuses decision A's resolver)</li>
+          </ul>
+          <div class="verdict"><b>Why:</b> in-console, no email noise, and reuses the tier-authority plumbing you're already adding.</div>
+        </div>
+        <div class="opt">
+          <span class="tag neutral">Option</span>
+          <h4>Email the supervisor</h4>
+          <ul>
+            <li>Reuse the existing assignment email path</li>
+            <li>Fast — no notification system needed</li>
+            <li>Not what was asked (you wanted in-console)</li>
+          </ul>
+          <div class="verdict">Quick, but adds inbox noise and misses the bell experience.</div>
+        </div>
+        <div class="opt">
+          <span class="tag neutral">Option</span>
+          <h4>Just an activity-feed entry</h4>
+          <ul>
+            <li>Log the self-add to the project Activity feed only</li>
+            <li>Almost free — feed already exists</li>
+            <li>Passive; supervisor must go look</li>
+          </ul>
+          <div class="verdict">Lowest effort, but no real "you have something to review" signal.</div>
+        </div>
+      </div>
+      <p class="reco"><b>Recommendation:</b> a lightweight <code>Notification</code> table + sidebar bell, with "supervisor" = the project owner (fall back to the VA's <code>assignedBy</code>/team lead). Reuses decision A's tier resolver to gate who can self-add.</p>
+      <div class="idea-foot" style="background:transparent;border:0;padding:12px 0 0">
+        <div class="meta"><span class="tool-tag">Design call C</span><span class="chip-i i-med">Impact Med</span><span class="chip-e e-l">L</span></div>
+        <div class="decide"><button class="b-build">&check; build recommended</button><button class="b-skip">&times;</button></div>
+      </div>
+    </div>
+
+  </section>
+
+  <div class="endnote">
+    <h2>Tally your picks</h2>
+    <p>Click <b style="color:#7be0bf">&check;</b> on the cards you want to build and <b style="color:#f3b5b5">&times;</b> on the ones to skip — your choices are summarized live below.</p>
+    <p style="color:#9dc2ee;font-size:13px">Tip: the green outline marks everything currently picked. Nothing is saved server-side — this is a personal decision surface.</p>
+    <div class="count" id="tally"><b>0</b> to build &middot; <span id="skipn">0</span> skipped &middot; <span id="restn">20</span> undecided</div>
+  </div>
+
+</div>
+
+<script>
+  var ideas = document.querySelectorAll('.idea, .dec-block');
+  function recount(){
+    var build=0, skip=0, total=ideas.length;
+    ideas.forEach(function(c){
+      if(c.classList.contains('picked')) build++;
+      else if(c.classList.contains('skipped')) skip++;
+    });
+    document.querySelector('#tally b').textContent = build;
+    document.getElementById('skipn').textContent = skip;
+    document.getElementById('restn').textContent = total - build - skip;
+  }
+  recount();
+  document.querySelectorAll('.idea, .dec-block').forEach(function(card){
+    var build = card.querySelector('.b-build');
+    var skip = card.querySelector('.b-skip');
+    if(build) build.addEventListener('click', function(){
+      var on = card.classList.toggle('picked');
+      card.classList.remove('skipped');
+      build.classList.toggle('on', on); skip && skip.classList.remove('on');
+      recount();
+    });
+    if(skip) skip.addEventListener('click', function(){
+      var on = card.classList.toggle('skipped');
+      card.classList.remove('picked');
+      skip.classList.toggle('on', on); build && build.classList.remove('on');
+      recount();
+    });
+  });
+</script>
+
+</body>
+</html>
