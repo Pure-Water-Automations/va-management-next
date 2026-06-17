@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
-import { getTaskDetail } from "@/lib/reads/tasks";
+import { getTaskDetail, getAllTasks } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { PriorityBadge, DueChip, LinkChips } from "@/components/ui/task-format";
 import { StatusDropdown, CommentForm } from "@/components/TaskActions";
 import { TaskEditForm } from "@/components/TaskEditForm";
+import { TaskChecklist } from "@/components/TaskChecklist";
+import { TaskDependencies } from "@/components/TaskDependencies";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +27,12 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
   const tools =
     (task.suggestedTools as { title: string; url: string; category?: string }[] | null) ?? [];
 
+  const candidateTasks = (await getAllTasks({}))
+    .filter((t) => t.id !== task.id)
+    .map((t) => ({ id: t.id, title: t.title }));
+
+  const blocked = task.dependencies.some((d) => d.dependsOn.status !== "Done");
+
   return (
     <>
       <div className="page-head">
@@ -34,6 +43,7 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
           <h1>{task.title}</h1>
         </div>
         <div style={{ display: "flex", gap: 8, alignSelf: "center", alignItems: "center" }}>
+          {blocked && <Badge variant="danger" dot>Blocked</Badge>}
           <StatusDropdown taskId={task.id} current={task.status} />
           <PriorityBadge value={task.priority} />
         </div>
@@ -77,6 +87,21 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
               {tools.length > 0 && <ToolList label="Suggested Tools" items={tools} />}
             </Card>
           )}
+
+          <Card padding={20}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Checklist</h3>
+            <TaskChecklist taskId={task.id} items={task.checklist} canManage />
+          </Card>
+
+          <Card padding={20}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Blocked by</h3>
+            <TaskDependencies
+              taskId={task.id}
+              dependencies={task.dependencies}
+              candidateTasks={candidateTasks}
+              canManage
+            />
+          </Card>
 
           {(user.isAdmin || canManageTasks(user.role)) && (
             <Card padding={20}>

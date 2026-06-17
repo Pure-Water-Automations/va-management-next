@@ -45,6 +45,14 @@ export async function getAllTasks(opts?: {
 export async function getTaskDetail(taskId: string) {
   return db.task.findUnique({
     where: { id: taskId },
-    include: TASK_INCLUDE,
+    include: {
+      ...TASK_INCLUDE,
+      checklist: { orderBy: { order: "asc" as const } },
+      dependencies: {
+        include: {
+          dependsOn: { select: { id: true, title: true, status: true } },
+        },
+      },
+    },
   });
 }

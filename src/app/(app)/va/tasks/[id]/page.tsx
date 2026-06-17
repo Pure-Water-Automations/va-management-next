@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { DueChip, LinkChips } from "@/components/ui/task-format";
 import { StatusDropdown, CommentForm } from "@/components/TaskActions";
+import { TaskChecklist } from "@/components/TaskChecklist";
+import { TaskDependencies } from "@/components/TaskDependencies";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,8 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
   const trainings = (task.relatedTrainings as { title: string; url: string }[] | null) ?? [];
   const tools = (task.suggestedTools as { title: string; url: string; category?: string }[] | null) ?? [];
 
+  const blocked = task.dependencies.some((d) => d.dependsOn.status !== "Done");
+
   return (
     <>
       <div className="page-head">
@@ -53,7 +57,10 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
           <div className="crumb">
             <a href="/va/tasks">My Tasks</a> / {task.title}
           </div>
-          <h1>{task.title}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ margin: 0 }}>{task.title}</h1>
+            {blocked && <Badge variant="danger" dot>Blocked</Badge>}
+          </div>
         </div>
       </div>
 
@@ -103,6 +110,21 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
               {tools.length > 0 && <ResourceList label="Suggested Tools" items={tools} />}
             </Card>
           )}
+
+          <Card padding={20}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Checklist</h3>
+            <TaskChecklist taskId={task.id} items={task.checklist} canManage={false} />
+          </Card>
+
+          <Card padding={20}>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Blocked by</h3>
+            <TaskDependencies
+              taskId={task.id}
+              dependencies={task.dependencies}
+              candidateTasks={[]}
+              canManage={false}
+            />
+          </Card>
         </div>
 
         {/* Comments */}
