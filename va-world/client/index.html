@@ -225,6 +225,85 @@
         background: #262c40;
         color: #e6f1ff;
       }
+
+      /* Guide: right-docked instructions panel (fills the empty gutter) */
+      .vw-help {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 320px;
+        max-width: calc(100vw - 24px);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        pointer-events: none;
+      }
+      .vw-help-card {
+        pointer-events: auto;
+        width: 100%;
+        max-height: 82vh;
+        overflow-y: auto;
+        background: rgba(15, 17, 21, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        color: #c7d0de;
+        padding: 12px 14px 14px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      }
+      .vw-help-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #e6f1ff;
+      }
+      .vw-help-card h4 {
+        margin: 12px 0 3px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #2dd4bf;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .vw-help-card p {
+        margin: 0 0 6px;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .vw-help-card strong {
+        color: #e6f1ff;
+      }
+      .vw-help kbd {
+        display: inline-block;
+        background: #262c40;
+        border-radius: 4px;
+        padding: 1px 6px;
+        margin-right: 2px;
+        font-size: 11px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #e6f1ff;
+      }
+      .vw-help-zone {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        flex: 0 0 auto;
+      }
+      .vw-help-toggle {
+        pointer-events: auto;
+        border: 0;
+        border-radius: 8px;
+        background: #262c40;
+        color: #e6f1ff;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>

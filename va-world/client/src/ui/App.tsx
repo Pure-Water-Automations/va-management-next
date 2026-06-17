@@ -5,6 +5,7 @@ import { setCam, setMic } from "../media/livekitClient";
 import { Chat } from "./Chat";
 import { Directory } from "./Directory";
 import { AvatarPicker } from "./AvatarPicker";
+import { Instructions } from "./Instructions";
 
 function VideoTile({ track, name }: { track: Track; name: string }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -68,6 +69,7 @@ export function App() {
         <Directory />
         <AvatarPicker />
       </div>
+      <Instructions />
       <Chat />
       <MediaHud />
     </>
