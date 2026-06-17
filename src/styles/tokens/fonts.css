@@ -1,8 +1,0 @@
-/* PWA — Webfont Declarations
-   Primary: Outfit (display / headings — geometric, Apple-adjacent)
-   Body:    DM Sans (clean, neutral, readable)
-   Mono:    JetBrains Mono (code / data readouts)
-   NOTE: If switching to locally-hosted fonts, replace these @import URLs
-   with @font-face blocks pointing to the binary files in assets/fonts/. */
-
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap');

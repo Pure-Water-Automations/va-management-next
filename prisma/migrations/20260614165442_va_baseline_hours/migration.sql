@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "Va" ADD COLUMN     "baselineHours" DOUBLE PRECISION NOT NULL DEFAULT 0;
