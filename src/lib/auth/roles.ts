@@ -45,6 +45,26 @@ export function canDecideHire(role: Role): boolean {
   return role === "HR_MANAGER" || role === "PEOPLE_OPS";
 }
 
+/** Roles that can create tasks and assign them to VAs. */
+export function canManageTasks(role: Role): boolean {
+  return (
+    role === "HR_MANAGER" ||
+    role === "PEOPLE_OPS" ||
+    role === "TEAM_LEAD" ||
+    role === "SENIOR_VA"
+  );
+}
+
+/** Alias for canManageTasks — used in delegation-specific contexts. */
+export function isTaskDelegator(role: Role): boolean {
+  return canManageTasks(role);
+}
+
+/** Roles that can create, edit, and delete projects. SENIOR_VA is excluded. */
+export function canManageProjects(role: Role): boolean {
+  return role === "HR_MANAGER" || role === "PEOPLE_OPS" || role === "TEAM_LEAD";
+}
+
 export class AuthorizationError extends Error {
   constructor(message = "Not authorized") {
     super(message);
