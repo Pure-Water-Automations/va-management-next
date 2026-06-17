@@ -24,6 +24,7 @@ export type CreateTaskInput = {
 export type UpdateTaskInput = Partial<Omit<CreateTaskInput, "assignedToId"> & { status?: unknown }>;
 
 const TASK_STATUSES = new Set(["NotStarted", "InProgress", "Done", "Blocked"]);
+const PRIORITIES = new Set(["Low", "Medium", "High"]);
 
 function requireText(val: unknown, field: string): string {
   if (typeof val !== "string" || !val.trim()) throw new Error(`${field} is required`);
@@ -230,4 +231,53 @@ export async function updateTask(
   });
 
   return task;
+}
+
+export type BulkUpdateTaskPatch = {
+  status?: unknown;
+  priority?: unknown;
+  assignedToId?: unknown;
+  dueDate?: unknown;
+};
+
+export async function bulkUpdateTasks(
+  actorId: string,
+  actorRole: Role,
+  taskIds: string[],
+  patch: BulkUpdateTaskPatch,
+) {
+  if (!canManageTasks(actorRole)) throw new AuthorizationError("Not allowed to update tasks");
+  const ids = Array.isArray(taskIds) ? taskIds.filter((x): x is string => typeof x === "string" && !!x) : [];
+  if (ids.length === 0) throw new Error("No tasks selected");
+
+  const data: { status?: TaskStatus; priority?: Priority; assignedToId?: string; dueDate?: Date | null } = {};
+
+  const status = typeof patch.status === "string" ? patch.status : undefined;
+  if (status && TASK_STATUSES.has(status)) data.status = status as TaskStatus;
+
+  const priority = typeof patch.priority === "string" ? patch.priority : undefined;
+  if (priority && PRIORITIES.has(priority)) data.priority = priority as Priority;
+
+  if (typeof patch.assignedToId === "string" && patch.assignedToId) data.assignedToId = patch.assignedToId;
+
+  if (patch.dueDate !== undefined) {
+    if (patch.dueDate === null || patch.dueDate === "") data.dueDate = null;
+    else {
+      const d = new Date(patch.dueDate as string);
+      if (!isNaN(d.getTime())) data.dueDate = d;
+    }
+  }
+
+  if (Object.keys(data).length === 0) throw new Error("Nothing to update");
+
+  const res = await db.task.updateMany({ where: { id: { in: ids } }, data });
+
+  await logActivity({
+    source: "task_action",
+    eventType: "tasks_bulk_updated",
+    severity: "info",
+    summary: `Bulk-updated ${res.count} task(s): ${Object.keys(data).join(", ")}`,
+  });
+
+  return { count: res.count };
 }

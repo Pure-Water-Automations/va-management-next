@@ -3,13 +3,8 @@ import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
-import {
-  StatusBadge,
-  PriorityBadge,
-  DueChip,
-  Avatar,
-  EmptyState,
-} from "@/components/ui/task-format";
+import { EmptyState } from "@/components/ui/task-format";
+import { TasksWorkspace } from "@/components/TasksWorkspace";
 
 export const dynamic = "force-dynamic";
 
@@ -123,45 +118,13 @@ export default async function HrTasksPage({
     return qs ? `/hr/tasks?${qs}` : "/hr/tasks";
   };
 
-  const sortHref = (key: SortKey) => {
-    const nextDir = sort === key && dir === "asc" ? "desc" : "asc";
-    return buildHref({ sort: key, dir: nextDir });
-  };
-
-  const sortArrow = (key: SortKey) =>
-    sort === key ? (dir === "asc" ? " ▲" : " ▼") : "";
-
   const hasFilters = Boolean(status || client || va);
 
-  const thStyle: React.CSSProperties = {
-    textAlign: "left",
-    padding: "8px 12px",
-    fontSize: "var(--text-xs)",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-    color: "var(--color-text-tertiary)",
-    borderBottom: "1px solid var(--color-border)",
-    whiteSpace: "nowrap",
-  };
-  const tdStyle: React.CSSProperties = {
-    padding: "10px 12px",
-    borderBottom: "1px solid var(--color-border)",
-    verticalAlign: "middle",
-  };
-  const sortLinkStyle: React.CSSProperties = {
-    color: "inherit",
-    textDecoration: "none",
-    cursor: "pointer",
-  };
-
-  const columns: { key: SortKey; label: string }[] = [
-    { key: "title", label: "Task" },
-    { key: "assignee", label: "Assignee" },
-    { key: "project", label: "Project" },
-    { key: "priority", label: "Priority" },
-    { key: "status", label: "Status" },
-    { key: "due", label: "Due" },
-  ];
+  // The client workspace builds sort-header links itself, preserving these filters.
+  const baseQuery: Record<string, string> = {};
+  if (status) baseQuery.status = status;
+  if (client) baseQuery.client = client;
+  if (va) baseQuery.va = va;
 
   return (
     <>
@@ -222,7 +185,7 @@ export default async function HrTasksPage({
             style={{ fontSize: "var(--text-sm)", padding: "4px 8px", maxWidth: 220 }}
           >
             <option value="">All assignees</option>
-            {vas.map((u) => (
+            {vas.map((u: { id: string; name: string | null; email: string | null }) => (
               <option key={u.id} value={u.id}>
                 {u.name ?? u.email}
               </option>
@@ -255,57 +218,14 @@ export default async function HrTasksPage({
           ctaLabel="+ Delegate a task"
         />
       ) : (
-        <Card padding={0}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
-              <thead>
-                <tr>
-                  {columns.map((col) => (
-                    <th key={col.key} style={thStyle}>
-                      <a href={sortHref(col.key)} style={sortLinkStyle}>
-                        {col.label}
-                        {sortArrow(col.key)}
-                      </a>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((t) => (
-                  <tr key={t.id}>
-                    <td style={tdStyle}>
-                      <a
-                        href={`/hr/tasks/${t.id}`}
-                        style={{ fontWeight: 600, textDecoration: "none" }}
-                      >
-                        {t.title}
-                      </a>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <Avatar name={t.assignedTo.name} email={t.assignedTo.email} size={22} />
-                        <span className="small" style={{ whiteSpace: "nowrap" }}>
-                          {t.assignedTo.name ?? t.assignedTo.email}
-                        </span>
-                      </span>
-                    </td>
-                    <td style={{ ...tdStyle, color: "var(--color-text-secondary)" }}>
-                      {t.project?.name ?? (t.client ? t.client : "—")}
-                    </td>
-                    <td style={tdStyle}>
-                      <PriorityBadge value={t.priority} />
-                    </td>
-                    <td style={tdStyle}>
-                      <StatusBadge value={t.status} />
-                    </td>
-                    <td style={tdStyle}>
-                      <DueChip date={t.dueDate} status={t.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <Card padding={16}>
+          <TasksWorkspace
+            tasks={sorted}
+            assignees={vas}
+            sort={sort}
+            dir={dir}
+            baseQuery={baseQuery}
+          />
         </Card>
       )}
     </>
