@@ -1,0 +1,40 @@
+{
+  "name": "va-world",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gather.town-style 2D virtual space for VAs. Separate deployable; reads VA identity from the management app via the read-only /api/external bridge.",
+  "type": "module",
+  "scripts": {
+    "dev:client": "vite",
+    "dev:server": "node --env-file-if-exists=.env --import tsx --watch server/src/index.ts",
+    "start:server": "node --env-file-if-exists=.env --import tsx server/src/index.ts",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.15.57",
+    "@colyseus/schema": "^2.0.0",
+    "@colyseus/ws-transport": "^0.15.0",
+    "colyseus": "^0.15.17",
+    "colyseus.js": "^0.15.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "livekit-client": "^2.5.0",
+    "livekit-server-sdk": "^2.6.0",
+    "phaser": "^3.80.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.5.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

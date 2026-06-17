@@ -1,0 +1,10 @@
+[Unit]
+Description=Process pending recording transcripts/summaries every 2 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Unit=va-management-recordings.service
+
+[Install]
+WantedBy=timers.target
