@@ -25,6 +25,14 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       ],
     },
     {
+      label: "Projects",
+      items: [
+        { href: "/hr/projects", label: "Projects" },
+        { href: "/hr/tasks", label: "All Tasks" },
+        { href: "/hr/tasks/new", label: "Delegate" },
+      ],
+    },
+    {
       label: "Recruitment",
       items: [
         { href: "/recruitment", label: "Pipeline" },
@@ -61,6 +69,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/va/tier", label: "Tier Progress" },
         { href: "/va/evaluation", label: "Evaluation" },
         { href: "/va/checkin", label: "Monthly Check-in" },
+        { href: "/va/tasks", label: "My Tasks" },
       ],
     },
   ],
