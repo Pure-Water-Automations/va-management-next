@@ -9,16 +9,54 @@ import {
 } from "livekit-client";
 import { mediaStore } from "./mediaStore";
 import { distance, proximityVolume, withinRadius, type Point } from "./proximity";
+import type { RoomMode } from "../world/zones";
 
-// Single world-wide LiveKit room; proximity decides who we subscribe to and at
-// what volume. The local participant publishes only when the user toggles on.
+// One LiveKit connection at a time. The server assigns the room by zone and
+// pushes a token; crossing a zone boundary switches rooms here. In "proximity"
+// mode (open floor) we subscribe by distance; in "full" mode (meeting/stage) we
+// subscribe to everyone at volume 1.
+
+export type MediaMessage = {
+  url: string;
+  token: string;
+  room: string;
+  mode: RoomMode;
+  canPublish: boolean;
+  label: string;
+};
 
 let room: Room | null = null;
+let currentRoomName: string | null = null;
+let currentSignature: string | null = null;
+let currentMode: RoomMode = "proximity";
 const remoteAudioEls = new Map<string, HTMLAudioElement>();
 
-export async function connectMedia(url: string, token: string): Promise<void> {
-  if (room) return;
-  mediaStore.set({ available: true });
+function detachAllAudio(): void {
+  for (const el of remoteAudioEls.values()) el.remove();
+  remoteAudioEls.clear();
+}
+
+async function disconnectCurrent(): Promise<void> {
+  if (room) {
+    await room.disconnect();
+    room = null;
+  }
+  detachAllAudio();
+  for (const tile of mediaStore.getSnapshot().tiles) mediaStore.removeTile(tile.identity);
+  mediaStore.set({ connected: false, micOn: false, camOn: false });
+}
+
+/** Connect to (or switch to) the room/role described by the server message. */
+export async function connectMedia(msg: MediaMessage): Promise<void> {
+  const signature = `${msg.room}|${msg.canPublish}`;
+  if (room && signature === currentSignature) return; // already in this room+role
+
+  await disconnectCurrent();
+
+  currentRoomName = msg.room;
+  currentSignature = signature;
+  currentMode = msg.mode;
+  mediaStore.set({ available: true, canPublish: msg.canPublish, zoneLabel: msg.label });
 
   room = new Room({ adaptiveStream: true });
   room
@@ -28,7 +66,7 @@ export async function connectMedia(url: string, token: string): Promise<void> {
     .on(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished)
     .on(RoomEvent.Disconnected, () => mediaStore.set({ connected: false }));
 
-  await room.connect(url, token, { autoSubscribe: false });
+  await room.connect(msg.url, msg.token, { autoSubscribe: false });
   mediaStore.set({ connected: true });
 }
 
@@ -79,20 +117,29 @@ function onLocalTrackUnpublished(pub: LocalTrackPublication): void {
   if (pub.kind === Track.Kind.Video) mediaStore.removeTile("local");
 }
 
-/** Drive subscription + volume from in-world distance. */
+/** Drive subscription + volume. Distance matters only in proximity mode. */
 export function updateProximity(local: Point, peers: Array<{ identity: string } & Point>): void {
   if (!room) return;
   const byIdentity = new Map(peers.map((p) => [p.identity, p]));
 
   room.remoteParticipants.forEach((participant) => {
-    const peer = byIdentity.get(participant.identity);
-    const d = peer ? distance(local, peer) : Number.POSITIVE_INFINITY;
-    const near = withinRadius(d);
+    let subscribe: boolean;
+    let volume: number;
+
+    if (currentMode === "full") {
+      subscribe = true;
+      volume = 1;
+    } else {
+      const peer = byIdentity.get(participant.identity);
+      const d = peer ? distance(local, peer) : Number.POSITIVE_INFINITY;
+      subscribe = withinRadius(d);
+      volume = subscribe ? proximityVolume(d) : 0;
+    }
 
     participant.trackPublications.forEach((pub) => {
-      if (pub.isSubscribed !== near) pub.setSubscribed(near);
+      if (pub.isSubscribed !== subscribe) pub.setSubscribed(subscribe);
     });
-    participant.setVolume(near ? proximityVolume(d) : 0);
+    participant.setVolume(volume);
   });
 }
 
@@ -106,4 +153,9 @@ export async function setCam(on: boolean): Promise<void> {
   if (!room) return;
   await room.localParticipant.setCameraEnabled(on);
   mediaStore.set({ camOn: on });
+}
+
+/** Exposed for debugging/tests. */
+export function currentRoom(): string | null {
+  return currentRoomName;
 }

@@ -1,15 +1,21 @@
 import { AccessToken } from "livekit-server-sdk";
 import { config } from "./env";
 
-/** The single world-wide LiveKit room used for proximity A/V (Phase 3). */
-export const WORLD_ROOM = "world";
+// Re-export the default room name so callers don't hardcode it.
+export { WORLD_ROOM } from "../../client/src/world/zones";
 
 /**
- * Mint a LiveKit access token for one participant. The participant identity is
- * the caller's Colyseus sessionId, so a LiveKit participant maps 1:1 to a synced
- * player position. Returns null when LiveKit isn't configured (media disabled).
+ * Mint a LiveKit access token for one participant in a specific room. The
+ * participant identity is the caller's Colyseus sessionId, so a LiveKit
+ * participant maps 1:1 to a synced player position. `canPublish` is false for
+ * stage audience (listen-only). Returns null when LiveKit isn't configured.
  */
-export async function mintToken(identity: string, name: string): Promise<string | null> {
+export async function mintToken(
+  identity: string,
+  name: string,
+  room: string,
+  canPublish: boolean,
+): Promise<string | null> {
   if (!config.livekitUrl || !config.livekitApiKey || !config.livekitApiSecret) {
     return null;
   }
@@ -20,8 +26,8 @@ export async function mintToken(identity: string, name: string): Promise<string 
   });
   token.addGrant({
     roomJoin: true,
-    room: WORLD_ROOM,
-    canPublish: true,
+    room,
+    canPublish,
     canSubscribe: true,
   });
   return token.toJwt();

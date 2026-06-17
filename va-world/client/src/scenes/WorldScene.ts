@@ -8,8 +8,9 @@ import {
   WORLD_WIDTH,
 } from "../world/tilemap";
 import { TEX } from "../world/textures";
+import { ZONE_OVERLAYS, rectPx } from "../world/zones";
 import { joinWorld } from "../net/room";
-import { connectMedia, updateProximity } from "../media/livekitClient";
+import { connectMedia, updateProximity, type MediaMessage } from "../media/livekitClient";
 
 const PLAYER_SPEED = 220;
 const SEND_INTERVAL_MS = 100;
@@ -83,6 +84,19 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
+    // Translucent zone overlays + labels (meeting room, stage) under avatars.
+    for (const overlay of ZONE_OVERLAYS) {
+      const r = rectPx(overlay.rect);
+      this.add.rectangle(r.x, r.y, r.w, r.h, overlay.color, 0.12).setOrigin(0, 0).setDepth(1);
+      this.add
+        .text(r.x + 6, r.y + 4, overlay.label, {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "13px",
+          color: "#e6f1ff",
+        })
+        .setDepth(2);
+    }
+
     this.player = this.physics.add.image(SPAWN.x, SPAWN.y, TEX.player);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(10);
@@ -121,9 +135,10 @@ export class WorldScene extends Phaser.Scene {
         });
         players.onRemove((_player, sessionId) => this.removeRemote(sessionId));
 
-        // The server pushes a LiveKit token only when media is configured.
-        room.onMessage("media", (msg: { url: string; token: string }) => {
-          connectMedia(msg.url, msg.token).catch((err) =>
+        // The server pushes a LiveKit token (room assigned by zone) only when
+        // media is configured, and again whenever the player's zone changes.
+        room.onMessage("media", (msg: MediaMessage) => {
+          connectMedia(msg).catch((err) =>
             console.error("[va-world] media connect failed:", err),
           );
         });

@@ -15,6 +15,10 @@ export type MediaState = {
   connected: boolean;
   micOn: boolean;
   camOn: boolean;
+  /** Whether the current zone permits publishing (false = listen-only audience). */
+  canPublish: boolean;
+  /** Human label for the current zone ("Open floor", "Meeting Room", …). */
+  zoneLabel: string;
   tiles: Tile[];
 };
 
@@ -23,6 +27,8 @@ let state: MediaState = {
   connected: false,
   micOn: false,
   camOn: false,
+  canPublish: true,
+  zoneLabel: "",
   tiles: [],
 };
 

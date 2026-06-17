@@ -38,8 +38,8 @@ export const MAP_ROWS = MAP.length;
 export const WORLD_WIDTH = MAP_COLS * TILE_SIZE;
 export const WORLD_HEIGHT = MAP_ROWS * TILE_SIZE;
 
-/** A sensible open-floor spawn point near the top-left room. */
+/** Neutral open-floor spawn (center band, row 10) — clear of the stage/meeting zones. */
 export const SPAWN = {
-  x: 2 * TILE_SIZE + TILE_SIZE / 2,
-  y: 1 * TILE_SIZE + TILE_SIZE / 2,
+  x: 11 * TILE_SIZE + TILE_SIZE / 2,
+  y: 10 * TILE_SIZE + TILE_SIZE / 2,
 };

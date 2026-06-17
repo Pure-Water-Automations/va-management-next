@@ -36,17 +36,20 @@ export function App() {
         </div>
       )}
       <div className="vw-controls">
+        {state.zoneLabel && <span className="vw-zone">{state.zoneLabel}</span>}
         <button
           className={state.micOn ? "on" : ""}
           onClick={() => void setMic(!state.micOn)}
-          disabled={!state.connected}
+          disabled={!state.connected || !state.canPublish}
+          title={state.canPublish ? "" : "Listen-only in this zone"}
         >
           {state.micOn ? "Mute mic" : "Unmute mic"}
         </button>
         <button
           className={state.camOn ? "on" : ""}
           onClick={() => void setCam(!state.camOn)}
-          disabled={!state.connected}
+          disabled={!state.connected || !state.canPublish}
+          title={state.canPublish ? "" : "Listen-only in this zone"}
         >
           {state.camOn ? "Stop cam" : "Start cam"}
         </button>

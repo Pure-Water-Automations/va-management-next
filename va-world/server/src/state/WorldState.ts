@@ -10,6 +10,7 @@ export class Player extends Schema {
   @type("string") vaId = "";
   @type("string") profileUrl = "";
   @type("boolean") isGuest = true;
+  @type("string") zone = "world";
 }
 
 export class WorldState extends Schema {

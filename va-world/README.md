@@ -15,18 +15,20 @@ writes back.
 
 ## Status
 
-**Phase 3 (current): proximity audio/video via LiveKit Cloud.**
-- Everyone joins a single LiveKit room; the client subscribes to a peer's
-  tracks only when avatars are within range and fades audio volume with
-  distance. Mic/cam are user-toggled from a React overlay (control bar + video
-  tiles) layered over the Phaser canvas.
-- The Colyseus server mints a LiveKit token per connection (identity = the
-  session id) so each A/V participant maps to a synced position. If LiveKit
-  isn't configured, no token is sent and the overlay stays hidden — the rest of
-  the world still works.
+**Phase 4 (current): meeting room + event stage zones.**
+- Two tagged floor regions change the A/V rules, each backed by its **own**
+  LiveKit room (privacy can't be done with subscription tricks in one shared
+  room):
+  - **Meeting Room** (bottom band) — everyone inside shares one private call at
+    full volume regardless of distance; the open floor can't hear them.
+  - **Stage** (top band) — stand on the **podium** to be heard across the whole
+    stage; anyone else there is a listen-only **audience** (mic/cam disabled).
+- The server is authoritative about which room you may join: it watches your
+  position and, when your zone (or stage role) changes, mints a new token and
+  the client switches rooms. Open floor stays proximity-based (Phase 3).
 
-Earlier: Phase 2 (multiplayer + VA identity binding), Phase 0–1 (scaffold +
-single-player world). Later: meeting/stage zones (4), polish (5), deploy (6).
+Earlier: Phase 3 (proximity A/V), Phase 2 (multiplayer + VA identity), Phase 0–1
+(scaffold). Later: polish (5), deploy (6).
 
 ## Develop
 
@@ -53,11 +55,17 @@ http://localhost:5180/?email=va-b@example.com
 Each avatar shows the VA's name/tier from the manager (or a guest label if the
 email isn't a VA / the bridge isn't configured). Walk with **WASD** / arrows.
 
-To exercise **proximity A/V**, set `LIVEKIT_URL` / `LIVEKIT_API_KEY` /
-`LIVEKIT_API_SECRET` in `.env` (free project at https://cloud.livekit.io), then
-walk two avatars together: the video tiles appear and audio gets louder as they
-approach, and fades to silent past the proximity radius. Mic/cam are off until
-toggled (browsers require a user gesture to start capture).
+To exercise **A/V**, set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`
+in `.env` (free project at https://cloud.livekit.io). Then with two avatars:
+
+- **Open floor** — walk together: tiles appear and audio gets louder as they
+  approach, fading to silent past the proximity radius.
+- **Meeting Room** (bottom band) — both walk in: they hear each other at full
+  volume even far apart, and an avatar left on the open floor can't hear them.
+- **Stage** (top band) — stand on the center **podium** to broadcast to everyone
+  on the stage; off the podium you're a listen-only audience (mic/cam disabled).
+
+Mic/cam are off until toggled (browsers require a user gesture to start capture).
 
 ## Checks
 
