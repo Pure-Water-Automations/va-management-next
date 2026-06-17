@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
+import { db } from "@/lib/db";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
@@ -8,6 +9,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
+import { ProjectStatusControls } from "@/components/ProjectStatusControls";
+import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +22,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   }
   const canEdit = user.isAdmin || canManageProjects(user.role);
 
-  const [project, feed] = await Promise.all([
+  const [project, feed, assignees] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
+    db.user.findMany({
+      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
@@ -44,8 +52,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "center" }}>
-          <Badge variant={project.status === "Active" ? "primary" : "default"}>{project.status}</Badge>
-          <Badge variant={project.priority === "High" ? "danger" : "warning"}>{project.priority}</Badge>
+          <ProjectStatusControls
+            projectId={project.id}
+            status={project.status}
+            priority={project.priority}
+            canEdit={canEdit}
+          />
           {canEdit && (
             <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">
               Edit
@@ -77,6 +89,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               {progress}% complete
             </span>
           </div>
+          <ProjectQuickAddTask projectId={project.id} assignees={assignees} />
           {project.tasks.length === 0 ? (
             <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>No tasks yet.</p>
           ) : (
