@@ -6,6 +6,9 @@ import { parseDriveResults, type ProjectFields } from "@/lib/secondbrain/client"
 const MCP_URL = () => process.env.SECONDBRAIN_MCP_URL || "http://localhost:8787/mcp";
 const MAX_STEPS = 6;
 const MAX_TOOL_RESULT_CHARS = 3200; // cap each search result fed back to the model
+// Claude Haiku writes tighter, better-grounded briefs (and follows tool/finish
+// instructions more reliably) than DeepSeek. Override with OPENROUTER_ENHANCE_MODEL.
+const ENHANCE_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-3.5-haiku";
 
 export type EnhanceTask = { title: string; instructions?: string; priority: "Low" | "Medium" | "High" };
 export type EnhanceSource = { title: string; link?: string; kind?: string };
@@ -25,6 +28,7 @@ type ChatFn = (body: {
   tool_choice?: unknown;
   temperature?: number;
   max_tokens?: number;
+  model?: string;
 }) => Promise<ORResponse>;
 
 type ConvoMsg = {
@@ -207,7 +211,7 @@ export async function runAgentLoop(
     // Final step: stop searching and make the model conclude (it can't search now).
     if (step === maxSteps - 1) return finalize(convo, chat, submitOnly);
 
-    const data = await chat({ messages: convo, tools, tool_choice: "auto", temperature: 0.3, max_tokens: 1800 });
+    const data = await chat({ messages: convo, tools, tool_choice: "auto", temperature: 0.3, max_tokens: 1800, model: ENHANCE_MODEL() });
     const msg = data.choices?.[0]?.message;
     const calls = msg?.tool_calls ?? [];
 
@@ -273,6 +277,7 @@ async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[]):
       tool_choice: { type: "function", function: { name: "submit_findings" } },
       temperature: 0.3,
       max_tokens: 1800,
+      model: ENHANCE_MODEL(),
     });
     const msg = data.choices?.[0]?.message;
     const call = (msg?.tool_calls ?? []).find((c) => c.function?.name === "submit_findings");
@@ -296,6 +301,7 @@ async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[]):
       messages: [...convo, { role: "user", content: "Write a concise markdown brief of what the Second Brain shows about this project, with any short quotes and source names. If little was found, say so plainly. Do not call any tools." }],
       temperature: 0.3,
       max_tokens: 1400,
+      model: ENHANCE_MODEL(),
     });
     const text = (data.choices?.[0]?.message?.content || "").trim();
     if (text) return { kind: "findings", brief: text, tasks: [], sources: [] };
