@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isFounder } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
-import { db } from "@/lib/db";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
+import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -26,11 +26,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const [project, feed, assignees] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
-    db.user.findMany({
-      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
+    getDelegationAssignees(),
   ]);
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
