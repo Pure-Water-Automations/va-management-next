@@ -53,17 +53,32 @@ export function mergeContextIntoDescription(existing: string | null, accepted: S
   return `${prefix}${CONTEXT_HEADING}\n${lines.join("\n")}`;
 }
 
+// Only propose tasks when at least one retrieved card is a STRONG anchor for this
+// project. Strong notion/meeting matches score 0.84-0.96; thin/nonsense projects top
+// out around 0.71 on bare client-tag matches. Without this gate the model dutifully
+// fabricates confident tasks from tangential snippets (verified: a "Build a Nuke"
+// project produced 3 Northeast tasks). Below the anchor we keep the context summary
+// but suppress task suggestions.
+export const TASK_ANCHOR = 0.75;
+
+export function applyTaskAnchor(s: Synthesis, maxScore: number): Synthesis {
+  return maxScore >= TASK_ANCHOR ? s : { contextSummary: s.contextSummary, tasks: [] };
+}
+
 /**
  * One OpenRouter call: project + found snippets -> {contextSummary, tasks}. Grounded
- * to the snippets; never invents specifics. Returns empty synthesis if the key is
- * unset or the call fails (callers still have the context cards). The openrouter
- * helper is imported lazily so the pure functions above stay env-free for unit tests.
+ * to the snippets; never invents specifics, ignores snippets about other clients, and
+ * only proposes tasks when a strong-anchor card is present (applyTaskAnchor). Returns
+ * empty synthesis if the key is unset or the call fails (callers still have the context
+ * cards). The openrouter helper is imported lazily so the pure functions above stay
+ * env-free for unit tests.
  */
 export async function synthesize(
   project: { name: string; client?: string | null; description?: string | null },
   found: SbResult[],
 ): Promise<Synthesis> {
   if (found.length === 0) return { contextSummary: "", tasks: [] };
+  const maxScore = found.reduce((m, c) => Math.max(m, c.score ?? 0), 0);
   const snippetBlock = found
     .map((c, i) => `${i + 1}. [${c.source}] ${c.title}: ${c.snippet}${c.link ? ` (${c.link})` : ""}`)
     .join("\n");
@@ -71,7 +86,9 @@ export async function synthesize(
     "You enrich a work project for a virtual-assistant team. Given the project and snippets found in the team's knowledge base, return STRICT JSON: " +
     '{"contextSummary": string, "tasks": [{"title": string, "instructions": string, "priority": "Low"|"Medium"|"High"}]}. ' +
     "Ground every task in the snippets — never invent client names, dates, URLs, or specifics not present. " +
-    "If the snippets are thin, return fewer tasks or an empty tasks array. Return ONLY the JSON, no prose, no code fence.";
+    "ONLY use snippets clearly about THIS project and THIS client; IGNORE snippets that are about other named clients, other people's 1:1s, or unrelated topics. " +
+    "Set priority only from explicit urgency in a snippet (deadlines, escalations); otherwise use Medium. " +
+    "If the snippets are only tangential to this project, return an EMPTY tasks array rather than inventing work. Return ONLY the JSON, no prose, no code fence.";
   const userMsg =
     `PROJECT: ${project.name}${project.client ? ` (client: ${project.client})` : ""}\n` +
     `DESCRIPTION: ${project.description ?? "(none)"}\n\n` +
@@ -87,7 +104,7 @@ export async function synthesize(
       max_tokens: 900,
     });
     const content = res.choices?.[0]?.message?.content ?? "";
-    return parseSynthesis(content);
+    return applyTaskAnchor(parseSynthesis(content), maxScore);
   } catch {
     return { contextSummary: "", tasks: [] };
   }

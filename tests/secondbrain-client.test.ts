@@ -65,6 +65,32 @@ test("parseSemanticResults meeting: keeps near distance, drops far distance; tit
   assert.match(out[0].snippet, /subregional/);
 });
 
+test("parseSemanticResults drops 1:1 / interview / timed intro-call meeting cards (cross-client bleed)", () => {
+  const text = `===== RESULTS FOR: "x" =====
+
+--- Result 1 (Distance: 0.30) ---
+Source: Lei Quinto - 30min (2026-05-01T00:00:00Z)
+Path: /x/Meetings/lei.md
+Excerpt:
+recruitment interview about a hiring decision unrelated to the project
+
+--- Result 2 (Distance: 0.31) ---
+Source: 30 Zoom/Phone Minute Meeting - Mark Patton (2026-05-01T00:00:00Z)
+Path: /x/Meetings/mark.md
+Excerpt:
+intro call with an external person
+
+--- Result 3 (Distance: 0.30) ---
+Source: Northeast Pastors Meeting (2026-04-08T23:56:42Z)
+Path: /x/Meetings/ne.md
+Excerpt:
+genuine regional meeting content about the assembly planning
+`;
+  const out = parseSemanticResults(text, "meeting");
+  assert.equal(out.length, 1); // both HR/1:1 cards dropped, real meeting kept
+  assert.equal(out[0].title, "Northeast Pastors Meeting");
+});
+
 test("parseSemanticResults: no result blocks -> []", () => {
   assert.deepEqual(parseSemanticResults("No results.", "notion"), []);
   assert.deepEqual(parseSemanticResults("", "meeting"), []);

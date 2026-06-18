@@ -26,9 +26,11 @@ const MAX_SNIPPET_CHARS = 300;
 const MIN_SNIPPET_CHARS = 12; // drop title-only / empty-excerpt cards
 const MAX_SCAN_LINES = 400;
 
-// Catalog/dump/PII-list/admin/notification names that are never useful project context.
+// Catalog/dump/PII-list/admin/notification names that are never useful project context,
+// plus 1:1 / interview / timed intro-call summaries (cross-client personal context that
+// shouldn't bleed into an unrelated project).
 const JUNK_NAME =
-  /unsubscrib|members?\.csv$|^_index|^\.|contacts?\.csv$|services?\s+agreement|\bnda\b|training\s+assignment|^meeting assets for|are ready!?\s*$/i;
+  /unsubscrib|members?\.csv$|^_index|^\.|contacts?\.csv$|services?\s+agreement|\bnda\b|training\s+assignment|^meeting assets for|are ready!?\s*$|-\s*\d+\s*min\b|\d+\s+(?:zoom|phone)[^|]*minute meeting|\binterview\b/i;
 const PLACEHOLDER_SNIPPET = /insufficient (transcript|content)|no (summary|content) (available|found)/i;
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 

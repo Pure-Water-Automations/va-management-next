@@ -1,7 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { parseSynthesis, mergeContextIntoDescription } from "../src/lib/secondbrain/enhance";
+import { parseSynthesis, mergeContextIntoDescription, applyTaskAnchor, TASK_ANCHOR } from "../src/lib/secondbrain/enhance";
+
+test("applyTaskAnchor suppresses tasks when no card is a strong anchor", () => {
+  const s = { contextSummary: "weak context", tasks: [{ title: "Invented task", priority: "High" as const }] };
+  // strong anchor present -> keep
+  assert.deepEqual(applyTaskAnchor(s, 0.84), s);
+  // only tangential/region cards (top ~0.71) -> drop tasks, keep summary
+  assert.deepEqual(applyTaskAnchor(s, 0.71), { contextSummary: "weak context", tasks: [] });
+});
+
+test("TASK_ANCHOR sits in the gap between noise tops (~0.71) and real tops (~0.84)", () => {
+  assert.ok(TASK_ANCHOR > 0.71 && TASK_ANCHOR < 0.84);
+});
 
 test("parseSynthesis accepts valid JSON and coerces tasks", () => {
   const out = parseSynthesis(
