@@ -8,6 +8,8 @@ const optionalEnvString = <T extends z.ZodTypeAny>(schema: T) =>
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
+  NEXTAUTH_SECRET: z.string().min(1),
+  NEXTAUTH_URL: optionalEnvString(z.string().url()),
   APP_BASE_URL: optionalEnvString(z.string().url()),
   DEV_AUTH_EMAIL: optionalEnvString(z.string().email()),
   GOOGLE_SERVICE_ACCOUNT_JSON: optionalEnvString(z.string().min(1)),

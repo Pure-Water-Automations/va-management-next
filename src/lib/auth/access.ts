@@ -1,24 +1,20 @@
-import { headers, cookies } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getEmailFromHeaders } from "@/lib/auth/headers";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/nextauth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { viewForRole, type ConsoleView } from "@/lib/auth/roles";
 
-/**
- * Resolve the signed-in user from the Cloudflare Access header (production) or
- * the DEV_AUTH_EMAIL fallback (local dev). Replaces the GAS `resolveRole()`
- * layer: identity is verified at the edge, the role lives on the User row.
- */
 export async function getCurrentUser() {
-  const requestHeaders = await headers();
-  const cloudflareEmail = getEmailFromHeaders(requestHeaders);
+  const session = await getServerSession(authOptions);
+  const sessionEmail = session?.user?.email ?? undefined;
   const fallbackEmail =
     process.env.NODE_ENV !== "production" ? env.DEV_AUTH_EMAIL : undefined;
-  const email = cloudflareEmail ?? fallbackEmail;
+  const email = sessionEmail ?? fallbackEmail;
 
   if (!email) {
-    redirect("/api/health");
+    redirect("/login");
   }
 
   const user = await db.user.findUnique({
@@ -46,6 +42,20 @@ const FOUNDER_EMAILS = new Set(
 );
 export function isFounder(email: string | null | undefined): boolean {
   return !!email && FOUNDER_EMAILS.has(email.toLowerCase());
+}
+
+/**
+ * Beta features (Enhance, Discover, Recordings) are founder-only AND runtime-
+ * toggleable, so the founder can hide them on demand — e.g. while demoing the
+ * console to the VA team. Controlled by the `va_beta` cookie (default ON); the
+ * value "off" hides them. Non-founders never see beta regardless of the cookie.
+ */
+export async function isBetaOn(): Promise<boolean> {
+  return (await cookies()).get("va_beta")?.value !== "off";
+}
+
+export async function isBetaVisible(email: string | null | undefined): Promise<boolean> {
+  return isFounder(email) && (await isBetaOn());
 }
 
 const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "VA"];
