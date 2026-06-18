@@ -84,12 +84,14 @@ export function Sidebar({
   name,
   isAdmin = false,
   isFounder = false,
+  canDelegate = false,
 }: {
   view: ConsoleView;
   role: Role;
   name: string;
   isAdmin?: boolean;
   isFounder?: boolean;
+  canDelegate?: boolean;
 }) {
   const sections = NAV[view] ?? NAV.VA;
   return (
@@ -106,9 +108,9 @@ export function Sidebar({
           ))}
         </div>
       ))}
-      {/* Senior VAs land in the VA console but can delegate/manage tasks and view
-          projects (spec §2), so surface those entry points here. */}
-      {role === "SENIOR_VA" && (
+      {/* VA-console users with delegation authority (a Senior VA, or any tier flagged
+          "Can delegate" on the Compensation Roles screen) get the delegation entry points. */}
+      {view === "VA" && canDelegate && (
         <div>
           <div className="nav-label">Delegation</div>
           <NavItemLink href="/hr/tasks" label="All Tasks" />

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder } from "@/lib/auth/access";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
@@ -14,6 +15,9 @@ import { tourForView } from "@/lib/purii";
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   const view = await getEffectiveView(user);
+  // Delegation authority is comp-role-driven (a Senior VA / any tier flagged on the
+  // Compensation Roles screen), so the VA-console Delegation nav follows it, not the role.
+  const canDelegate = await canUserDelegateTasks(user.id, user.role);
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
 
@@ -37,7 +41,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
       <div className="app-shell">
         <label htmlFor="nav-toggle" className="nav-backdrop" aria-hidden="true" />
-        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} isFounder={isFounder(user.email)} />
+        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} isFounder={isFounder(user.email)} canDelegate={canDelegate} />
         <main className="content" style={{ padding: 0 }}>
           {user.isAdmin && <AdminBar currentView={view} vas={adminVas} currentVaId={impersonatedVaId} />}
           <div

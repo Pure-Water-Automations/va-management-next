@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { getProjectsList } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getClients } from "@/lib/reads/clients";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DelegateTaskPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  if (!user.isAdmin && !(await canUserDelegateTasks(user.id, user.role))) {
     redirect("/hr/tasks");
   }
 
