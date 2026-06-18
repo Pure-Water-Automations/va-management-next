@@ -1,8 +1,11 @@
 import type {
   ClientPortalAccessContext,
-  ClientPortalProjectSummary,
   ClientPortalTaskSummary,
+  ClientScopedProjectResource,
+  ClientScopedResource,
+  ClientScopedTaskResource,
   ClientVisibility,
+  ClientVisibleResource,
 } from "./types";
 
 export class ClientPortalAuthorizationError extends Error {
@@ -55,6 +58,7 @@ export function canAccessClientOrganization(
   ctx: ClientPortalAccessContext,
   clientOrganizationId: string,
 ): boolean {
+  if (!canUseClientPortal(ctx)) return false;
   if (isPwaAdmin(ctx)) return true;
   return ctx.clientOrganizationIds?.includes(clientOrganizationId) === true;
 }
@@ -63,7 +67,6 @@ export function assertCanAccessClientOrganization(
   ctx: ClientPortalAccessContext,
   clientOrganizationId: string,
 ): void {
-  assertCanUseClientPortal(ctx);
   if (!canAccessClientOrganization(ctx, clientOrganizationId)) {
     throw new ClientPortalAuthorizationError("You do not have access to this client organization");
   }
@@ -71,16 +74,23 @@ export function assertCanAccessClientOrganization(
 
 export function canViewClientProject(
   ctx: ClientPortalAccessContext,
-  project: Pick<ClientPortalProjectSummary, "clientOrganizationId">,
+  project: ClientScopedProjectResource,
 ): boolean {
-  return canAccessClientOrganization(ctx, project.clientOrganizationId);
+  if (!canAccessClientOrganization(ctx, project.clientOrganizationId)) return false;
+  if (isClientMember(ctx) || isPwaAdmin(ctx) || isTeamLeader(ctx)) return true;
+  if (project.ownerUserId && project.ownerUserId === ctx.userId) return true;
+  return ctx.assignedProjectIds?.includes(project.id) === true;
 }
 
 export function canViewClientTask(
   ctx: ClientPortalAccessContext,
-  task: Pick<ClientPortalTaskSummary, "id" | "clientOrganizationId">,
+  task: ClientScopedTaskResource,
 ): boolean {
-  if (canAccessClientOrganization(ctx, task.clientOrganizationId)) return true;
+  if (canAccessClientOrganization(ctx, task.clientOrganizationId)) {
+    if (isClientMember(ctx) || isPwaAdmin(ctx) || isTeamLeader(ctx)) return true;
+    if (task.assignedToUserId === ctx.userId || task.assignedByUserId === ctx.userId) return true;
+    if (task.projectOwnerUserId === ctx.userId) return true;
+  }
 
   // VA-limited view: a VA may see only tasks explicitly assigned/shared to them.
   if (INTERNAL_WORK_ROLES.has(ctx.role)) {
@@ -100,25 +110,43 @@ export function canCreateClientTaskRequest(
   return false;
 }
 
-export function canAssignVaForClientTask(ctx: ClientPortalAccessContext): boolean {
+export function canAssignVaForClientTask(
+  ctx: ClientPortalAccessContext,
+  taskOrOrg: ClientScopedResource,
+): boolean {
+  if (!canAccessClientOrganization(ctx, taskOrOrg.clientOrganizationId)) return false;
   return isPwaAdmin(ctx) || isTeamLeader(ctx);
 }
 
-export function canEditClientProject(ctx: ClientPortalAccessContext, clientOrganizationId: string): boolean {
-  if (!canAccessClientOrganization(ctx, clientOrganizationId)) return false;
+export function canEditClientProject(
+  ctx: ClientPortalAccessContext,
+  project: ClientScopedProjectResource,
+): boolean {
+  if (!canViewClientProject(ctx, project)) return false;
   return isPwaAdmin(ctx) || isTeamLeader(ctx);
 }
 
 export function canAddClientVisibleComment(
   ctx: ClientPortalAccessContext,
-  clientOrganizationId: string,
+  resource: ClientScopedTaskResource | ClientScopedProjectResource,
 ): boolean {
-  if (!canAccessClientOrganization(ctx, clientOrganizationId)) return false;
+  if ("assignedToUserId" in resource) {
+    if (!canViewClientTask(ctx, resource)) return false;
+  } else if (!canViewClientProject(ctx, resource)) {
+    return false;
+  }
+
+  // VAs should not publish directly to clients in MVP unless this is deliberately relaxed later.
   return isClientMember(ctx) || isPwaAdmin(ctx) || isTeamLeader(ctx);
 }
 
-export function canAddInternalOnlyComment(ctx: ClientPortalAccessContext): boolean {
-  return isInternalActor(ctx);
+export function canAddInternalOnlyComment(
+  ctx: ClientPortalAccessContext,
+  resource: ClientScopedTaskResource | ClientScopedProjectResource,
+): boolean {
+  if (!isInternalActor(ctx)) return false;
+  if ("assignedToUserId" in resource) return canViewClientTask(ctx, resource);
+  return canViewClientProject(ctx, resource);
 }
 
 export function defaultCommentVisibility(ctx: ClientPortalAccessContext): ClientVisibility {
@@ -126,24 +154,25 @@ export function defaultCommentVisibility(ctx: ClientPortalAccessContext): Client
   return isClientActor(ctx) ? "client_visible" : "internal_only";
 }
 
-export function canSeeVisibility(ctx: ClientPortalAccessContext, visibility: ClientVisibility): boolean {
-  if (visibility === "client_visible") return true;
+export function canSeeVisibility(ctx: ClientPortalAccessContext, resource: ClientVisibleResource): boolean {
+  if (!canAccessClientOrganization(ctx, resource.clientOrganizationId)) return false;
+  if (resource.visibility === "client_visible") return true;
   return isInternalActor(ctx) || isPwaAdmin(ctx);
 }
 
 export function canApproveDeliverable(
   ctx: ClientPortalAccessContext,
-  clientOrganizationId: string,
+  deliverable: ClientScopedResource,
 ): boolean {
-  if (!canAccessClientOrganization(ctx, clientOrganizationId)) return false;
+  if (!canAccessClientOrganization(ctx, deliverable.clientOrganizationId)) return false;
   return isClientAdmin(ctx) || isPwaAdmin(ctx);
 }
 
 export function canRequestRevision(
   ctx: ClientPortalAccessContext,
-  clientOrganizationId: string,
+  deliverable: ClientScopedResource,
 ): boolean {
-  if (!canAccessClientOrganization(ctx, clientOrganizationId)) return false;
+  if (!canAccessClientOrganization(ctx, deliverable.clientOrganizationId)) return false;
   return isClientMember(ctx) || isPwaAdmin(ctx) || isTeamLeader(ctx);
 }
 
@@ -153,4 +182,16 @@ export function canInviteClientUsers(
 ): boolean {
   if (!canAccessClientOrganization(ctx, clientOrganizationId)) return false;
   return isClientAdmin(ctx) || isPwaAdmin(ctx);
+}
+
+export function getClientTaskTriageVisibility(
+  ctx: ClientPortalAccessContext,
+  task: Pick<ClientPortalTaskSummary, "id" | "clientOrganizationId">,
+): "hidden" | "client_visible" | "internal_visible" {
+  const scopedTask: ClientScopedTaskResource = {
+    id: task.id,
+    clientOrganizationId: task.clientOrganizationId,
+  };
+  if (!canViewClientTask(ctx, scopedTask)) return "hidden";
+  return isClientActor(ctx) ? "client_visible" : "internal_visible";
 }
