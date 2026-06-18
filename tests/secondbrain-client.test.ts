@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { parseSemanticResults, parseDriveResults, dedupeResults } from "../src/lib/secondbrain/client";
+import {
+  parseSemanticResults,
+  parseDriveResults,
+  dedupeResults,
+  distinctiveProjectTokens,
+} from "../src/lib/secondbrain/client";
 
 // --- real notion semantic format (captured from the live server) ---
 const NOTION_TEXT = `===== HYBRID NOTION RESULTS FOR: "x" =====
@@ -93,9 +98,15 @@ test("dedupeResults removes same source+title, sorts by score desc, caps", () =>
     { source: "notion" as const, title: "Low", snippet: "", score: 0.31 },
     { source: "notion" as const, title: "High", snippet: "", score: 0.9 },
     { source: "notion" as const, title: "High", snippet: "dupe", score: 0.9 },
-    { source: "drive" as const, title: "Doc", snippet: "" }, // no score -> treated as 0.5
+    { source: "drive" as const, title: "Doc", snippet: "", score: 0.42 }, // drive is scored in searchSecondBrain
   ];
   const out = dedupeResults(cards, 2);
   assert.equal(out.length, 2);
-  assert.deepEqual(out.map((c) => c.title), ["High", "Doc"]); // 0.9, then 0.5 (drive), Low(0.31) cut
+  assert.deepEqual(out.map((c) => c.title), ["High", "Doc"]); // 0.9, 0.42, then Low 0.31 cut
+});
+
+test("distinctiveProjectTokens keeps project-specific words, drops client words + stopwords", () => {
+  assert.deepEqual(distinctiveProjectTokens({ name: "Northeast Assembly", client: "HSA-UWC Northeast" }), ["assembly"]);
+  assert.deepEqual(distinctiveProjectTokens({ name: "[SAMPLE] Website Revamp", client: "Pure Water" }), ["website", "revamp"]);
+  assert.deepEqual(distinctiveProjectTokens({ name: "Manhattan Project", client: "Northeast" }), ["manhattan"]);
 });
