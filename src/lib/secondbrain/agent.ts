@@ -6,9 +6,11 @@ import { parseDriveResults, type ProjectFields } from "@/lib/secondbrain/client"
 const MCP_URL = () => process.env.SECONDBRAIN_MCP_URL || "http://localhost:8787/mcp";
 const MAX_STEPS = 8;
 const MAX_TOOL_RESULT_CHARS = 3200; // cap each search result fed back to the model
-// Claude Haiku writes tighter, better-grounded briefs (and follows tool/finish
-// instructions more reliably) than DeepSeek. Override with OPENROUTER_ENHANCE_MODEL.
-const ENHANCE_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-3.5-haiku";
+// Split models: DeepSeek explores more varied search angles and surfaces richer
+// transcript content (the better SEARCHER); Claude Haiku writes a tighter, better-
+// grounded brief from that gathered context (the better WRITER). Each is overridable.
+const SEARCH_MODEL = () => process.env.OPENROUTER_ENHANCE_SEARCH_MODEL || process.env.OPENROUTER_MATRIX_MODEL || "deepseek/deepseek-chat-v3.1";
+const BRIEF_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-3.5-haiku";
 
 export type EnhanceTask = { title: string; instructions?: string; priority: "Low" | "Medium" | "High" };
 export type EnhanceSource = { title: string; link?: string; kind?: string };
@@ -203,22 +205,23 @@ export async function runAgentLoop(
   search: SearchFn,
   onStep: (label: string) => void,
   maxSteps: number,
+  searchModel: string,
+  briefModel: string,
 ): Promise<EnhanceResult> {
   // The submit_findings-only tool list used to FORCE a conclusion on the final step.
   const submitOnly = (tools as { function?: { name?: string } }[]).filter((t) => t?.function?.name === "submit_findings");
 
   for (let step = 0; step < maxSteps; step++) {
-    // Final step: stop searching and make the model conclude (it can't search now).
-    if (step === maxSteps - 1) return finalize(convo, chat, submitOnly);
+    // Final step: stop searching and have the BRIEF model synthesize (it can't search now).
+    if (step === maxSteps - 1) return finalize(convo, chat, submitOnly, briefModel);
 
-    const data = await chat({ messages: convo, tools, tool_choice: "auto", temperature: 0.3, max_tokens: 1800, model: ENHANCE_MODEL() });
+    const data = await chat({ messages: convo, tools, tool_choice: "auto", temperature: 0.3, max_tokens: 1800, model: searchModel });
     const msg = data.choices?.[0]?.message;
     const calls = msg?.tool_calls ?? [];
 
     if (!calls.length) {
-      const text = (msg?.content || "").trim();
-      if (text) return { kind: "findings", brief: text, tasks: [], sources: [] };
-      return { kind: "error", message: "The AI search returned nothing — try again." };
+      // Search model signalled it's done (prose). Hand the gathered context to the brief model.
+      return finalize(convo, chat, submitOnly, briefModel);
     }
 
     convo.push({ role: "assistant", content: msg?.content ?? null, tool_calls: msg?.tool_calls });
@@ -233,7 +236,8 @@ export async function runAgentLoop(
         args = {};
       }
 
-      if (name === "submit_findings") return parseFindings(args);
+      // The search model only DECIDES it has enough; the brief model writes the synthesis.
+      if (name === "submit_findings") return finalize(convo, chat, submitOnly, briefModel);
       if (name === "ask_clarifying_questions") {
         const questions = Array.isArray(args.questions)
           ? args.questions.filter((q): q is string => typeof q === "string" && q.trim().length > 0).slice(0, 3)
@@ -257,15 +261,15 @@ export async function runAgentLoop(
       convo.push({ role: "tool", tool_call_id: id, content: `Unknown tool: ${name}` });
     }
   }
-  return finalize(convo, chat, submitOnly);
+  return finalize(convo, chat, submitOnly, briefModel);
 }
 
 /**
- * Force a conclusion: ask the model to submit_findings (only that tool offered, so it
- * can't keep searching). If it still doesn't, fall back to a no-tools prose brief. Any
- * hallucinated search call here is ignored — we never search on the finalize turn.
+ * Force a conclusion with the BRIEF model: ask it to submit_findings (only that tool
+ * offered, so it can't keep searching). If it still doesn't, fall back to a no-tools
+ * prose brief. Any hallucinated search call here is ignored — we never search now.
  */
-async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[]): Promise<EnhanceResult> {
+async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[], model: string): Promise<EnhanceResult> {
   const conv: ConvoMsg[] = [
     ...convo,
     { role: "user", content: "Stop searching. Using only what you've already gathered above, call submit_findings now with the brief, grounded tasks, and sources. If you found little, say so honestly and return an empty tasks array." },
@@ -277,7 +281,7 @@ async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[]):
       tool_choice: { type: "function", function: { name: "submit_findings" } },
       temperature: 0.3,
       max_tokens: 1800,
-      model: ENHANCE_MODEL(),
+      model,
     });
     const msg = data.choices?.[0]?.message;
     const call = (msg?.tool_calls ?? []).find((c) => c.function?.name === "submit_findings");
@@ -301,7 +305,7 @@ async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[]):
       messages: [...convo, { role: "user", content: "Write a concise markdown brief of what the Second Brain shows about this project, with any short quotes and source names. If little was found, say so plainly. Do not call any tools." }],
       temperature: 0.3,
       max_tokens: 1400,
-      model: ENHANCE_MODEL(),
+      model,
     });
     const text = (data.choices?.[0]?.message?.content || "").trim();
     if (text) return { kind: "findings", brief: text, tasks: [], sources: [] };
@@ -347,16 +351,19 @@ export async function enhanceResearch(opts: {
     { role: "user", content: buildUserPrompt(opts.project, opts.prompt, opts.answers) },
   ];
 
+  const searchModel = SEARCH_MODEL();
+  const briefModel = BRIEF_MODEL();
+
   // Injected search backend (tests) skips the MCP connection entirely.
   if (opts.searchFn) {
-    return runAgentLoop(convo, tools, chat, opts.searchFn, onStep, maxSteps);
+    return runAgentLoop(convo, tools, chat, opts.searchFn, onStep, maxSteps, searchModel, briefModel);
   }
 
   const client = new Client({ name: "va-management-enhance-agent", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL()));
   try {
     await client.connect(transport);
-    return await runAgentLoop(convo, tools, chat, (n, q) => runSearch(client, n, q), onStep, maxSteps);
+    return await runAgentLoop(convo, tools, chat, (n, q) => runSearch(client, n, q), onStep, maxSteps, searchModel, briefModel);
   } catch (err) {
     return { kind: "error", message: err instanceof Error ? err.message : "AI search failed." };
   } finally {
