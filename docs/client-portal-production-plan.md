@@ -30,7 +30,7 @@ The missing layer is external tenancy: secure client organizations, client membe
 
 These are non-negotiable before enabling external client accounts:
 
-1. **Separate client layout.** The scaffold currently adds `/client` preview pages under the existing authenticated app shell. That is acceptable for internal preview only. The real external portal must move to a separate route group/layout such as `src/app/(client)/client/layout.tsx`, with no HR sidebar, admin bar, VA impersonation controls, internal command palette, HR tours, payroll links, recruitment links, or VA evaluation surfaces.
+1. **Separate client layout.** The scaffold now places `/client` preview pages under `src/app/(client)/client/*`, separate from the existing internal `(app)` shell. The real external portal must continue using a client-specific layout with no HR sidebar, admin bar, VA impersonation controls, internal command palette, HR tours, payroll links, recruitment links, or VA evaluation surfaces.
 2. **Explicit client console view.** Before adding `CLIENT_ADMIN` and `CLIENT_MEMBER` to the live Prisma `Role` enum, update role routing so client roles resolve to a `CLIENT` view, never the VA fallback.
 3. **Resource-scoped permissions only.** Permission helpers must combine organization access, resource ownership/participation, and visibility. Do not use visibility-only checks.
 4. **Request-first intake.** Client submissions must create `ClientTaskRequest` rows first. They should not immediately create assigned `Task` rows or trigger VA assignment emails. Team Leaders/Admins triage and convert approved requests into tasks.
@@ -100,9 +100,9 @@ Preview routes in this PR:
 
 Production route requirement:
 
-- Move the real portal to its own client layout before enabling external accounts.
+- Keep the real portal in its own client layout.
 - The client layout must use client-specific navigation only.
-- Internal preview can remain available to admins/team leads, but it should not be the external shell.
+- Internal preview can remain available to admins/team leads, but it should not inherit the internal HR/VA app shell.
 
 Production routes:
 
@@ -390,4 +390,4 @@ Recommended pilot:
 
 ## 12. Engineering notes
 
-Current branch includes scaffolding only. It intentionally avoids mutating the production Prisma schema until the tenancy and client role decisions are approved. The preview pages are still under the internal app shell and must not be treated as the final external portal shell. The next engineering step is to convert `docs/client-portal/schema-draft.prisma` into a real Prisma migration, add a separate client layout, and update role routing before external client accounts are enabled.
+Current branch includes scaffolding only. It intentionally avoids mutating the production Prisma schema until the tenancy and client role decisions are approved. The preview pages now use a separate client route group/layout instead of the internal HR/VA app shell, but external client accounts should still wait for the real ClientOrganization/ClientMembership migration, client role routing, and tenant-scoped read models. The next engineering step is to convert `docs/client-portal/schema-draft.prisma` into a real Prisma migration, add `CLIENT` role routing, and implement the request-first intake endpoint.
