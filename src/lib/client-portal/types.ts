@@ -1,11 +1,11 @@
-import type { Role } from "@prisma/client";
-
 export type ClientPortalActorKind = "internal" | "client";
 
-export type ClientPortalInternalRole = Extract<
-  Role,
-  "HR_MANAGER" | "PEOPLE_OPS" | "TEAM_LEAD" | "SENIOR_VA" | "VA"
->;
+export type ClientPortalInternalRole =
+  | "HR_MANAGER"
+  | "PEOPLE_OPS"
+  | "TEAM_LEAD"
+  | "SENIOR_VA"
+  | "VA";
 
 export type ClientPortalExternalRole = "CLIENT_ADMIN" | "CLIENT_MEMBER";
 
@@ -29,6 +29,14 @@ export type ClientDeliverableStatus =
   | "revision_requested"
   | "final";
 
+export type ClientTaskRequestStatus =
+  | "received"
+  | "triage_needed"
+  | "ready_to_assign"
+  | "assigned"
+  | "declined"
+  | "completed";
+
 export type ClientPortalAccessContext = {
   userId: string;
   email?: string | null;
@@ -39,6 +47,28 @@ export type ClientPortalAccessContext = {
   clientOrganizationIds?: string[];
   /** VA task ids assigned/shared to this actor. Used for VA-limited client work views. */
   assignedTaskIds?: string[];
+  /** Project ids this internal actor is explicitly participating in or managing. */
+  assignedProjectIds?: string[];
+};
+
+export type ClientScopedResource = {
+  clientOrganizationId: string;
+};
+
+export type ClientScopedTaskResource = ClientScopedResource & {
+  id: string;
+  assignedToUserId?: string | null;
+  assignedByUserId?: string | null;
+  projectOwnerUserId?: string | null;
+};
+
+export type ClientScopedProjectResource = ClientScopedResource & {
+  id: string;
+  ownerUserId?: string | null;
+};
+
+export type ClientVisibleResource = ClientScopedResource & {
+  visibility: ClientVisibility;
 };
 
 export type ClientPortalProjectSummary = {
@@ -83,6 +113,12 @@ export type ClientTaskIntakeInput = {
   clientNotes?: string;
 };
 
+export type ClientTaskRequestDraft = ClientTaskIntakeInput & {
+  status: ClientTaskRequestStatus;
+  source: "client_portal";
+  visibility: "client_visible";
+};
+
 export type ClientPortalNavItem = {
   label: string;
   href: string;
@@ -114,6 +150,6 @@ export function isClientPortalExternalRole(role: string): role is ClientPortalEx
   return role === "CLIENT_ADMIN" || role === "CLIENT_MEMBER";
 }
 
-export function isClientPortalInternalRole(role: Role): role is ClientPortalInternalRole {
+export function isClientPortalInternalRole(role: string): role is ClientPortalInternalRole {
   return ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA", "VA"].includes(role);
 }
