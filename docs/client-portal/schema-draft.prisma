@@ -16,50 +16,59 @@
 // }
 
 // enum ClientOrgStatus {
-//   prospect
-//   onboarding
-//   active
-//   paused
-//   churned
+//   PROSPECT
+//   ONBOARDING
+//   ACTIVE
+//   PAUSED
+//   CHURNED
 // }
 
 // enum ClientMembershipRole {
-//   admin
-//   member
+//   ADMIN
+//   MEMBER
 // }
 
 // enum ClientVisibility {
-//   internal_only
-//   client_visible
+//   INTERNAL_ONLY
+//   CLIENT_VISIBLE
 // }
 
 // enum ClientTaskSource {
-//   internal
-//   client_portal
-//   import
+//   INTERNAL
+//   CLIENT_PORTAL
+//   IMPORT
+// }
+
+// enum ClientTaskRequestStatus {
+//   RECEIVED
+//   TRIAGE_NEEDED
+//   READY_TO_ASSIGN
+//   ASSIGNED
+//   DECLINED
+//   COMPLETED
 // }
 
 // enum DeliverableStatus {
-//   draft
-//   ready_for_review
-//   approved
-//   revision_requested
-//   final
+//   DRAFT
+//   READY_FOR_REVIEW
+//   APPROVED
+//   REVISION_REQUESTED
+//   FINAL
 // }
 
 // New model: canonical external customer/account.
 model ClientOrganizationDraft {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  status      String   @default("active")
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  status       String   @default("ACTIVE") // ClientOrgStatus in real migration
   primaryEmail String?
-  logoUrl     String?
-  brandColor  String?
-  packageTier String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  logoUrl      String?
+  brandColor   String?
+  packageTier  String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Replace existing free-text Client usage over time.
   legacyClientName String? @unique
@@ -69,16 +78,16 @@ model ClientOrganizationDraft {
 
 // New model: which users belong to which client orgs.
 model ClientMembershipDraft {
-  id        String   @id @default(cuid())
+  id                   String   @id @default(cuid())
   clientOrganizationId String
-  userId    String
-  role      String   @default("member")
-  active    Boolean  @default(true)
-  invitedByUserId String?
-  invitedAt DateTime?
-  acceptedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId               String
+  role                 String   @default("MEMBER") // ClientMembershipRole in real migration
+  active               Boolean  @default(true)
+  invitedByUserId      String?
+  invitedAt            DateTime?
+  acceptedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   // Real migration should use relations:
   // clientOrganization ClientOrganization @relation(fields: [clientOrganizationId], references: [id], onDelete: Cascade)
@@ -89,12 +98,43 @@ model ClientMembershipDraft {
   @@index([clientOrganizationId, active])
 }
 
+// New model: request-first client intake.
+// Client submissions should land here first, then Team Leaders/Admins convert
+// approved requests into real Task rows. This prevents client intake from
+// immediately assigning a VA or triggering assignment emails.
+model ClientTaskRequestDraftModel {
+  id                   String   @id @default(cuid())
+  clientOrganizationId String
+  requestedByUserId    String
+  projectId            String?
+  createdTaskId        String?
+  status               String   @default("RECEIVED") // ClientTaskRequestStatus in real migration
+  visibility           String   @default("CLIENT_VISIBLE") // ClientVisibility in real migration
+  title                String
+  desiredOutcome       String
+  priority             String   @default("Medium")
+  dueDate              DateTime?
+  links                String?
+  clientNotes          String?
+  suggestedAssigneeId  String?
+  approvalRequired     Boolean  @default(false)
+  triagedByUserId      String?
+  triagedAt            DateTime?
+  declinedReason       String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([clientOrganizationId, status])
+  @@index([requestedByUserId])
+  @@index([projectId])
+  @@index([createdTaskId])
+}
+
 // Recommended fields to add to Project:
 // clientOrganizationId String?
-// clientVisibility ClientVisibility @default(client_visible)
+// clientVisibility ClientVisibility @default(CLIENT_VISIBLE)
 // clientSummary String?
 // internalNotes String?
-// source ClientTaskSource @default(internal)
 // approvalRequired Boolean @default(false)
 // approvedAt DateTime?
 // approvedByUserId String?
@@ -102,11 +142,12 @@ model ClientMembershipDraft {
 
 // Recommended fields to add to Task:
 // clientOrganizationId String?
-// clientVisibility ClientVisibility @default(client_visible)
+// clientVisibility ClientVisibility @default(CLIENT_VISIBLE)
 // clientSummary String?
 // internalNotes String?
-// source ClientTaskSource @default(internal)
+// source ClientTaskSource @default(INTERNAL)
 // requestedByUserId String?
+// clientTaskRequestId String?
 // approvalRequired Boolean @default(false)
 // approvedAt DateTime?
 // approvedByUserId String?
@@ -114,32 +155,33 @@ model ClientMembershipDraft {
 // revisionReason String?
 // @@index([clientOrganizationId])
 // @@index([requestedByUserId])
+// @@index([clientTaskRequestId])
 
 // Recommended fields to add to TaskComment and ProjectComment:
-// visibility ClientVisibility @default(internal_only)
+// visibility ClientVisibility @default(INTERNAL_ONLY)
 // intent String? // update | question | approval_request | revision_request | note
 
 // New model: deliverables and link/file attachments.
 model ClientDeliverableDraft {
-  id        String   @id @default(cuid())
+  id                   String   @id @default(cuid())
   clientOrganizationId String
-  projectId String?
-  taskId    String?
-  title     String
-  description String?
-  url       String?
-  fileObjectKey String?
-  mimeType  String?
-  sizeBytes Int?
-  status    String   @default("ready_for_review")
-  visibility String  @default("client_visible")
-  uploadedByUserId String?
-  approvedByUserId String?
-  approvedAt DateTime?
-  revisionRequestedAt DateTime?
-  revisionReason String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  projectId            String?
+  taskId               String?
+  title                String
+  description          String?
+  url                  String?
+  fileObjectKey        String?
+  mimeType             String?
+  sizeBytes            Int?
+  status               String   @default("READY_FOR_REVIEW") // DeliverableStatus in real migration
+  visibility           String   @default("CLIENT_VISIBLE") // ClientVisibility in real migration
+  uploadedByUserId     String?
+  approvedByUserId     String?
+  approvedAt           DateTime?
+  revisionRequestedAt  DateTime?
+  revisionReason       String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([clientOrganizationId])
   @@index([projectId])
@@ -149,16 +191,16 @@ model ClientDeliverableDraft {
 
 // New model: client-safe activity feed separate from raw internal ActivityLog.
 model ClientActivityEventDraft {
-  id        String   @id @default(cuid())
+  id                   String   @id @default(cuid())
   clientOrganizationId String
-  projectId String?
-  taskId    String?
-  actorUserId String?
-  eventType String
-  visibility String @default("client_visible")
-  summary String
-  metadata Json?
-  createdAt DateTime @default(now())
+  projectId            String?
+  taskId               String?
+  actorUserId          String?
+  eventType            String
+  visibility           String   @default("CLIENT_VISIBLE") // ClientVisibility in real migration
+  summary              String
+  metadata             Json?
+  createdAt            DateTime @default(now())
 
   @@index([clientOrganizationId, createdAt])
   @@index([projectId])
@@ -171,4 +213,5 @@ model ClientActivityEventDraft {
 // 3. Backfill Task.clientOrganizationId from Task.client or parent Project.clientOrganizationId.
 // 4. Keep legacy Project.client and Task.client as denormalized display/fallback fields for one release.
 // 5. Convert client-facing reads to require clientOrganizationId.
-// 6. Remove legacy free-text client dependency after all records are backfilled.
+// 6. Create ClientTaskRequest for all new client intake; convert approved requests into Task.
+// 7. Remove legacy free-text client dependency after all records are backfilled.
