@@ -34,6 +34,11 @@ const envSchema = z.object({
   // Model for the "Enhance with Second Brain" agent (brief synthesis). Defaults to
   // anthropic/claude-3.5-haiku in code — better grounded synthesis than DeepSeek.
   OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
+  OPENROUTER_ENHANCE_SEARCH_MODEL: optionalEnvString(z.string()),
+  // MCP endpoint: shared bearer token + the service identity it acts as. The
+  // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
+  MCP_API_TOKEN: optionalEnvString(z.string()),
+  MCP_ACTOR_EMAIL: optionalEnvString(z.string().email()),
   // SecondBrain cloud MCP endpoint (co-located on the same VPS). Used by the
   // "Enhance with Second Brain" feature to search Notion/Drive/meeting mirrors.
   SECONDBRAIN_MCP_URL: optionalEnvString(z.string().url()),
