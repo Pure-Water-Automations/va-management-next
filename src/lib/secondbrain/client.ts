@@ -17,11 +17,29 @@ type McpTextResult = {
   content?: { type?: string; text?: string }[];
 };
 
+// Hard caps so a high-recall query (search_meetings can return >500KB of grep
+// output) never floods the modal or the OpenRouter synthesis prompt.
+const MAX_CARDS_PER_TOOL = 6;
+const MAX_LINES_PER_FILE = 3;
+const MAX_SNIPPET_CHARS = 320;
+
+/** Turn a mirror file path into a readable title: basename, minus `--<id>` suffix + extension. */
+function prettyTitle(path: string): string {
+  const base = path.split("/").pop() ?? path;
+  return base
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/--[0-9a-f]{6,}$/i, "")
+    .trim() || base;
+}
+
 /**
- * Flatten an MCP tool result's text blocks into SbResult[]. Pure + defensive:
- * - error result or empty content -> []
- * - text that parses as a JSON array of {title, snippet?, link?} -> one card each
- * - any other non-empty text -> a single card carrying the prose as the snippet
+ * Flatten an MCP tool result's text blocks into SbResult[]. Pure + defensive.
+ *
+ * The SecondBrain mirror search tools return **grep-style** text — newline-separated
+ * `path:line:matched-content` rows (verified against the live server) — so the primary
+ * parser groups those rows by file into one capped card each. A JSON-array payload is
+ * also accepted (in case a tool returns structured data). Anything else — including the
+ * literal "No matches found." and arbitrary prose — yields [] (never a giant junk card).
  */
 export function normalizeToolResult(toolName: string, result: unknown): SbResult[] {
   const r = result as McpTextResult | null;
@@ -32,9 +50,9 @@ export function normalizeToolResult(toolName: string, result: unknown): SbResult
     .map((c) => c.text as string)
     .join("\n")
     .trim();
-  if (!text) return [];
+  if (!text || /^no matches found\.?$/i.test(text)) return [];
 
-  // Preferred shape: a JSON array of record-like items.
+  // 1) Structured JSON array (some tools may return this).
   try {
     const parsed = JSON.parse(text);
     if (Array.isArray(parsed)) {
@@ -49,13 +67,35 @@ export function normalizeToolResult(toolName: string, result: unknown): SbResult
           return { source: toolName, title: title || "(untitled)", snippet, link };
         })
         .filter((c): c is SbResult => c !== null);
-      return cards;
+      if (cards.length) return cards.slice(0, MAX_CARDS_PER_TOOL);
     }
   } catch {
-    // not JSON — fall through to prose fallback
+    // not JSON — fall through to grep-line parsing
   }
 
-  return [{ source: toolName, title: "(result)", snippet: text }];
+  // 2) grep-style `path:line:content` rows grouped into one card per file.
+  const byFile = new Map<string, string[]>();
+  for (const line of text.split("\n")) {
+    const m = line.match(/^(.+?):(\d+):(.*)$/);
+    if (!m) continue;
+    const path = m[1];
+    const content = m[3].trim();
+    if (!content) continue;
+    if (!byFile.has(path)) {
+      if (byFile.size >= MAX_CARDS_PER_TOOL) continue;
+      byFile.set(path, []);
+    }
+    const arr = byFile.get(path)!;
+    if (arr.length < MAX_LINES_PER_FILE) arr.push(content);
+  }
+
+  const cards: SbResult[] = [];
+  for (const [path, lines] of byFile) {
+    const snippet = lines.join(" · ").slice(0, MAX_SNIPPET_CHARS);
+    const link = lines.join(" ").match(/https?:\/\/[^\s)\]]+/)?.[0];
+    cards.push({ source: toolName, title: prettyTitle(path), snippet, link });
+  }
+  return cards;
 }
 
 /**
