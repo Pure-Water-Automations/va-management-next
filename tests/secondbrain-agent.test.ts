@@ -69,6 +69,33 @@ test("agent asks clarifying questions when the project is vague and no guidance 
   assert.equal(res.questions.length, 2);
 });
 
+test("forces a conclusion when the model never volunteers submit_findings", async () => {
+  // The model keeps searching; only when offered just submit_findings (finalize) does it conclude.
+  const chat = async (body: { tools?: unknown[] }) => {
+    const onlySubmit = Array.isArray(body.tools) && body.tools.length === 1;
+    if (onlySubmit) return toolCallResp("submit_findings", { brief: "Concluded from what I gathered.", tasks: [], sources: [] });
+    return toolCallResp("search_meetings", { query: "keeps searching" });
+  };
+  const res = await enhanceResearch({ project: { name: "X" }, prompt: "go", chat, searchFn: async () => "some data", maxSteps: 3 });
+  assert.equal(res.kind, "findings");
+  if (res.kind !== "findings") return;
+  assert.match(res.brief, /Concluded/);
+});
+
+test("finalize falls back to a prose brief if even submit-only yields no submit call", async () => {
+  const chat = async (body: { tools?: unknown[] }) => {
+    const noTools = !body.tools || (Array.isArray(body.tools) && body.tools.length === 0);
+    if (noTools) return { choices: [{ message: { content: "Honest prose brief: found little." } }] };
+    // submit-only finalize call: model misbehaves and emits a (hallucinated) search instead
+    if (Array.isArray(body.tools) && body.tools.length === 1) return toolCallResp("search_meetings", { query: "nope" });
+    return toolCallResp("search_meetings", { query: "loop" });
+  };
+  const res = await enhanceResearch({ project: { name: "X" }, prompt: "go", chat, searchFn: async () => "x", maxSteps: 2 });
+  assert.equal(res.kind, "findings");
+  if (res.kind !== "findings") return;
+  assert.match(res.brief, /Honest prose brief/);
+});
+
 test("a prose answer (no tool call) is wrapped as the brief", async () => {
   const chat = async () => ({ choices: [{ message: { content: "Here is what I found.", tool_calls: [] } }] });
   const res = await enhanceResearch({ project: { name: "X" }, prompt: "go", chat, searchFn: async () => "" });

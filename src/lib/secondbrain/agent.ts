@@ -200,25 +200,18 @@ export async function runAgentLoop(
   onStep: (label: string) => void,
   maxSteps: number,
 ): Promise<EnhanceResult> {
-  // The submit_findings-only tool list used to FORCE a conclusion on the final step —
-  // some models (DeepSeek) ignore object-form tool_choice but will comply when the
-  // search tools simply aren't offered.
+  // The submit_findings-only tool list used to FORCE a conclusion on the final step.
   const submitOnly = (tools as { function?: { name?: string } }[]).filter((t) => t?.function?.name === "submit_findings");
 
   for (let step = 0; step < maxSteps; step++) {
-    const forceFinish = step === maxSteps - 1;
-    const data = await chat({
-      messages: convo,
-      tools: forceFinish ? submitOnly : tools,
-      tool_choice: forceFinish ? { type: "function", function: { name: "submit_findings" } } : "auto",
-      temperature: 0.3,
-      max_tokens: 1800,
-    });
+    // Final step: stop searching and make the model conclude (it can't search now).
+    if (step === maxSteps - 1) return finalize(convo, chat, submitOnly);
+
+    const data = await chat({ messages: convo, tools, tool_choice: "auto", temperature: 0.3, max_tokens: 1800 });
     const msg = data.choices?.[0]?.message;
     const calls = msg?.tool_calls ?? [];
 
     if (!calls.length) {
-      // Model answered in prose instead of calling submit_findings — wrap it as the brief.
       const text = (msg?.content || "").trim();
       if (text) return { kind: "findings", brief: text, tasks: [], sources: [] };
       return { kind: "error", message: "The AI search returned nothing — try again." };
@@ -260,7 +253,56 @@ export async function runAgentLoop(
       convo.push({ role: "tool", tool_call_id: id, content: `Unknown tool: ${name}` });
     }
   }
-  return { kind: "error", message: "The AI search didn't converge — try a more specific prompt." };
+  return finalize(convo, chat, submitOnly);
+}
+
+/**
+ * Force a conclusion: ask the model to submit_findings (only that tool offered, so it
+ * can't keep searching). If it still doesn't, fall back to a no-tools prose brief. Any
+ * hallucinated search call here is ignored — we never search on the finalize turn.
+ */
+async function finalize(convo: ConvoMsg[], chat: ChatFn, submitOnly: unknown[]): Promise<EnhanceResult> {
+  const conv: ConvoMsg[] = [
+    ...convo,
+    { role: "user", content: "Stop searching. Using only what you've already gathered above, call submit_findings now with the brief, grounded tasks, and sources. If you found little, say so honestly and return an empty tasks array." },
+  ];
+  try {
+    const data = await chat({
+      messages: conv,
+      tools: submitOnly,
+      tool_choice: { type: "function", function: { name: "submit_findings" } },
+      temperature: 0.3,
+      max_tokens: 1800,
+    });
+    const msg = data.choices?.[0]?.message;
+    const call = (msg?.tool_calls ?? []).find((c) => c.function?.name === "submit_findings");
+    if (call) {
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(call.function?.arguments || "{}");
+      } catch {
+        args = {};
+      }
+      return parseFindings(args);
+    }
+    if (msg?.content?.trim()) return { kind: "findings", brief: msg.content.trim(), tasks: [], sources: [] };
+  } catch {
+    /* fall through to prose */
+  }
+
+  // Last resort: a plain prose brief, no tools.
+  try {
+    const data = await chat({
+      messages: [...convo, { role: "user", content: "Write a concise markdown brief of what the Second Brain shows about this project, with any short quotes and source names. If little was found, say so plainly. Do not call any tools." }],
+      temperature: 0.3,
+      max_tokens: 1400,
+    });
+    const text = (data.choices?.[0]?.message?.content || "").trim();
+    if (text) return { kind: "findings", brief: text, tasks: [], sources: [] };
+  } catch {
+    /* ignore */
+  }
+  return { kind: "error", message: "Couldn't synthesize the findings — try again." };
 }
 
 /**
