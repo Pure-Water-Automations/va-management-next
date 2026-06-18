@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth/access";
 import { Card } from "@/components/ui/Card";
 import { clientPortalRoutes } from "@/lib/client-portal/routes";
@@ -71,7 +72,7 @@ export default async function NewClientTaskPreviewPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <span style={{ fontSize: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--color-text-tertiary)", fontWeight: 700 }}>
