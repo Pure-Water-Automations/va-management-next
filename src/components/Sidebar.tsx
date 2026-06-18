@@ -30,6 +30,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       items: [
         { href: "/hr/projects", label: "Projects" },
         { href: "/hr/tasks", label: "All Tasks" },
+        { href: "/hr/tasks/available", label: "Available" },
         { href: "/hr/tasks/new", label: "Delegate" },
         { href: "/hr/workload", label: "Workload" },
         { href: "/hr/templates", label: "Templates" },
@@ -73,6 +74,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/va/evaluation", label: "Evaluation" },
         { href: "/va/checkin", label: "Monthly Check-in" },
         { href: "/va/tasks", label: "My Tasks" },
+        { href: "/hr/tasks/available", label: "Available Tasks" },
       ],
     },
   ],

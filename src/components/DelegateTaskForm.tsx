@@ -112,6 +112,7 @@ export function DelegateTaskForm({
   const [client, setClient] = useState("");
   const [projectId, setProjectId] = useState("");
   const [links, setLinks] = useState("");
+  const [claimable, setClaimable] = useState(false);
   const [sopIds, setSopIds] = useState<Set<string>>(new Set());
   const [trainingIds, setTrainingIds] = useState<Set<string>>(new Set());
   const [toolIds, setToolIds] = useState<Set<string>>(new Set());
@@ -131,8 +132,8 @@ export function DelegateTaskForm({
   }
 
   async function submit() {
-    if (!title.trim() || !assignedToId) {
-      window.alert("Title and assignee are required.");
+    if (!title.trim() || (!assignedToId && !claimable)) {
+      window.alert(claimable ? "Title is required." : "Title and assignee are required.");
       return;
     }
     setLoading(true);
@@ -141,7 +142,8 @@ export function DelegateTaskForm({
       instructions: instructions || undefined,
       strategy,
       priority,
-      assignedToId,
+      assignedToId: claimable ? undefined : assignedToId,
+      claimable: claimable || undefined,
       projectId: projectId || undefined,
       client: client || undefined,
       dueDate: dueDate || undefined,
@@ -170,17 +172,24 @@ export function DelegateTaskForm({
         <input style={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Task title" />
       </Field>
 
-      <Field label="Assign to *">
-        <select style={input} value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)}>
-          <option value="">Select a VA… (sorted by who has the most bandwidth)</option>
-          {vas.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name ?? v.email}
-              {v.openTasks !== undefined ? ` · ${v.openTasks} open` : ""}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--text-sm)" }}>
+        <input type="checkbox" checked={claimable} onChange={(e) => setClaimable(e.target.checked)} />
+        Open to anyone — post to the <strong>Available</strong> pool instead of assigning (first VA to claim it gets it once a manager approves)
+      </label>
+
+      {!claimable && (
+        <Field label="Assign to *">
+          <select style={input} value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)}>
+            <option value="">Select a VA… (sorted by who has the most bandwidth)</option>
+            {vas.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name ?? v.email}
+                {v.openTasks !== undefined ? ` · ${v.openTasks} open` : ""}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <Field label="Strategy">

@@ -13,7 +13,7 @@ export async function getDelegationAssignees(): Promise<DelegationAssignee[]> {
       where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
       select: { id: true, name: true, email: true },
     }),
-    db.task.groupBy({ by: ["assignedToId"], where: { status: { not: "Done" } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assignedToId"], where: { status: { not: "Done" }, claimable: false }, _count: { _all: true } }),
   ]);
   const open = new Map(counts.map((c) => [c.assignedToId, c._count._all]));
   return users
