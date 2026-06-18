@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { normalizeToolResult } from "../src/lib/secondbrain/client";
+import { normalizeToolResult, dedupeResults } from "../src/lib/secondbrain/client";
 
 test("parses grep-style path:line:content into one card per file", () => {
   const text = [
@@ -47,6 +47,18 @@ test("still accepts a JSON-array text block (structured tools)", () => {
   assert.deepEqual(normalizeToolResult("search_notion_mirror", result), [
     { source: "search_notion_mirror", title: "NE Website Brief", snippet: "brand refresh", link: "https://notion.so/x" },
   ]);
+});
+
+test("dedupeResults removes same source+title and caps to max", () => {
+  const cards = [
+    { source: "search_notion_mirror", title: "A", snippet: "1" },
+    { source: "search_notion_mirror", title: "A", snippet: "2 (dupe via another query)" },
+    { source: "search_drive_index", title: "A", snippet: "3 (different source, kept)" },
+    { source: "search_meetings", title: "B", snippet: "4" },
+  ];
+  const out = dedupeResults(cards, 2);
+  assert.equal(out.length, 2); // capped
+  assert.deepEqual(out.map((c) => `${c.source}|${c.title}`), ["search_notion_mirror|A", "search_drive_index|A"]);
 });
 
 test("returns [] for an error result", () => {

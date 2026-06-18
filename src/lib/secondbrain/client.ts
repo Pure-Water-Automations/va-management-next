@@ -22,6 +22,8 @@ type McpTextResult = {
 const MAX_CARDS_PER_TOOL = 6;
 const MAX_LINES_PER_FILE = 3;
 const MAX_SNIPPET_CHARS = 320;
+const MAX_SCAN_LINES = 600; // stop scanning a huge grep payload once enough rows are seen
+const MAX_TOTAL_CARDS = 12; // global cap across all tools + queries (modal + synthesis)
 
 /** Turn a mirror file path into a readable title: basename, minus `--<id>` suffix + extension. */
 function prettyTitle(path: string): string {
@@ -75,7 +77,9 @@ export function normalizeToolResult(toolName: string, result: unknown): SbResult
 
   // 2) grep-style `path:line:content` rows grouped into one card per file.
   const byFile = new Map<string, string[]>();
-  for (const line of text.split("\n")) {
+  const lines = text.split("\n");
+  for (let li = 0; li < lines.length && li < MAX_SCAN_LINES; li++) {
+    const line = lines[li];
     const m = line.match(/^(.+?):(\d+):(.*)$/);
     if (!m) continue;
     const path = m[1];
@@ -98,31 +102,55 @@ export function normalizeToolResult(toolName: string, result: unknown): SbResult
   return cards;
 }
 
+/** Union of cards, de-duped by source+title, capped to keep the modal + synthesis bounded. */
+export function dedupeResults(cards: SbResult[], max = MAX_TOTAL_CARDS): SbResult[] {
+  const seen = new Set<string>();
+  const out: SbResult[] = [];
+  for (const c of cards) {
+    const key = `${c.source}|${c.title}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 /**
- * Connect to the SecondBrain MCP, call every search tool with `query`, and return
- * the union of normalized results. Each tool is independent: a tool that throws
- * yields []. Returns { results, errors } so the caller can surface partial failures.
+ * Connect to the SecondBrain MCP, call every search tool with each query, and return
+ * the de-duped union of normalized results. The mirror tools do literal substring
+ * matching, so callers pass several SHORT queries (keywords) rather than one long
+ * string. Each tool/query is independent: one that throws yields []. Returns
+ * { results, errors } so the caller can surface partial failures.
  */
-export async function searchSecondBrain(query: string): Promise<{
+export async function searchSecondBrain(queries: string | string[]): Promise<{
   results: SbResult[];
   errors: { source: string; message: string }[];
 }> {
+  const qs = (Array.isArray(queries) ? queries : [queries]).map((q) => q.trim()).filter(Boolean);
+  if (qs.length === 0) return { results: [], errors: [] };
+
   const client = new Client({ name: "va-management-enhance", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL()));
   const errors: { source: string; message: string }[] = [];
   try {
     await client.connect(transport);
-    const settled = await Promise.allSettled(
-      SB_SEARCH_TOOLS.map((name) =>
-        client.callTool({ name, arguments: { query } }).then((res) => normalizeToolResult(name, res)),
-      ),
-    );
-    const results: SbResult[] = [];
+    const jobs: { source: string; promise: Promise<SbResult[]> }[] = [];
+    for (const query of qs) {
+      for (const name of SB_SEARCH_TOOLS) {
+        jobs.push({
+          source: name,
+          promise: client.callTool({ name, arguments: { query } }).then((res) => normalizeToolResult(name, res)),
+        });
+      }
+    }
+    const settled = await Promise.allSettled(jobs.map((j) => j.promise));
+    const collected: SbResult[] = [];
     settled.forEach((s, i) => {
-      if (s.status === "fulfilled") results.push(...s.value);
-      else errors.push({ source: SB_SEARCH_TOOLS[i], message: s.reason instanceof Error ? s.reason.message : String(s.reason) });
+      if (s.status === "fulfilled") collected.push(...s.value);
+      else errors.push({ source: jobs[i].source, message: s.reason instanceof Error ? s.reason.message : String(s.reason) });
     });
-    return { results, errors };
+    return { results: dedupeResults(collected), errors };
   } catch (err) {
     return { results: [], errors: [{ source: "mcp", message: err instanceof Error ? err.message : String(err) }] };
   } finally {
