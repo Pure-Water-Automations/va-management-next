@@ -268,6 +268,21 @@ export async function reassignTask(actorId: string, actorRole: Role, taskId: str
   return { id: task.id, title: task.title, assignee: newAssignee.name ?? newAssignee.email };
 }
 
+/** Delete a task (managers only). Comments/checklist/dependencies cascade. */
+export async function deleteTask(actorId: string, actorRole: Role, taskId: string) {
+  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can delete tasks");
+  const id = requireText(taskId, "taskId");
+  const task = await db.task.findUniqueOrThrow({ where: { id }, select: { title: true } });
+  await db.task.delete({ where: { id } });
+  await logActivity({
+    source: "task_action",
+    eventType: "task_deleted",
+    severity: "warning",
+    summary: `Task "${task.title}" deleted.`,
+  });
+  return { id, title: task.title };
+}
+
 export async function updateTask(
   actorId: string,
   actorRole: Role,
