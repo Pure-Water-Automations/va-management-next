@@ -37,20 +37,26 @@ export function parseSynthesis(raw: string): Synthesis {
   return { contextSummary, tasks };
 }
 
+/** Append a markdown block under the Second Brain heading; preserve everything prior. */
+export function appendContextBlock(existing: string | null, bodyMarkdown: string): string {
+  const base = (existing ?? "").trimEnd();
+  const body = bodyMarkdown.trim();
+  if (base.includes(CONTEXT_HEADING)) {
+    // Heading already present: add a dated subsection so we never clobber prior context.
+    const stamp = new Date().toISOString().slice(0, 10);
+    return `${base}\n\n### Added ${stamp}\n${body}`;
+  }
+  const prefix = base ? `${base}\n\n` : "";
+  return `${prefix}${CONTEXT_HEADING}\n${body}`;
+}
+
 /** Append accepted context cards under a single heading; preserve everything prior. */
 export function mergeContextIntoDescription(existing: string | null, accepted: SbResult[]): string {
-  const base = (existing ?? "").trimEnd();
   const lines = accepted.map((c) => {
     const link = c.link ? ` (${c.link})` : "";
     return `- **${c.title}** — ${c.snippet}${link} [${c.source}]`;
   });
-  if (base.includes(CONTEXT_HEADING)) {
-    // Heading already present: add a dated subsection so we never clobber prior context.
-    const stamp = new Date().toISOString().slice(0, 10);
-    return `${base}\n\n### Added ${stamp}\n${lines.join("\n")}`;
-  }
-  const prefix = base ? `${base}\n\n` : "";
-  return `${prefix}${CONTEXT_HEADING}\n${lines.join("\n")}`;
+  return appendContextBlock(existing, lines.join("\n"));
 }
 
 // Only propose tasks when at least one retrieved card is a STRONG anchor for this

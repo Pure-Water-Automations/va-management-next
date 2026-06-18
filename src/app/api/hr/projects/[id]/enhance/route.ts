@@ -1,8 +1,7 @@
 import { getCurrentUser } from "@/lib/auth/access";
 import { canUserDelegateProjects } from "@/lib/auth/delegation";
 import { getProjectDetail } from "@/lib/reads/projects";
-import { searchSecondBrain } from "@/lib/secondbrain/client";
-import { synthesize } from "@/lib/secondbrain/enhance";
+import { enhanceResearch } from "@/lib/secondbrain/agent";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +9,7 @@ function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   let user;
@@ -23,6 +22,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
 
+  let body: { prompt?: unknown; answers?: unknown } = {};
+  try {
+    const raw = await request.text();
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    body = {};
+  }
+  const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+  const answers = typeof body.answers === "string" ? body.answers : undefined;
+
   const project = await getProjectDetail(id);
   if (!project) return Response.json({ ok: false, error: "Project not found" }, { status: 404 });
 
@@ -31,26 +40,25 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     async start(controller) {
       const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(sse(event, data)));
       try {
-        const { results, errors } = await searchSecondBrain({
-          name: project.name,
-          client: project.client,
-          description: project.description,
+        const res = await enhanceResearch({
+          project: { name: project.name, client: project.client, description: project.description },
+          prompt,
+          answers,
+          onStep: (label) => send("step", { label }),
         });
-
-        let idx = 0;
-        for (const r of results) send("context", { id: `c${idx++}`, ...r });
-        for (const e of errors) send("error", e);
-
-        const synthesis = await synthesize(
-          { name: project.name, client: project.client, description: project.description },
-          results,
-        );
-        send("tasks", {
-          contextSummary: synthesis.contextSummary,
-          tasks: synthesis.tasks.map((t, i) => ({ id: `t${i}`, ...t })),
-        });
+        if (res.kind === "questions") {
+          send("questions", { questions: res.questions });
+        } else if (res.kind === "findings") {
+          send("findings", {
+            brief: res.brief,
+            tasks: res.tasks.map((t, i) => ({ id: `t${i}`, ...t })),
+            sources: res.sources,
+          });
+        } else {
+          send("error", { message: res.message });
+        }
       } catch (err) {
-        send("error", { source: "enhance", message: err instanceof Error ? err.message : "Enhance failed" });
+        send("error", { message: err instanceof Error ? err.message : "Enhance failed" });
       } finally {
         send("done", {});
         controller.close();
