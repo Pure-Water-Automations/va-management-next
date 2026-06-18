@@ -1,0 +1,174 @@
+// Client Portal schema draft.
+// This file is documentation until the tenancy design is approved.
+// Do not run prisma generate from this file. Merge into prisma/schema.prisma in a dedicated migration.
+
+// Recommended enum additions:
+// enum Role {
+//   HR_MANAGER
+//   PEOPLE_OPS
+//   TEAM_LEAD
+//   BOOKKEEPER
+//   RECRUITER
+//   SENIOR_VA
+//   VA
+//   CLIENT_ADMIN
+//   CLIENT_MEMBER
+// }
+
+// enum ClientOrgStatus {
+//   prospect
+//   onboarding
+//   active
+//   paused
+//   churned
+// }
+
+// enum ClientMembershipRole {
+//   admin
+//   member
+// }
+
+// enum ClientVisibility {
+//   internal_only
+//   client_visible
+// }
+
+// enum ClientTaskSource {
+//   internal
+//   client_portal
+//   import
+// }
+
+// enum DeliverableStatus {
+//   draft
+//   ready_for_review
+//   approved
+//   revision_requested
+//   final
+// }
+
+// New model: canonical external customer/account.
+model ClientOrganizationDraft {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  status      String   @default("active")
+  primaryEmail String?
+  logoUrl     String?
+  brandColor  String?
+  packageTier String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Replace existing free-text Client usage over time.
+  legacyClientName String? @unique
+
+  @@index([status])
+}
+
+// New model: which users belong to which client orgs.
+model ClientMembershipDraft {
+  id        String   @id @default(cuid())
+  clientOrganizationId String
+  userId    String
+  role      String   @default("member")
+  active    Boolean  @default(true)
+  invitedByUserId String?
+  invitedAt DateTime?
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Real migration should use relations:
+  // clientOrganization ClientOrganization @relation(fields: [clientOrganizationId], references: [id], onDelete: Cascade)
+  // user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clientOrganizationId, userId])
+  @@index([userId])
+  @@index([clientOrganizationId, active])
+}
+
+// Recommended fields to add to Project:
+// clientOrganizationId String?
+// clientVisibility ClientVisibility @default(client_visible)
+// clientSummary String?
+// internalNotes String?
+// source ClientTaskSource @default(internal)
+// approvalRequired Boolean @default(false)
+// approvedAt DateTime?
+// approvedByUserId String?
+// @@index([clientOrganizationId])
+
+// Recommended fields to add to Task:
+// clientOrganizationId String?
+// clientVisibility ClientVisibility @default(client_visible)
+// clientSummary String?
+// internalNotes String?
+// source ClientTaskSource @default(internal)
+// requestedByUserId String?
+// approvalRequired Boolean @default(false)
+// approvedAt DateTime?
+// approvedByUserId String?
+// revisionRequestedAt DateTime?
+// revisionReason String?
+// @@index([clientOrganizationId])
+// @@index([requestedByUserId])
+
+// Recommended fields to add to TaskComment and ProjectComment:
+// visibility ClientVisibility @default(internal_only)
+// intent String? // update | question | approval_request | revision_request | note
+
+// New model: deliverables and link/file attachments.
+model ClientDeliverableDraft {
+  id        String   @id @default(cuid())
+  clientOrganizationId String
+  projectId String?
+  taskId    String?
+  title     String
+  description String?
+  url       String?
+  fileObjectKey String?
+  mimeType  String?
+  sizeBytes Int?
+  status    String   @default("ready_for_review")
+  visibility String  @default("client_visible")
+  uploadedByUserId String?
+  approvedByUserId String?
+  approvedAt DateTime?
+  revisionRequestedAt DateTime?
+  revisionReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientOrganizationId])
+  @@index([projectId])
+  @@index([taskId])
+  @@index([status])
+}
+
+// New model: client-safe activity feed separate from raw internal ActivityLog.
+model ClientActivityEventDraft {
+  id        String   @id @default(cuid())
+  clientOrganizationId String
+  projectId String?
+  taskId    String?
+  actorUserId String?
+  eventType String
+  visibility String @default("client_visible")
+  summary String
+  metadata Json?
+  createdAt DateTime @default(now())
+
+  @@index([clientOrganizationId, createdAt])
+  @@index([projectId])
+  @@index([taskId])
+}
+
+// Migration strategy:
+// 1. Create ClientOrganization records from existing Client.name rows.
+// 2. Backfill Project.clientOrganizationId by matching Project.client to ClientOrganization.legacyClientName.
+// 3. Backfill Task.clientOrganizationId from Task.client or parent Project.clientOrganizationId.
+// 4. Keep legacy Project.client and Task.client as denormalized display/fallback fields for one release.
+// 5. Convert client-facing reads to require clientOrganizationId.
+// 6. Remove legacy free-text client dependency after all records are backfilled.
