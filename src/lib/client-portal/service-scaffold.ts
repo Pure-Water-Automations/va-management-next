@@ -1,49 +1,60 @@
 import type { CreateTaskInput } from "@/lib/actions/tasks";
-import type { ClientTaskIntakeInput, ClientPortalTaskSummary } from "./types";
+import type {
+  ClientTaskIntakeInput,
+  ClientTaskRequestDraft,
+  ClientTaskRequestStatus,
+  ClientPortalTaskSummary,
+} from "./types";
 import { buildInternalInstructionsFromClientRequest } from "./task-intake";
 
-export type ClientTaskTriageState =
-  | "received"
-  | "needs_team_review"
-  | "ready_to_assign"
-  | "assigned"
-  | "blocked"
-  | "completed";
+export type ClientTaskTriageState = ClientTaskRequestStatus;
 
-export function buildCreateTaskInputFromClientIntake(
-  input: ClientTaskIntakeInput,
-  opts: {
-    clientDisplayName?: string;
-    defaultAssigneeId?: string;
-    allowSuggestedAssignee?: boolean;
-  } = {},
-): CreateTaskInput {
-  const assignedToId =
-    opts.allowSuggestedAssignee && input.suggestedAssigneeId
-      ? input.suggestedAssigneeId
-      : opts.defaultAssigneeId;
+export type ApprovedClientTaskRequest = ClientTaskRequestDraft & {
+  id: string;
+  triagedByUserId: string;
+  assignedToId: string;
+  clientDisplayName?: string;
+};
 
-  if (!assignedToId) {
-    throw new Error("Client task intake needs a triage assignee or explicit VA assignee");
-  }
-
+/**
+ * Client intake should create a request first, not a live assigned VA task.
+ * The real implementation should persist this shape to ClientTaskRequest, then let
+ * a Team Leader triage/assign it into the existing Task system.
+ */
+export function buildClientTaskRequestDraft(input: ClientTaskIntakeInput): ClientTaskRequestDraft {
   return {
-    title: input.title,
-    instructions: buildInternalInstructionsFromClientRequest(input),
+    ...input,
+    status: "received",
+    source: "client_portal",
+    visibility: "client_visible",
+  };
+}
+
+/**
+ * Only call this after a Team Leader/Admin has approved and assigned the request.
+ * This is deliberately separate from client intake so a client submission cannot
+ * accidentally trigger immediate assignment emails or bypass triage.
+ */
+export function buildCreateTaskInputFromApprovedClientRequest(
+  request: ApprovedClientTaskRequest,
+): CreateTaskInput {
+  return {
+    title: request.title,
+    instructions: buildInternalInstructionsFromClientRequest(request),
     strategy: "Delegate",
-    priority: input.priority ?? "Medium",
-    client: opts.clientDisplayName,
-    projectId: input.projectId,
-    assignedToId,
-    dueDate: input.dueDate,
-    links: input.links,
+    priority: request.priority ?? "Medium",
+    client: request.clientDisplayName,
+    projectId: request.projectId,
+    assignedToId: request.assignedToId,
+    dueDate: request.dueDate,
+    links: request.links,
   };
 }
 
 export function getClientTaskTriageState(task: Pick<ClientPortalTaskSummary, "status" | "waitingOn">): ClientTaskTriageState {
   if (task.status === "Done") return "completed";
-  if (task.status === "Blocked") return "blocked";
-  if (task.waitingOn === "client") return "needs_team_review";
+  if (task.status === "Blocked") return "triage_needed";
+  if (task.waitingOn === "client") return "triage_needed";
   if (task.status === "NotStarted") return "received";
   if (task.status === "InProgress") return "assigned";
   return "ready_to_assign";
