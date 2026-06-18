@@ -85,14 +85,14 @@ export function Sidebar({
   role,
   name,
   isAdmin = false,
-  isFounder = false,
+  showBeta = false,
   canDelegate = false,
 }: {
   view: ConsoleView;
   role: Role;
   name: string;
   isAdmin?: boolean;
-  isFounder?: boolean;
+  showBeta?: boolean;
   canDelegate?: boolean;
 }) {
   const sections = NAV[view] ?? NAV.VA;
@@ -120,8 +120,15 @@ export function Sidebar({
           <NavItemLink href="/hr/projects" label="Projects" />
         </div>
       )}
-      {/* Recordings (Loom-style) — beta, founder-only preview. Opens to more roles later. */}
-      {isFounder && (
+      {isAdmin && (
+        <div>
+          <div className="nav-label">Admin</div>
+          <NavItemLink href="/admin/users" label="Users" />
+        </div>
+      )}
+      {/* Recordings (Loom-style) — beta, founder-only preview (hidden when the
+          founder toggles beta off). Opens to more roles later. */}
+      {showBeta && (
         <div>
           <div className="nav-label">Recordings</div>
           <NavItemLink href="/record" label="Record" />
