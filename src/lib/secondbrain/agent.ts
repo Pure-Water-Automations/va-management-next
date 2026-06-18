@@ -4,7 +4,7 @@ import type { ORResponse } from "@/lib/matrix/openrouter"; // type-only: avoids 
 import { parseDriveResults, type ProjectFields } from "@/lib/secondbrain/client";
 
 const MCP_URL = () => process.env.SECONDBRAIN_MCP_URL || "http://localhost:8787/mcp";
-const MAX_STEPS = 7;
+const MAX_STEPS = 6;
 const MAX_TOOL_RESULT_CHARS = 3200; // cap each search result fed back to the model
 
 export type EnhanceTask = { title: string; instructions?: string; priority: "Low" | "Medium" | "High" };
@@ -167,7 +167,7 @@ export function parseFindings(args: Record<string, unknown>): EnhanceFindings {
 export function buildSystemPrompt(): string {
   return [
     "You are a research assistant helping a virtual-assistant team supervisor understand and plan a project, using the team's Second Brain — Notion notes/SOPs, meeting transcripts, and Google Drive documents.",
-    "Work like a diligent analyst: run SEVERAL well-phrased semantic searches from different angles, READ the returned excerpts, and follow up to fill gaps before concluding. Prefer meeting transcripts and Notion notes for substance; use Drive for documents/files.",
+    "Work like a diligent analyst: run a FEW (about 2-4) well-phrased semantic searches from different angles, READ the returned excerpts, then CONCLUDE — don't keep searching indefinitely. Prefer meeting transcripts and Notion notes for substance; use Drive for documents/files.",
     "Then call submit_findings with: (1) a synthesized markdown BRIEF that explains what the Second Brain actually knows about this project — written as a clear narrative with a few short verbatim quotes and the source names, NOT a list of snippets; (2) grounded task suggestions (only tasks supported by what you read — never invent client names, dates, or specifics); (3) the sources you used (title + link when available).",
     "If — and only if — the project is too vague to search well and the supervisor gave no guidance, call ask_clarifying_questions with 1-3 short questions first. If the supervisor provided guidance or answers, do NOT ask; go straight to searching.",
     "If you genuinely find nothing relevant, submit_findings with an honest brief saying so and an empty tasks array. Never fabricate.",
@@ -200,14 +200,19 @@ export async function runAgentLoop(
   onStep: (label: string) => void,
   maxSteps: number,
 ): Promise<EnhanceResult> {
+  // The submit_findings-only tool list used to FORCE a conclusion on the final step —
+  // some models (DeepSeek) ignore object-form tool_choice but will comply when the
+  // search tools simply aren't offered.
+  const submitOnly = (tools as { function?: { name?: string } }[]).filter((t) => t?.function?.name === "submit_findings");
+
   for (let step = 0; step < maxSteps; step++) {
     const forceFinish = step === maxSteps - 1;
     const data = await chat({
       messages: convo,
-      tools,
+      tools: forceFinish ? submitOnly : tools,
       tool_choice: forceFinish ? { type: "function", function: { name: "submit_findings" } } : "auto",
       temperature: 0.3,
-      max_tokens: 1500,
+      max_tokens: 1800,
     });
     const msg = data.choices?.[0]?.message;
     const calls = msg?.tool_calls ?? [];
