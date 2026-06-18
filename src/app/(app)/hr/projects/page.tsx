@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isFounder } from "@/lib/auth/access";
 import { canManageTasks, canManageProjects } from "@/lib/auth/roles";
 import { getProjectsList } from "@/lib/reads/projects";
 import { Stat } from "@/components/ui/Stat";
@@ -31,7 +31,7 @@ export default async function HrProjectsPage() {
           <h1>Projects</h1>
         </div>
         <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
-          {canCreate && <DiscoverButton />}
+          {isFounder(user.email) && <DiscoverButton />}
           {canCreate && (
             <a href="/hr/projects/new" className="btn btn-primary">
               + New Project

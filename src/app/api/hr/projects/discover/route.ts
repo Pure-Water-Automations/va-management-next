@@ -1,5 +1,4 @@
-import { getCurrentUser } from "@/lib/auth/access";
-import { canUserDelegateProjects } from "@/lib/auth/delegation";
+import { getCurrentUser, isFounder } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { discoverProjects } from "@/lib/secondbrain/discover";
 
@@ -16,7 +15,8 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
-  if (!user.isAdmin && !(await canUserDelegateProjects(user.id, user.role))) {
+  // Beta + founder-only (Enhance / Discover are hidden from staff).
+  if (!isFounder(user.email)) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
 
