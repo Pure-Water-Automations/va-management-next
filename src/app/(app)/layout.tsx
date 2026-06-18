@@ -9,8 +9,8 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
 
-// Authenticated console shell. Everything under (app)/ requires a Cloudflare
-// Access identity; public routes (e.g. /track) live outside this group.
+// Authenticated console shell. Everything under (app)/ requires a Google
+// login session; public routes (e.g. /track) live outside this group.
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   const view = await getEffectiveView(user);

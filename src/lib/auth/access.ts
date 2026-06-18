@@ -1,24 +1,20 @@
-import { headers, cookies } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getEmailFromHeaders } from "@/lib/auth/headers";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth/nextauth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { viewForRole, type ConsoleView } from "@/lib/auth/roles";
 
-/**
- * Resolve the signed-in user from the Cloudflare Access header (production) or
- * the DEV_AUTH_EMAIL fallback (local dev). Replaces the GAS `resolveRole()`
- * layer: identity is verified at the edge, the role lives on the User row.
- */
 export async function getCurrentUser() {
-  const requestHeaders = await headers();
-  const cloudflareEmail = getEmailFromHeaders(requestHeaders);
+  const session = await getServerSession(authOptions);
+  const sessionEmail = session?.user?.email ?? undefined;
   const fallbackEmail =
     process.env.NODE_ENV !== "production" ? env.DEV_AUTH_EMAIL : undefined;
-  const email = cloudflareEmail ?? fallbackEmail;
+  const email = sessionEmail ?? fallbackEmail;
 
   if (!email) {
-    redirect("/api/health");
+    redirect("/login");
   }
 
   const user = await db.user.findUnique({
