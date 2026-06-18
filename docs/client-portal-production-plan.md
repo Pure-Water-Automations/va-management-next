@@ -26,7 +26,18 @@ The existing app already has the internal engine needed for a client portal:
 
 The missing layer is external tenancy: secure client organizations, client memberships, client-safe visibility, client-facing routes, and client-facing workflows.
 
-## 3. Production phases
+## 3. Safety corrections from critical review
+
+These are non-negotiable before enabling external client accounts:
+
+1. **Separate client layout.** The scaffold currently adds `/client` preview pages under the existing authenticated app shell. That is acceptable for internal preview only. The real external portal must move to a separate route group/layout such as `src/app/(client)/client/layout.tsx`, with no HR sidebar, admin bar, VA impersonation controls, internal command palette, HR tours, payroll links, recruitment links, or VA evaluation surfaces.
+2. **Explicit client console view.** Before adding `CLIENT_ADMIN` and `CLIENT_MEMBER` to the live Prisma `Role` enum, update role routing so client roles resolve to a `CLIENT` view, never the VA fallback.
+3. **Resource-scoped permissions only.** Permission helpers must combine organization access, resource ownership/participation, and visibility. Do not use visibility-only checks.
+4. **Request-first intake.** Client submissions must create `ClientTaskRequest` rows first. They should not immediately create assigned `Task` rows or trigger VA assignment emails. Team Leaders/Admins triage and convert approved requests into tasks.
+5. **Enums in first real migration.** Visibility, membership role, client org status, request status, task source, and deliverable status should be enums in the actual Prisma migration.
+6. **Leakage tests before launch.** Cross-client access, internal-only comments, and VA/client boundaries must have tests before external accounts are enabled.
+
+## 4. Production phases
 
 ### Phase 0 - Product and security lock
 
@@ -37,7 +48,7 @@ Deliverables:
 - Confirm the client-facing promise above.
 - Confirm whether clients are organizations, individuals, or both.
 - Confirm whether one client can have multiple client users.
-- Confirm if clients can assign directly to VAs or if tasks always route through a Team Leader first.
+- Confirm that v1 client submissions route through Team Leader triage before VA assignment.
 - Confirm package tiers:
   - Basic: client dashboard + delegate request + project/task tracking.
   - Pro: recurring tasks + file deliverables + weekly reports.
@@ -49,6 +60,7 @@ Decision recommended for v1:
 - Team Leaders triage/assign tasks.
 - Clients can see assigned VA once the task is accepted or started.
 - Internal comments are hidden from clients by default.
+- VAs do not publish directly to clients in MVP unless Team Leader explicitly approves that permission later.
 
 ### Phase 1 - Tenancy and permissions
 
@@ -60,29 +72,45 @@ Build:
 - ClientMembership model.
 - Client-facing roles: CLIENT_ADMIN and CLIENT_MEMBER.
 - Client-safe relations from Project and Task to ClientOrganization.
+- ClientTaskRequest model for request-first intake.
 - Visibility controls for comments, files, and task fields.
-- Access helpers in `src/lib/client-portal/permissions.ts`.
-- AuditLog entries for all client-visible mutations.
+- Resource-scoped access helpers in `src/lib/client-portal/permissions.ts`.
+- AuditLog or ClientActivityEvent entries for all client-visible mutations.
 
 Acceptance criteria:
 
 - A client user can only access their own organization.
 - A Team Lead can access only assigned client organizations unless admin.
 - PWA Admin can view all.
-- VA can access only tasks assigned to them or explicitly shared to them.
+- VA can access only tasks assigned/shared to them.
 - Internal payroll, HR, candidate, VA evaluation, and compensation data are never reachable from client routes.
+- Client-visible data is always filtered by `clientOrganizationId` before visibility is evaluated.
 
 ### Phase 2 - Client shell and dashboard
 
 Goal: create a client-safe UI separate from HR/VA consoles.
 
-Routes:
+Preview routes in this PR:
+
+- `/client` - preview dashboard.
+- `/client/projects` - preview project list.
+- `/client/tasks/new` - preview intake form.
+- `/client/files` - preview deliverables/files page.
+- `/client/reports` - preview reports page.
+
+Production route requirement:
+
+- Move the real portal to its own client layout before enabling external accounts.
+- The client layout must use client-specific navigation only.
+- Internal preview can remain available to admins/team leads, but it should not be the external shell.
+
+Production routes:
 
 - `/client` - dashboard.
 - `/client/projects` - project list.
 - `/client/projects/[id]` - project detail.
-- `/client/tasks/new` - delegate a task/request.
-- `/client/tasks/[id]` - task detail.
+- `/client/tasks/new` - delegate a request.
+- `/client/tasks/[id]` - task/request detail.
 - `/client/files` - deliverables and shared files.
 - `/client/reports` - weekly/monthly progress summaries.
 - `/client/settings` - org members, notification preferences, branding later.
@@ -106,7 +134,7 @@ Acceptance criteria:
 
 ### Phase 3 - Delegation intake workflow
 
-Goal: make delegation easier than Notion/ClickUp.
+Goal: make delegation easier than Notion/ClickUp while preserving triage control.
 
 Build a request form with:
 
@@ -124,18 +152,20 @@ Build a request form with:
 Flow:
 
 1. Client submits request.
-2. System creates a Task with `source = client_portal` and initial status `NotStarted` or `PendingTriage` once the status enum supports it.
+2. System creates a `ClientTaskRequest` with status `RECEIVED`.
 3. Team Leader is notified.
-4. Team Leader assigns/accepts/reframes the task.
-5. VA receives normal assignment notification.
-6. Client sees the request as received, then in progress after assignment.
+4. Team Leader accepts, clarifies, declines, or assigns the request.
+5. Once accepted/assigned, the system creates or links a real internal `Task`.
+6. VA receives normal assignment notification only after triage.
+7. Client sees the request as received, then in progress after assignment.
 
 Acceptance criteria:
 
 - Client request never disappears even if email/notification fails.
 - Team Leader has a triage queue.
 - Client can see request status immediately.
-- Task can be converted into an internal VA task without duplicating data.
+- Request can be converted into an internal VA task without duplicating data.
+- No assignment email fires until triage/assignment happens.
 
 ### Phase 4 - Communication and visibility
 
@@ -151,10 +181,11 @@ Build:
 
 Acceptance criteria:
 
-- Client sees only CLIENT_VISIBLE comments/events.
+- Client sees only CLIENT_VISIBLE comments/events within their own organization.
 - Internal users can mark a comment as client-visible.
 - Client questions notify the Team Leader.
 - VA/internal notes are hidden by default.
+- VAs can add internal-only comments only on tasks/projects they can access.
 
 ### Phase 5 - Deliverables and files
 
@@ -199,54 +230,58 @@ Acceptance criteria:
 - Team Leader can generate or send a weekly report.
 - Report content is client-safe and excludes internal notes.
 
-## 4. Data model approach
+## 5. Data model approach
 
 Recommended production model:
 
 - Keep the existing Project and Task tables as the work system of record.
 - Add ClientOrganization and ClientMembership.
+- Add ClientTaskRequest for client intake before assignment.
 - Replace free-text `client` usage over time with `clientOrganizationId` FKs.
 - Keep `client` as a legacy/display fallback during migration.
-- Add visibility tables/fields rather than creating separate external task tables.
+- Add visibility fields rather than creating separate external task tables.
 
 Why:
 
 - Avoid duplicate internal/external task systems.
 - Preserve existing assignment, notification, checklists, dependencies, board/calendar/list views.
 - Make client portal a permissioned lens over the operational system.
+- Prevent client intake from bypassing Team Leader triage.
 
-## 5. Permission matrix
+## 6. Permission matrix
 
 | Capability | Client Admin | Client Member | Team Lead | VA | PWA Admin |
 |---|---:|---:|---:|---:|---:|
 | View own org dashboard | yes | yes | assigned clients | assigned tasks only | all |
 | Create work request | yes | yes | yes | no | yes |
-| Assign VA | no in MVP | no | yes | limited by tier | yes |
+| Assign VA | no in MVP | no | yes | no in MVP | yes |
 | View internal comments | no | no | yes | task participant only | yes |
-| Add client-visible comment | yes | yes | yes | only if allowed | yes |
-| Add internal-only comment | no | no | yes | yes on own tasks | yes |
+| Add client-visible comment | yes | yes | yes | no in MVP | yes |
+| Add internal-only comment | no | no | yes | own tasks only | yes |
 | Approve deliverable | yes | optional | no | no | yes |
 | Invite client users | yes | no | optional | no | yes |
 | View HR/payroll/candidate data | no | no | role-dependent | no | yes |
 
-## 6. Engineering work packages
+## 7. Engineering work packages
 
 ### EPIC A - Tenancy foundation
 
 1. Add ClientOrganization model.
 2. Add ClientMembership model.
-3. Add clientOrganizationId to Project and Task.
-4. Add client role handling.
-5. Add access helpers and tests.
-6. Add migration script from existing free-text client names.
+3. Add ClientTaskRequest model.
+4. Add clientOrganizationId to Project and Task.
+5. Add client role handling and `CLIENT` console view.
+6. Add resource-scoped access helpers and tests.
+7. Add migration script from existing free-text client names.
 
 ### EPIC B - Client shell
 
-1. Add `/client` layout and navigation.
-2. Add dashboard data read model.
-3. Add project list read model.
-4. Add task detail read model.
-5. Add empty states and onboarding copy.
+1. Add separate client route group/layout.
+2. Add client-only navigation.
+3. Add dashboard data read model.
+4. Add project list read model.
+5. Add task/request detail read model.
+6. Add empty states and onboarding copy.
 
 ### EPIC C - Delegation intake
 
@@ -254,7 +289,7 @@ Why:
 2. Add client task request endpoint.
 3. Add Team Leader triage queue.
 4. Add assignment conversion flow.
-5. Add notifications.
+5. Add notifications after triage/assignment.
 
 ### EPIC D - Communication visibility
 
@@ -279,56 +314,62 @@ Why:
 3. Add one-click email summary.
 4. Add AI-generated summary later.
 
-## 7. Test strategy
+## 8. Test strategy
 
 Minimum tests before client launch:
 
 - Client cannot access another client's project by ID.
+- Client cannot access another client's client-visible resource.
 - Client cannot access HR routes.
 - Client cannot see internal-only comments.
 - VA cannot see unrelated client tasks.
+- VA cannot publish directly to clients in MVP.
 - Team Lead can see assigned clients only.
 - Admin can preview all clients.
-- Client task intake creates an auditable task/request.
-- Assignment email failure does not roll back task creation.
+- Client task intake creates an auditable request, not an immediate assigned task.
+- Assignment email failure does not roll back task creation after triage.
 - File/deliverable visibility matches task/project visibility.
 
-## 8. Launch gates
+## 9. Launch gates
 
 Do not launch external client accounts until all gates pass:
 
 - Tenancy model merged and migrated.
 - Permission tests green.
+- Separate client layout complete.
+- Client role routing complete.
 - Client-safe dashboard complete.
-- Client task intake complete.
+- ClientTaskRequest intake complete.
 - Internal comment leakage tests green.
 - Team Leader triage workflow complete.
 - Client route smoke test complete.
 - Backup and rollback documented.
 - Admin can disable a client account quickly.
 
-## 9. Suggested MVP sprint plan
+## 10. Suggested MVP sprint plan
 
 ### Sprint 1
 
 - Add schema and migration draft.
-- Add permission helpers.
-- Add client preview shell.
+- Add resource-scoped permission helpers.
+- Add internal-only client preview shell.
 - Add dashboard skeleton.
 - Add tests for access decisions.
 
 ### Sprint 2
 
 - Add real client organizations/memberships.
+- Add `CLIENT` console view and client layout.
 - Migrate existing Client names into ClientOrganization.
 - Add `/client/projects` and `/client/tasks/[id]` backed by client-safe reads.
 - Add client route gating.
 
 ### Sprint 3
 
-- Add task intake form and API.
+- Add ClientTaskRequest model and intake endpoint.
 - Add Team Leader triage queue.
-- Add notifications.
+- Add request-to-task conversion flow.
+- Add notifications after triage.
 - Add client-safe comments.
 
 ### Sprint 4
@@ -338,7 +379,7 @@ Do not launch external client accounts until all gates pass:
 - Polish client onboarding and marketing copy.
 - Security review and pilot launch.
 
-## 10. Pilot rollout
+## 11. Pilot rollout
 
 Recommended pilot:
 
@@ -347,6 +388,6 @@ Recommended pilot:
 - 3 paying clients after two weeks of fixes.
 - Keep Notion/ClickUp promise limited to VA project management until the reports and deliverables workflow is polished.
 
-## 11. Engineering notes
+## 12. Engineering notes
 
-Current branch includes scaffolding only. It intentionally avoids mutating the production Prisma schema until the tenancy and client role decisions are approved. The next engineering step is to convert `docs/client-portal/schema-draft.prisma` into a real Prisma migration and update the generated Prisma Client.
+Current branch includes scaffolding only. It intentionally avoids mutating the production Prisma schema until the tenancy and client role decisions are approved. The preview pages are still under the internal app shell and must not be treated as the final external portal shell. The next engineering step is to convert `docs/client-portal/schema-draft.prisma` into a real Prisma migration, add a separate client layout, and update role routing before external client accounts are enabled.
