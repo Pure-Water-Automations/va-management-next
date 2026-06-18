@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { ClientTaskIntakeInput } from "./types";
 
+function isValidDueDate(value: string): boolean {
+  if (!value) return true;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime());
+}
+
 export const clientTaskIntakeSchema = z.object({
   clientOrganizationId: z.string().min(1, "Client organization is required"),
   requestedByUserId: z.string().min(1, "Requester is required"),
@@ -12,7 +18,12 @@ export const clientTaskIntakeSchema = z.object({
     .max(8000, "Keep the request under 8,000 characters"),
   projectId: z.string().trim().optional().or(z.literal("")),
   priority: z.enum(["Low", "Medium", "High"]).default("Medium"),
-  dueDate: z.string().trim().optional().or(z.literal("")),
+  dueDate: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((value) => isValidDueDate(value ?? ""), "Use a valid due date"),
   links: z.string().trim().max(4000).optional().or(z.literal("")),
   suggestedAssigneeId: z.string().trim().optional().or(z.literal("")),
   approvalRequired: z.coerce.boolean().default(false),
