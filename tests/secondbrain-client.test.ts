@@ -80,6 +80,8 @@ test("parseDriveResults extracts filename + Drive URL and drops the junk csv", (
   assert.equal(out[0].link, "https://drive.google.com/file/d/1ggKcWUBR-R4/view?usp=drivesdk");
   assert.equal(out[1].title, "PWAINV1670171 - HSA-UWC Northeast - May 1-30 2026.pdf");
   assert.match(out[1].snippet, /NE- REGION/); // folder context becomes the snippet
+  assert.doesNotMatch(out[0].snippet, /drive_global_index|\.md:\d+/); // grep path prefix stripped
+  assert.doesNotMatch(out[1].snippet, /_index|\.md:\d+/);
 });
 
 test('parseDriveResults: "No matches found." -> []', () => {

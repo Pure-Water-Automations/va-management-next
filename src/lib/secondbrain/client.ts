@@ -124,11 +124,14 @@ export function parseDriveResults(text: string): SbResult[] {
 
     // The filename cell is the one ending in a file extension; fall back to the longest
     // descriptive cell that isn't the id / date / link.
+    // The leading cell is the grep `path:line:` prefix of the index file itself — never useful.
+    const isGrepPath = (c: string) => /\.md:\d+|^\/(app|users)\b/i.test(c);
     let name =
-      cells.find((c) => /\.(pdf|docx?|xlsx?|pptx?|csv|md|txt|png|jpe?g|gif|key|pages)\s*$/i.test(c)) ??
+      cells.find((c) => !isGrepPath(c) && /\.(pdf|docx?|xlsx?|pptx?|csv|md|txt|png|jpe?g|gif|key|pages)\s*$/i.test(c)) ??
       cells
         .filter(
           (c) =>
+            !isGrepPath(c) &&
             !/^`/.test(c) &&
             !/^\d{4}-\d\d-\d\d/.test(c) &&
             !/\[open\]/.test(c) &&
@@ -144,9 +147,9 @@ export function parseDriveResults(text: string): SbResult[] {
     if (seen.has(key)) continue;
     seen.add(key);
 
-    // Snippet: the folder/path + date context (drop id/url/the name itself).
+    // Snippet: the folder/path + date context (drop the grep prefix, id, url, the name itself).
     const context = cells
-      .filter((c) => c !== name && !/^`/.test(c) && !/\[open\]/.test(c) && !/^https?:/.test(c))
+      .filter((c) => c !== name && !isGrepPath(c) && !/^`/.test(c) && !/\[open\]/.test(c) && !/^https?:/.test(c))
       .join(" · ");
     cards.push({ source: "drive", title: name.slice(0, 140), snippet: collapse(context).slice(0, MAX_SNIPPET_CHARS), link });
     if (cards.length >= MAX_CARDS_PER_TOOL) break;
