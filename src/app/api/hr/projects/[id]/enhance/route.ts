@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { canUserDelegateProjects } from "@/lib/auth/delegation";
 import { getProjectDetail } from "@/lib/reads/projects";
 import { searchSecondBrain } from "@/lib/secondbrain/client";
-import { buildQueries, synthesize } from "@/lib/secondbrain/enhance";
+import { synthesize } from "@/lib/secondbrain/enhance";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +31,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     async start(controller) {
       const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(sse(event, data)));
       try {
-        const queries = buildQueries({ name: project.name, client: project.client, description: project.description });
-        const { results, errors } = await searchSecondBrain(queries);
+        const { results, errors } = await searchSecondBrain({
+          name: project.name,
+          client: project.client,
+          description: project.description,
+        });
 
         let idx = 0;
         for (const r of results) send("context", { id: `c${idx++}`, ...r });

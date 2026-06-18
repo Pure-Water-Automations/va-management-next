@@ -6,38 +6,8 @@ const PRIORITIES = new Set(["Low", "Medium", "High"]);
 export type SuggestedTask = { title: string; instructions?: string; priority: "Low" | "Medium" | "High" };
 export type Synthesis = { contextSummary: string; tasks: SuggestedTask[] };
 
-// The SecondBrain mirror search tools do LITERAL substring matching, so a long
-// concatenated query almost never matches. Build a small set of SHORT queries
-// (the client name + the distinctive words in the project name) and union the
-// results instead. Generic/structural words are dropped so they don't dominate.
-const QUERY_STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "for", "of", "to", "in", "on", "with", "new",
-  "sample", "project", "task", "tasks", "update", "plan", "review", "draft",
-]);
-
-export function buildQueries(p: { name: string; client?: string | null; description?: string | null }): string[] {
-  const queries: string[] = [];
-  if (p.client && p.client.trim()) queries.push(p.client.trim());
-
-  const words = (p.name ?? "")
-    .replace(/\[[^\]]*\]/g, " ") // strip bracketed tags like [SAMPLE]
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .filter((w) => w.length >= 3 && !QUERY_STOPWORDS.has(w));
-  for (const w of [...new Set(words)].slice(0, 3)) queries.push(w);
-
-  // De-dupe case-insensitively, keep order, cap the number of MCP fan-out queries.
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const q of queries) {
-    const key = q.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(q);
-    if (out.length >= 4) break;
-  }
-  return out;
-}
+// Retrieval (intent sentence for semantic search + the Drive keyword) is built
+// inside searchSecondBrain — see src/lib/secondbrain/client.ts.
 
 /** Parse the synthesis model's JSON output defensively. Junk -> empty. */
 export function parseSynthesis(raw: string): Synthesis {

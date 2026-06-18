@@ -1,35 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildQueries, parseSynthesis, mergeContextIntoDescription } from "../src/lib/secondbrain/enhance";
-
-test("buildQueries returns client + distinctive name words as short queries", () => {
-  assert.deepEqual(
-    buildQueries({ name: "NE Website Refresh", client: "Northeast", description: "Rebuild the site." }),
-    ["Northeast", "website", "refresh"], // "ne" dropped (<3 chars), client first
-  );
-});
-
-test("buildQueries strips bracketed tags and stopwords", () => {
-  assert.deepEqual(
-    buildQueries({ name: "[SAMPLE] Website Revamp", client: null, description: null }),
-    ["website", "revamp"], // [SAMPLE] + stopwords gone
-  );
-});
-
-test("buildQueries tolerates a name with only stopwords by returning the client", () => {
-  assert.deepEqual(buildQueries({ name: "New Project", client: "Acme", description: null }), ["Acme"]);
-});
-
-test("buildQueries de-dupes and caps at 4 queries", () => {
-  const out = buildQueries({
-    name: "Alpha Bravo Charlie Delta Echo",
-    client: "Alpha",
-    description: null,
-  });
-  assert.ok(out.length <= 4);
-  assert.equal(new Set(out.map((q) => q.toLowerCase())).size, out.length); // unique
-});
+import { parseSynthesis, mergeContextIntoDescription } from "../src/lib/secondbrain/enhance";
 
 test("parseSynthesis accepts valid JSON and coerces tasks", () => {
   const out = parseSynthesis(
@@ -60,7 +32,7 @@ test("parseSynthesis strips a markdown code fence", () => {
 
 test("mergeContextIntoDescription appends a heading block, preserving the original", () => {
   const merged = mergeContextIntoDescription("Existing description.", [
-    { source: "search_notion_mirror", title: "Brief", snippet: "WP site", link: "https://n/x" },
+    { source: "notion", title: "Brief", snippet: "WP site", link: "https://n/x" },
   ]);
   assert.match(merged, /^Existing description\./);
   assert.match(merged, /## Context \(from Second Brain\)/);
@@ -69,8 +41,8 @@ test("mergeContextIntoDescription appends a heading block, preserving the origin
 });
 
 test("mergeContextIntoDescription adds a dated subsection when the heading already exists", () => {
-  const first = mergeContextIntoDescription("Base.", [{ source: "s", title: "A", snippet: "a" }]);
-  const second = mergeContextIntoDescription(first, [{ source: "s", title: "B", snippet: "b" }]);
+  const first = mergeContextIntoDescription("Base.", [{ source: "drive", title: "A", snippet: "a" }]);
+  const second = mergeContextIntoDescription(first, [{ source: "drive", title: "B", snippet: "b" }]);
   // Heading appears once; both items present.
   assert.equal(second.match(/## Context \(from Second Brain\)/g)?.length, 1);
   assert.match(second, /A/);
@@ -79,6 +51,6 @@ test("mergeContextIntoDescription adds a dated subsection when the heading alrea
 });
 
 test("mergeContextIntoDescription handles a null starting description", () => {
-  const merged = mergeContextIntoDescription(null, [{ source: "s", title: "A", snippet: "a" }]);
+  const merged = mergeContextIntoDescription(null, [{ source: "drive", title: "A", snippet: "a" }]);
   assert.match(merged, /## Context \(from Second Brain\)/);
 });
