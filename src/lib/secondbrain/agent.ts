@@ -4,7 +4,7 @@ import type { ORResponse } from "@/lib/matrix/openrouter"; // type-only: avoids 
 import { parseDriveResults, type ProjectFields } from "@/lib/secondbrain/client";
 
 const MCP_URL = () => process.env.SECONDBRAIN_MCP_URL || "http://localhost:8787/mcp";
-const MAX_STEPS = 6;
+const MAX_STEPS = 8;
 const MAX_TOOL_RESULT_CHARS = 3200; // cap each search result fed back to the model
 // Claude Haiku writes tighter, better-grounded briefs (and follows tool/finish
 // instructions more reliably) than DeepSeek. Override with OPENROUTER_ENHANCE_MODEL.
@@ -171,7 +171,7 @@ export function parseFindings(args: Record<string, unknown>): EnhanceFindings {
 export function buildSystemPrompt(): string {
   return [
     "You are a research assistant helping a virtual-assistant team supervisor understand and plan a project, using the team's Second Brain — Notion notes/SOPs, meeting transcripts, and Google Drive documents.",
-    "Work like a diligent analyst: run a FEW (about 2-4) well-phrased semantic searches from different angles, READ the returned excerpts, then CONCLUDE — don't keep searching indefinitely. Prefer meeting transcripts and Notion notes for substance; use Drive for documents/files.",
+    "Work like a diligent analyst: run AT LEAST 4 well-phrased semantic searches from different angles, READ each returned excerpt fully, and look for SPECIFIC quotable details — the stated purpose, cadence, who attends, decisions made, direct quotes. Do not conclude until you can write a specific, quote-backed brief (or have honestly confirmed little exists). Prefer meeting transcripts and Notion notes for substance; use Drive for documents/files.",
     "Then call submit_findings with: (1) a synthesized markdown BRIEF that explains what the Second Brain actually knows about this project — written as a clear narrative with a few short verbatim quotes and the source names, NOT a list of snippets; (2) grounded task suggestions (only tasks supported by what you read — never invent client names, dates, or specifics); (3) the sources you used (title + link when available).",
     "If — and only if — the project is too vague to search well and the supervisor gave no guidance, call ask_clarifying_questions with 1-3 short questions first. If the supervisor provided guidance or answers, do NOT ask; go straight to searching.",
     "If you genuinely find nothing relevant, submit_findings with an honest brief saying so and an empty tasks array. Never fabricate.",
