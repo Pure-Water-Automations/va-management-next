@@ -1,4 +1,4 @@
-import { getCurrentUser, isFounder } from "@/lib/auth/access";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { canManageTasks, canManageProjects } from "@/lib/auth/roles";
 import { getProjectsList } from "@/lib/reads/projects";
 import { Stat } from "@/components/ui/Stat";
@@ -16,6 +16,7 @@ export default async function HrProjectsPage() {
 
   const projects = await getProjectsList();
   const canCreate = user.isAdmin || canManageProjects(user.role);
+  const betaVisible = await isBetaVisible(user.email);
 
   const activeCount = projects.filter((p) => p.status === "Active").length;
   const openTaskCount = projects.reduce((s, p) => s + p.openTaskCount, 0);
@@ -31,7 +32,7 @@ export default async function HrProjectsPage() {
           <h1>Projects</h1>
         </div>
         <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
-          {isFounder(user.email) && <DiscoverButton />}
+          {betaVisible && <DiscoverButton />}
           {canCreate && (
             <a href="/hr/projects/new" className="btn btn-primary">
               + New Project
