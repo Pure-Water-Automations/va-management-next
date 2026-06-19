@@ -4,8 +4,8 @@ import { getMyTasks } from "@/lib/reads/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { StatusDropdown } from "@/components/TaskActions";
 import {
-  StatusBadge,
   PriorityBadge,
   DueChip,
   AssigneeChip,
@@ -99,12 +99,30 @@ function Section({ title, tasks }: { title: string; tasks: TaskItem[] }) {
       <h2 style={{ marginBottom: 12 }}>{title}</h2>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {tasks.map((t) => (
-          <Card key={t.id} padding={16}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <Card key={t.id} padding={16} style={{ position: "relative", cursor: "pointer" }}>
+            <a
+              href={`/va/tasks/${t.id}`}
+              aria-label={`Open ${t.title}`}
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 1,
+                borderRadius: "inherit",
+              }}
+            />
+            <div
+              style={{
+                position: "relative",
+                zIndex: 2,
+                pointerEvents: "none",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 12,
+              }}
+            >
               <div>
-                <a href={`/va/tasks/${t.id}`} style={{ fontWeight: 600, textDecoration: "none" }}>
-                  {t.title}
-                </a>
+                <div style={{ fontWeight: 600 }}>{t.title}</div>
                 <div
                   className="small"
                   style={{
@@ -128,7 +146,9 @@ function Section({ title, tasks }: { title: string; tasks: TaskItem[] }) {
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                 <Badge variant="default">{t.strategy}</Badge>
                 <PriorityBadge value={t.priority} />
-                <StatusBadge value={t.status} />
+                <span style={{ pointerEvents: "auto" }}>
+                  <StatusDropdown taskId={t.id} current={t.status} />
+                </span>
               </div>
             </div>
           </Card>
