@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { StatusPill, PriorityPill } from "@/components/StatusPill";
 
 type Comment = {
   id: string;
@@ -30,6 +33,30 @@ type RequestDetail = {
   } | null;
 };
 
+const backLink: React.CSSProperties = {
+  fontSize: "var(--text-sm)",
+  color: "var(--color-text-tertiary)",
+  fontWeight: "var(--weight-medium)",
+};
+const h2: React.CSSProperties = {
+  fontFamily: "var(--font-display)",
+  fontSize: "var(--text-lg)",
+  fontWeight: "var(--weight-semibold)",
+  color: "var(--color-text-primary)",
+  margin: "0 0 var(--space-3)",
+};
+const input: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid var(--color-border)",
+  borderRadius: "var(--radius-input)",
+  padding: "10px 12px",
+  font: "inherit",
+  fontSize: "var(--text-sm)",
+  color: "var(--color-text-primary)",
+  background: "var(--color-surface)",
+  resize: "vertical",
+};
+
 export default function ClientRequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [request, setRequest] = useState<RequestDetail | null>(null);
@@ -54,7 +81,7 @@ export default function ClientRequestDetailPage() {
 
   useEffect(() => {
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function postComment(e: React.FormEvent) {
@@ -82,128 +109,128 @@ export default function ClientRequestDetailPage() {
   }
 
   if (loadError)
-    return <div style={{ padding: 24, color: "#dc2626" }}>{loadError}</div>;
+    return (
+      <Card padding="var(--space-6)">
+        <p style={{ margin: 0, color: "var(--color-error)" }}>{loadError}</p>
+      </Card>
+    );
   if (!request)
-    return <div style={{ padding: 24, color: "var(--text-secondary)" }}>Loading…</div>;
+    return (
+      <p style={{ color: "var(--color-text-tertiary)" }}>Loading…</p>
+    );
 
   const comments = request.assignedTask?.comments ?? [];
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <Link href="/client/requests" style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+    <div>
+      <Link href="/client/requests" style={backLink}>
         ← Requests
       </Link>
-      <h1 style={{ fontSize: 20, fontWeight: 600, margin: "12px 0 4px" }}>{request.title}</h1>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", margin: "var(--space-3) 0 var(--space-2)" }}>
+        <h1
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "var(--text-xl)",
+            fontWeight: "var(--weight-bold)",
+            color: "var(--color-text-primary)",
+            margin: 0,
+          }}
+        >
+          {request.title}
+        </h1>
+        <StatusPill status={request.status} size="md" />
+      </div>
       <div
         style={{
-          fontSize: 12,
-          color: "var(--text-secondary)",
-          marginBottom: 20,
           display: "flex",
-          gap: 16,
+          gap: "var(--space-2)",
+          alignItems: "center",
+          marginBottom: "var(--space-5)",
         }}
       >
-        <span>
-          Status: <strong>{request.status}</strong>
-        </span>
-        <span>Priority: {request.priorityPreference}</span>
+        <PriorityPill priority={request.priorityPreference} />
         {request.dueDatePreference && (
-          <span>
-            Preferred by: {new Date(request.dueDatePreference).toLocaleDateString()}
+          <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
+            Preferred by {new Date(request.dueDatePreference).toLocaleDateString()}
           </span>
         )}
       </div>
 
-      <div
-        style={{
-          padding: 14,
-          background: "var(--surface-secondary, #f9f9f9)",
-          borderRadius: 8,
-          marginBottom: 24,
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>{request.description}</p>
-      </div>
+      <Card variant="flat" padding="var(--space-5)" style={{ marginBottom: "var(--space-6)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-sm)", lineHeight: "var(--leading-relaxed)", color: "var(--color-text-primary)" }}>
+          {request.description}
+        </p>
+      </Card>
 
       {request.status === "DECLINED" && request.declineReason && (
-        <div
+        <Card
+          padding="var(--space-4)"
           style={{
-            padding: 12,
-            background: "#fef2f2",
-            border: "1px solid #fca5a5",
-            borderRadius: 6,
-            marginBottom: 24,
+            marginBottom: "var(--space-6)",
+            background: "var(--color-error-light)",
+            border: "1px solid rgba(240,76,76,0.22)",
           }}
         >
-          <strong style={{ fontSize: 13 }}>Declined:</strong>
-          <p style={{ margin: "4px 0 0", fontSize: 14 }}>{request.declineReason}</p>
-        </div>
+          <strong style={{ fontSize: "var(--text-sm)", color: "var(--color-error-dark)" }}>Declined</strong>
+          <p style={{ margin: "var(--space-1) 0 0", fontSize: "var(--text-sm)", color: "var(--color-text-primary)" }}>
+            {request.declineReason}
+          </p>
+        </Card>
       )}
 
       {request.assignedTask && (
-        <div style={{ marginBottom: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-          Linked task: <strong>{request.assignedTask.title}</strong> ·{" "}
-          {request.assignedTask.status}
-          {request.assignedTask.assignedTo?.name &&
-            ` · ${request.assignedTask.assignedTo.name}`}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-2)",
+            marginBottom: "var(--space-5)",
+            fontSize: "var(--text-sm)",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          <span>Linked task:</span>
+          <strong style={{ color: "var(--color-text-primary)" }}>{request.assignedTask.title}</strong>
+          <StatusPill status={request.assignedTask.status} />
+          {request.assignedTask.assignedTo?.name && (
+            <span style={{ color: "var(--color-text-tertiary)" }}>· {request.assignedTask.assignedTo.name}</span>
+          )}
         </div>
       )}
 
-      <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Updates</h2>
+      <h2 style={h2}>Updates</h2>
       {comments.length === 0 && (
-        <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>No updates yet.</p>
+        <p style={{ color: "var(--color-text-tertiary)", fontSize: "var(--text-sm)" }}>No updates yet.</p>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-5)" }}>
         {comments.map((c) => (
-          <div
-            key={c.id}
-            style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 6 }}
-          >
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+          <Card key={c.id} padding="var(--space-4)">
+            <div style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", marginBottom: "var(--space-1)" }}>
               {c.author.name} · {new Date(c.createdAt).toLocaleString()}
             </div>
-            <div style={{ fontSize: 14, lineHeight: 1.6 }}>{c.body}</div>
-          </div>
+            <div style={{ fontSize: "var(--text-sm)", lineHeight: "var(--leading-relaxed)", color: "var(--color-text-primary)" }}>
+              {c.body}
+            </div>
+          </Card>
         ))}
       </div>
 
       {request.assignedTask && (
-        <form
-          onSubmit={postComment}
-          style={{ display: "flex", flexDirection: "column", gap: 8 }}
-        >
+        <form onSubmit={postComment} style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <textarea
             placeholder="Add a reply…"
             rows={3}
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              fontSize: 14,
-              resize: "vertical",
-            }}
+            style={input}
           />
           {commentError && (
-            <p style={{ color: "#dc2626", fontSize: 13, margin: 0 }}>{commentError}</p>
+            <p style={{ color: "var(--color-error)", fontSize: "var(--text-sm)", margin: 0 }}>{commentError}</p>
           )}
-          <button
-            type="submit"
-            disabled={posting || !newComment.trim()}
-            style={{
-              alignSelf: "flex-start",
-              padding: "8px 20px",
-              background: "var(--accent, #0066cc)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 14,
-              cursor: posting ? "not-allowed" : "pointer",
-            }}
-          >
+          <Button type="submit" size="sm" loading={posting} disabled={posting || !newComment.trim()} style={{ alignSelf: "flex-start" }}>
             {posting ? "Posting…" : "Reply"}
-          </button>
+          </Button>
         </form>
       )}
     </div>

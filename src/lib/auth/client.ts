@@ -16,7 +16,7 @@ export type ClientMembership = {
 
 export async function getClientMembership(userId: string): Promise<ClientMembership | null> {
   return db.clientMembership.findFirst({
-    where: { userId },
+    where: { userId, clientOrganization: { active: true } },
     select: {
       id: true,
       clientOrganizationId: true,
