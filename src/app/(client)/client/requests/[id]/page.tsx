@@ -39,11 +39,15 @@ export default function ClientRequestDetailPage() {
   const [commentError, setCommentError] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch(`/api/client/requests/${id}`);
-    if (res.ok) {
-      const data = await res.json();
-      setRequest(data.request);
-    } else {
+    try {
+      const res = await fetch(`/api/client/requests/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRequest(data.request);
+      } else {
+        setLoadError("Failed to load request. Please refresh.");
+      }
+    } catch {
       setLoadError("Failed to load request. Please refresh.");
     }
   }
@@ -58,18 +62,23 @@ export default function ClientRequestDetailPage() {
     if (!newComment.trim()) return;
     setPosting(true);
     setCommentError(null);
-    const res = await fetch(`/api/client/requests/${id}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: newComment }),
-    });
-    if (res.ok) {
-      setNewComment("");
-      await load();
-    } else {
+    try {
+      const res = await fetch(`/api/client/requests/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: newComment }),
+      });
+      if (res.ok) {
+        setNewComment("");
+        await load();
+      } else {
+        setCommentError("Failed to post comment. Please try again.");
+      }
+    } catch {
       setCommentError("Failed to post comment. Please try again.");
+    } finally {
+      setPosting(false);
     }
-    setPosting(false);
   }
 
   if (loadError)
