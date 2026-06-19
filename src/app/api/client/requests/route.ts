@@ -7,7 +7,7 @@ const CreateSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(2000),
   priorityPreference: z.enum(["Low", "Medium", "High"]).optional(),
-  dueDatePreference: z.string().datetime().optional().nullable(),
+  dueDatePreference: z.string().date().optional().nullable(),
   fileReference: z.string().max(500).optional().nullable(),
 });
 

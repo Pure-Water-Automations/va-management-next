@@ -2,19 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type RequestItem = {
   id: string;
   title: string;
   status: string;
   createdAt: string;
-  submittedBy?: { name: string | null };
 };
 
 export default function ClientRequestsPage() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -26,9 +28,16 @@ export default function ClientRequestsPage() {
 
   useEffect(() => {
     fetch("/api/client/requests")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         setRequests(d.requests ?? []);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setLoadError("Failed to load requests. Please refresh.");
         setLoaded(true);
       });
   }, []);
@@ -36,6 +45,7 @@ export default function ClientRequestsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setSubmitError(null);
     const body = {
       title: form.title,
       description: form.description,
@@ -52,8 +62,8 @@ export default function ClientRequestsPage() {
       const { id } = await res.json();
       router.push(`/client/requests/${id}`);
     } else {
+      setSubmitError("Failed to submit request. Please try again.");
       setSubmitting(false);
-      alert("Failed to submit request. Please try again.");
     }
   }
 
@@ -130,6 +140,9 @@ export default function ClientRequestsPage() {
             fontSize: 14,
           }}
         />
+        {submitError && (
+          <p style={{ color: "#dc2626", fontSize: 14, margin: 0 }}>{submitError}</p>
+        )}
         <button
           type="submit"
           disabled={submitting}
@@ -149,12 +162,13 @@ export default function ClientRequestsPage() {
       </form>
 
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Past Requests</h2>
-      {loaded && requests.length === 0 && (
+      {loadError && <p style={{ color: "#dc2626", fontSize: 14 }}>{loadError}</p>}
+      {loaded && !loadError && requests.length === 0 && (
         <p style={{ color: "var(--text-secondary)" }}>No requests yet.</p>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {requests.map((r) => (
-          <a
+          <Link
             key={r.id}
             href={`/client/requests/${r.id}`}
             style={{
@@ -179,7 +193,7 @@ export default function ClientRequestsPage() {
               <span>{r.status}</span>
               <span>{new Date(r.createdAt).toLocaleDateString()}</span>
             </div>
-          </a>
+          </Link>
         ))}
       </div>
     </div>

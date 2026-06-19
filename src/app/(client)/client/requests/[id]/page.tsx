@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 type Comment = {
   id: string;
@@ -32,14 +33,18 @@ type RequestDetail = {
 export default function ClientRequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [request, setRequest] = useState<RequestDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch(`/api/client/requests/${id}`);
     if (res.ok) {
       const data = await res.json();
       setRequest(data.request);
+    } else {
+      setLoadError("Failed to load request. Please refresh.");
     }
   }
 
@@ -52,6 +57,7 @@ export default function ClientRequestDetailPage() {
     e.preventDefault();
     if (!newComment.trim()) return;
     setPosting(true);
+    setCommentError(null);
     const res = await fetch(`/api/client/requests/${id}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -61,11 +67,13 @@ export default function ClientRequestDetailPage() {
       setNewComment("");
       await load();
     } else {
-      alert("Failed to post comment.");
+      setCommentError("Failed to post comment. Please try again.");
     }
     setPosting(false);
   }
 
+  if (loadError)
+    return <div style={{ padding: 24, color: "#dc2626" }}>{loadError}</div>;
   if (!request)
     return <div style={{ padding: 24, color: "var(--text-secondary)" }}>Loading…</div>;
 
@@ -73,9 +81,9 @@ export default function ClientRequestDetailPage() {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <a href="/client/requests" style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+      <Link href="/client/requests" style={{ fontSize: 13, color: "var(--text-secondary)" }}>
         ← Requests
-      </a>
+      </Link>
       <h1 style={{ fontSize: 20, fontWeight: 600, margin: "12px 0 4px" }}>{request.title}</h1>
       <div
         style={{
@@ -168,6 +176,9 @@ export default function ClientRequestDetailPage() {
               resize: "vertical",
             }}
           />
+          {commentError && (
+            <p style={{ color: "#dc2626", fontSize: 13, margin: 0 }}>{commentError}</p>
+          )}
           <button
             type="submit"
             disabled={posting || !newComment.trim()}
