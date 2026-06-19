@@ -46,22 +46,27 @@ export default function ClientRequestsPage() {
     e.preventDefault();
     setSubmitting(true);
     setSubmitError(null);
-    const body = {
-      title: form.title,
-      description: form.description,
-      priorityPreference: form.priorityPreference,
-      dueDatePreference: form.dueDatePreference || null,
-      fileReference: form.fileReference || null,
-    };
-    const res = await fetch("/api/client/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      const { id } = await res.json();
-      router.push(`/client/requests/${id}`);
-    } else {
+    try {
+      const body = {
+        title: form.title,
+        description: form.description,
+        priorityPreference: form.priorityPreference,
+        dueDatePreference: form.dueDatePreference || null,
+        fileReference: form.fileReference || null,
+      };
+      const res = await fetch("/api/client/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        router.push(`/client/requests/${id}`);
+      } else {
+        setSubmitError("Failed to submit request. Please try again.");
+        setSubmitting(false);
+      }
+    } catch {
       setSubmitError("Failed to submit request. Please try again.");
       setSubmitting(false);
     }
