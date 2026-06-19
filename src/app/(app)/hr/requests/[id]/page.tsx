@@ -141,8 +141,8 @@ export default function RequestDetailPage() {
           </div>
         </div>
 
-        {/* Actions (only for PENDING) */}
-        {request.status === "PENDING" && (
+        {/* Actions (only for RECEIVED / TRIAGE_NEEDED) */}
+        {(request.status === "RECEIVED" || request.status === "TRIAGE_NEEDED") && (
           <div style={card}>
             <h2 style={cardTitle}>Triage actions</h2>
 
@@ -195,12 +195,12 @@ export default function RequestDetailPage() {
           </div>
         )}
 
-        {/* Link task (only for ACCEPTED) */}
-        {request.status === "ACCEPTED" && (
+        {/* Link task (only for READY_TO_ASSIGN) */}
+        {request.status === "READY_TO_ASSIGN" && (
           <div style={card}>
             <h2 style={cardTitle}>Link to task</h2>
             <p className="small" style={{ color: "var(--color-text-secondary)", marginBottom: 12 }}>
-              Enter the ID of an existing task to link to this request. Status will move to In Progress.
+              Enter the ID of an existing task to link to this request. Status will move to Assigned.
             </p>
 
             {actionError && (
@@ -292,15 +292,15 @@ const inputStyle: React.CSSProperties = {
 
 function statusPill(s: string): React.CSSProperties {
   const bg =
-    s === "PENDING"
-      ? "var(--color-warning)"
-      : s === "ACCEPTED"
-        ? "var(--color-sky-500)"
+    s === "RECEIVED" || s === "TRIAGE_NEEDED"
+      ? "#f59e0b"
+      : s === "READY_TO_ASSIGN"
+        ? "#3b82f6"
         : s === "DECLINED"
-          ? "var(--color-error)"
-          : s === "IN_PROGRESS"
-            ? "var(--color-success)"
-            : "var(--color-text-tertiary)";
+          ? "#ef4444"
+          : s === "ASSIGNED"
+            ? "#22c55e"
+            : "#6b7280";
   return {
     display: "inline-block",
     padding: "2px 8px",

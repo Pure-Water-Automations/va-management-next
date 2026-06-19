@@ -6,9 +6,17 @@ export function POST(request: Request, { params }: { params: Promise<{ id: strin
   return action(
     async () => {
       const { id } = await params;
+      const existing = await db.clientTaskRequest.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+      if (!existing) throw new Error("Request not found");
+      if (existing.status !== "RECEIVED" && existing.status !== "TRIAGE_NEEDED") {
+        throw new Error("Request cannot be accepted in its current state");
+      }
       const updated = await db.clientTaskRequest.update({
         where: { id },
-        data: { status: "ACCEPTED" },
+        data: { status: "READY_TO_ASSIGN" },
         select: { id: true, status: true },
       });
       return updated;

@@ -12,7 +12,7 @@ export default async function HrRequestsPage() {
   }
 
   const requests = await db.clientTaskRequest.findMany({
-    where: { status: "PENDING" },
+    where: { status: { in: ["RECEIVED", "TRIAGE_NEEDED"] } },
     select: {
       id: true,
       title: true,
