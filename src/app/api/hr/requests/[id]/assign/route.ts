@@ -11,7 +11,7 @@ export function POST(request: Request, { params }: { params: Promise<{ id: strin
 
       const existing = await db.clientTaskRequest.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, clientOrganizationId: true },
       });
       if (!existing) throw new Error("Request not found");
       if (existing.status !== "READY_TO_ASSIGN") {
@@ -22,11 +22,17 @@ export function POST(request: Request, { params }: { params: Promise<{ id: strin
       if (!task) throw new Error("Task not found");
 
       try {
-        const updated = await db.clientTaskRequest.update({
-          where: { id },
-          data: { assignedTaskId: taskId, status: "ASSIGNED" },
-          select: { id: true, status: true, assignedTaskId: true },
-        });
+        const [updated] = await db.$transaction([
+          db.clientTaskRequest.update({
+            where: { id },
+            data: { assignedTaskId: taskId, status: "ASSIGNED" },
+            select: { id: true, status: true, assignedTaskId: true },
+          }),
+          db.task.update({
+            where: { id: taskId },
+            data: { clientOrganizationId: existing.clientOrganizationId },
+          }),
+        ]);
         return updated;
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
