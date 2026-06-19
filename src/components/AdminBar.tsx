@@ -18,10 +18,16 @@ export function AdminBar({
   currentView,
   vas,
   currentVaId,
+  showBetaToggle = false,
+  betaOn = true,
 }: {
   currentView: View;
   vas: { vaId: string; name: string }[];
   currentVaId: string | null;
+  /** Render the beta on/off toggle (founder only). */
+  showBetaToggle?: boolean;
+  /** Current beta state (the `va_beta` cookie is not "off"). */
+  betaOn?: boolean;
 }) {
   const router = useRouter();
 
@@ -34,6 +40,10 @@ export function AdminBar({
     setCookie("va_as_va", vaId);
     setCookie("va_view", "VA");
     router.push("/va");
+    router.refresh();
+  }
+  function toggleBeta() {
+    setCookie("va_beta", betaOn ? "off" : "on");
     router.refresh();
   }
 
@@ -60,7 +70,16 @@ export function AdminBar({
           </select>
         </>
       )}
-      <a href="/admin/email" style={{ marginLeft: "auto", color: "rgba(255,255,255,.75)", fontSize: "var(--text-xs)", textDecoration: "none" }}>⚙ Email sender</a>
+      {showBetaToggle && (
+        <button
+          onClick={toggleBeta}
+          title={betaOn ? "Beta features are visible to you — click to hide them (e.g. while demoing)" : "Beta features are hidden — click to show them"}
+          style={{ marginLeft: "auto", ...betaPill(betaOn) }}
+        >
+          <span style={betaDot(betaOn)} /> Beta {betaOn ? "On" : "Off"}
+        </button>
+      )}
+      <a href="/admin/email" style={{ marginLeft: showBetaToggle ? 0 : "auto", color: "rgba(255,255,255,.75)", fontSize: "var(--text-xs)", textDecoration: "none" }}>⚙ Email sender</a>
     </div>
   );
 }
@@ -84,3 +103,14 @@ const select: React.CSSProperties = {
   background: "rgba(255,255,255,.1)", color: "#fff", border: "1px solid rgba(255,255,255,.2)",
   borderRadius: 6, padding: "4px 8px", fontSize: "var(--text-sm)",
 };
+const betaPill = (on: boolean): React.CSSProperties => ({
+  display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
+  border: `1px solid ${on ? "rgba(122,210,160,.5)" : "rgba(255,255,255,.2)"}`,
+  borderRadius: 999, padding: "3px 11px", fontSize: "var(--text-xs)", fontWeight: 700, letterSpacing: ".04em",
+  background: on ? "rgba(76,175,124,.22)" : "rgba(255,255,255,.06)",
+  color: on ? "#bff0d2" : "rgba(255,255,255,.7)",
+});
+const betaDot = (on: boolean): React.CSSProperties => ({
+  width: 7, height: 7, borderRadius: "50%", display: "inline-block",
+  background: on ? "#4caf7c" : "rgba(255,255,255,.4)",
+});

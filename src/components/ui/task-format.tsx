@@ -45,8 +45,8 @@ export function priorityVariant(priority: string): BadgeVariant {
   }
 }
 
-function humanizeStatus(s: string): string {
-  // "NotStarted" -> "Not Started", "InProgress" -> "In Progress"
+/** "NotStarted" -> "Not Started", "InProgress" -> "In Progress". */
+export function humanizeStatus(s: string): string {
   return s.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 

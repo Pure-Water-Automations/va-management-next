@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 
-type Assignee = { id: string; name: string | null; email: string };
+type Assignee = { id: string; name: string | null; email: string; openTasks?: number };
 
 const input: React.CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -95,10 +95,11 @@ export function ProjectQuickAddTask({
       />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         <select style={input} value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)}>
-          <option value="">Assign to…</option>
+          <option value="">Assign to… (least busy first)</option>
           {assignees.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name ?? a.email}
+              {a.openTasks !== undefined ? ` · ${a.openTasks} open` : ""}
             </option>
           ))}
         </select>

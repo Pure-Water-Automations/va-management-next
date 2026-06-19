@@ -8,6 +8,12 @@ import { addProjectComment } from "@/lib/actions/comments";
 // per spec can comment on projects — isn't blocked at the route layer.
 export const POST = action(
   async ({ user, body }) =>
-    addProjectComment(user.id, user.role, str(body, "projectId"), str(body, "body")),
+    addProjectComment(
+      user.id,
+      user.role,
+      str(body, "projectId"),
+      str(body, "body"),
+      typeof body.visibility === "string" ? body.visibility : undefined,
+    ),
   { allow: (r) => canManageTasks(r) },
 );

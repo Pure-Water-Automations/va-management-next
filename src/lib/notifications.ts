@@ -73,10 +73,11 @@ export async function itemsForDomain(domain: Domain, vaId?: string | null): Prom
   return items;
 }
 
-const VIEW_DOMAIN: Record<ConsoleView, Domain> = { HR: "HR", RECRUITMENT: "RECRUITMENT", PAYROLL: "PAYROLL", VA: "VA" };
+const VIEW_DOMAIN: Partial<Record<ConsoleView, Domain>> = { HR: "HR", RECRUITMENT: "RECRUITMENT", PAYROLL: "PAYROLL", VA: "VA" };
 
 export async function notificationsForView(view: ConsoleView, opts: { name?: string; vaId?: string | null } = {}) {
-  const items = await itemsForDomain(VIEW_DOMAIN[view], opts.vaId);
+  const domain = VIEW_DOMAIN[view];
+  const items = domain ? await itemsForDomain(domain, opts.vaId) : [];
   const count = items.reduce((s, i) => s + i.count, 0);
   const first = (opts.name ?? "there").split(" ")[0];
   let greeting: string;

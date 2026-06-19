@@ -1,5 +1,6 @@
 import type { Role } from "@prisma/client";
 import type { ConsoleView } from "@/lib/auth/roles";
+import { NavItemLink } from "./NavItemLink";
 
 type NavItem = { href: string; label: string };
 
@@ -29,6 +30,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       items: [
         { href: "/hr/projects", label: "Projects" },
         { href: "/hr/tasks", label: "All Tasks" },
+        { href: "/hr/tasks/available", label: "Available" },
         { href: "/hr/tasks/new", label: "Delegate" },
         { href: "/hr/workload", label: "Workload" },
         { href: "/hr/templates", label: "Templates" },
@@ -72,6 +74,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/va/evaluation", label: "Evaluation" },
         { href: "/va/checkin", label: "Monthly Check-in" },
         { href: "/va/tasks", label: "My Tasks" },
+        { href: "/hr/tasks/available", label: "Available Tasks" },
       ],
     },
   ],
@@ -82,11 +85,15 @@ export function Sidebar({
   role,
   name,
   isAdmin = false,
+  showBeta = false,
+  canDelegate = false,
 }: {
   view: ConsoleView;
   role: Role;
   name: string;
   isAdmin?: boolean;
+  showBeta?: boolean;
+  canDelegate?: boolean;
 }) {
   const sections = NAV[view] ?? NAV.VA;
   return (
@@ -99,38 +106,41 @@ export function Sidebar({
         <div key={section.label}>
           <div className="nav-label">{section.label}</div>
           {section.items.map((item) => (
-            <a key={item.href} href={item.href} className="nav-item" data-tour={item.href}>
-              {item.label}
-            </a>
+            <NavItemLink key={item.href} href={item.href} label={item.label} />
           ))}
         </div>
       ))}
-      {/* Senior VAs land in the VA console but can delegate/manage tasks and view
-          projects (spec §2), so surface those entry points here. */}
-      {role === "SENIOR_VA" && (
+      {/* HR managers and people ops can manage clients and client requests */}
+      {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
         <div>
-          <div className="nav-label">Delegation</div>
-          <a href="/hr/tasks" className="nav-item" data-tour="/hr/tasks">
-            All Tasks
-          </a>
-          <a href="/hr/tasks/new" className="nav-item" data-tour="/hr/tasks/new">
-            Delegate
-          </a>
-          <a href="/hr/projects" className="nav-item" data-tour="/hr/projects">
-            Projects
-          </a>
+          <div className="nav-label">Clients</div>
+          <NavItemLink href="/hr/clients" label="Organizations" />
+          <NavItemLink href="/hr/requests" label="Client Requests" />
         </div>
       )}
-      {/* Recordings (Loom-style) — admin-only preview. Opens to all roles later. */}
+      {/* VA-console users with delegation authority (a Senior VA, or any tier flagged
+          "Can delegate" on the Compensation Roles screen) get the delegation entry points. */}
+      {view === "VA" && canDelegate && (
+        <div>
+          <div className="nav-label">Delegation</div>
+          <NavItemLink href="/hr/tasks" label="All Tasks" />
+          <NavItemLink href="/hr/tasks/new" label="Delegate" />
+          <NavItemLink href="/hr/projects" label="Projects" />
+        </div>
+      )}
       {isAdmin && (
         <div>
+          <div className="nav-label">Admin</div>
+          <NavItemLink href="/admin/users" label="Users" />
+        </div>
+      )}
+      {/* Recordings (Loom-style) — beta, founder-only preview (hidden when the
+          founder toggles beta off). Opens to more roles later. */}
+      {showBeta && (
+        <div>
           <div className="nav-label">Recordings</div>
-          <a href="/record" className="nav-item" data-tour="/record">
-            Record
-          </a>
-          <a href="/recordings" className="nav-item" data-tour="/recordings">
-            Recordings
-          </a>
+          <NavItemLink href="/record" label="Record" />
+          <NavItemLink href="/recordings" label="Recordings" />
         </div>
       )}
       <div className="foot">

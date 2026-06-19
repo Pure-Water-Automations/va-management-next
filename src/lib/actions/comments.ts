@@ -3,7 +3,8 @@ import { logActivity } from "@/lib/activity";
 import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
 import { canUserActOnTask } from "@/lib/services/tasks";
 import { notifyMentions } from "@/lib/inbox";
-import type { Role } from "@prisma/client";
+import type { Role, CommentVisibility } from "@prisma/client";
+import { parseCommentVisibility } from "@/lib/client-portal/permissions";
 
 export async function addTaskComment(
   actorId: string,
@@ -44,11 +45,14 @@ export async function addProjectComment(
   actorRole: Role,
   projectId: string,
   body: string,
+  rawVisibility?: string,
 ) {
   if (!canManageTasks(actorRole)) {
     throw new AuthorizationError("Only team managers can post project notes");
   }
   if (!body.trim()) throw new Error("Comment body cannot be empty");
+
+  const visibility: CommentVisibility = parseCommentVisibility(rawVisibility);
 
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
@@ -56,7 +60,7 @@ export async function addProjectComment(
   });
 
   const comment = await db.projectComment.create({
-    data: { projectId, authorId: actorId, body: body.trim() },
+    data: { projectId, authorId: actorId, body: body.trim(), visibility },
     include: { author: { select: { id: true, name: true } } },
   });
 

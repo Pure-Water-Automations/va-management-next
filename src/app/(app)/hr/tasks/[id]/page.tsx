@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getTaskDetail, getAllTasks } from "@/lib/reads/tasks";
+import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getClients } from "@/lib/reads/clients";
+import { ReassignControl } from "@/components/ReassignControl";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PriorityBadge, DueChip, LinkChips } from "@/components/ui/task-format";
@@ -33,6 +35,7 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
     .map((t) => ({ id: t.id, title: t.title }));
 
   const clients = await getClients();
+  const assignees = await getDelegationAssignees();
 
   const blocked = task.dependencies.some((d) => d.dependsOn.status !== "Done");
 
@@ -56,7 +59,15 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Card padding={20}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <Row label="Assigned to" value={task.assignedTo.name ?? task.assignedTo.email} />
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Assigned to</span>
+                <ReassignControl
+                  taskId={task.id}
+                  currentAssigneeId={task.assignedToId}
+                  currentName={task.assignedTo.name ?? task.assignedTo.email}
+                  assignees={assignees}
+                />
+              </div>
               <Row label="Assigned by" value={task.assignedBy.name ?? "—"} />
               <Row label="Strategy" value={task.strategy} />
               <Row label="Status" value={task.status} />

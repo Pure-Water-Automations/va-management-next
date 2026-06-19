@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
-import { db } from "@/lib/db";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { getProjectsList } from "@/lib/reads/projects";
+import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getClients } from "@/lib/reads/clients";
 import { readSopPicker, readTrainingPicker, readToolsPicker } from "@/lib/notion-picker";
 import { Card } from "@/components/ui/Card";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DelegateTaskPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  if (!user.isAdmin && !(await canUserDelegateTasks(user.id, user.role))) {
     redirect("/hr/tasks");
   }
 
@@ -23,14 +23,7 @@ export default async function DelegateTaskPage() {
   const clients = await getClients();
 
   // Assignable VAs and optional project links from Postgres.
-  const [assignees, projects] = await Promise.all([
-    db.user.findMany({
-      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
-    getProjectsList(),
-  ]);
+  const [assignees, projects] = await Promise.all([getDelegationAssignees(), getProjectsList()]);
 
   const projectOptions = projects
     .filter((p) => p.status !== "Done")

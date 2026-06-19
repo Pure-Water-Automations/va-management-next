@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
-import { db } from "@/lib/db";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
+import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -11,6 +11,7 @@ import { StatusBadge, DueChip, Avatar } from "@/components/ui/task-format";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
+import { EnhanceButton } from "@/components/EnhanceButton";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +26,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const [project, feed, assignees] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
-    db.user.findMany({
-      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
+    getDelegationAssignees(),
   ]);
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
+  const betaVisible = await isBetaVisible(user.email);
 
   return (
     <>
@@ -58,6 +56,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             priority={project.priority}
             canEdit={canEdit}
           />
+          {betaVisible && (
+            <EnhanceButton projectId={project.id} projectName={project.name} assignees={assignees} />
+          )}
           {canEdit && (
             <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">
               Edit
@@ -158,7 +159,39 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     borderBottom: "1px dashed var(--color-border-subtle)",
                   }}
                 >
-                  <div style={{ fontSize: "var(--text-sm)" }}>{item.summary}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "var(--text-sm)" }}>{item.summary}</span>
+                    {item.visibility === "CLIENT_VISIBLE" && (
+                      <span
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: "#dbeafe",
+                          color: "#1d4ed8",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Client visible
+                      </span>
+                    )}
+                    {item.visibility === "INTERNAL_ONLY" && (
+                      <span
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: "#f3f4f6",
+                          color: "#6b7280",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Internal
+                      </span>
+                    )}
+                  </div>
                   <div className="small" style={{ color: "var(--color-text-tertiary)", marginTop: 2 }}>
                     {item.at.toLocaleDateString()}
                   </div>

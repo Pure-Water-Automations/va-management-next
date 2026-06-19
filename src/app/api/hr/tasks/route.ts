@@ -13,6 +13,7 @@ export const POST = action(
       client: body.client,
       projectId: body.projectId,
       assignedToId: body.assignedToId,
+      claimable: body.claimable,
       dueDate: body.dueDate,
       links: body.links,
       relatedSops: body.relatedSops,

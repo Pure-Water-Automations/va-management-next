@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { computeProjectProgress } from "@/lib/services/tasks";
+import type { CommentVisibility } from "@prisma/client";
 
 export type ProjectListItem = Awaited<ReturnType<typeof getProjectsList>>[number];
 export type ProjectDetail = Awaited<ReturnType<typeof getProjectDetail>>;
@@ -78,19 +79,21 @@ export async function getProjectActivityFeed(projectId: string) {
     }),
   ]);
 
-  type FeedItem = { id: string; type: string; summary: string; at: Date };
+  type FeedItem = { id: string; type: string; summary: string; at: Date; visibility?: CommentVisibility };
   const items: FeedItem[] = [
     ...taskComments.map((c) => ({
       id: `tc-${c.id}`,
       type: "task_comment",
       summary: `${c.author.name ?? "Someone"} commented on "${c.task.title}": ${c.body.slice(0, 80)}`,
       at: c.createdAt,
+      visibility: c.visibility,
     })),
     ...projectComments.map((c) => ({
       id: `pc-${c.id}`,
       type: "project_comment",
       summary: `${c.author.name ?? "Someone"} posted a note: ${c.body.slice(0, 80)}`,
       at: c.createdAt,
+      visibility: c.visibility,
     })),
     ...recentStatusChanges.map((t) => ({
       id: `ts-${t.id}`,

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { MentionTextarea } from "@/components/MentionTextarea";
+import { humanizeStatus } from "@/components/ui/task-format";
 
 const STATUSES = ["NotStarted", "InProgress", "Done", "Blocked"] as const;
 
@@ -45,7 +46,7 @@ export function StatusDropdown({ taskId, current }: { taskId: string; current: s
     >
       {STATUSES.map((s) => (
         <option key={s} value={s}>
-          {s}
+          {humanizeStatus(s)}
         </option>
       ))}
     </select>

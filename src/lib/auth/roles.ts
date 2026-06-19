@@ -1,7 +1,7 @@
 import type { Role } from "@prisma/client";
 
 /** Top-level console a role lands in (mirrors the va-console view routing). */
-export type ConsoleView = "HR" | "PAYROLL" | "VA" | "RECRUITMENT";
+export type ConsoleView = "HR" | "PAYROLL" | "VA" | "RECRUITMENT" | "CLIENT";
 
 export function viewForRole(role: Role): ConsoleView {
   switch (role) {
@@ -13,6 +13,9 @@ export function viewForRole(role: Role): ConsoleView {
       return "PAYROLL";
     case "RECRUITER":
       return "RECRUITMENT";
+    case "CLIENT_ADMIN":
+    case "CLIENT_MEMBER":
+      return "CLIENT";
     case "SENIOR_VA":
     case "VA":
     default:

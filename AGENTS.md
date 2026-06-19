@@ -95,6 +95,34 @@ desklog-ingest → tier-check → capacity-monitor → payroll-close → monthly
 (ingest first because the rest read hours). `va-management-mirror.timer` exports
 Postgres → the mirror sheet every 30 min. Each records a `SyncRun`.
 
+## MCP endpoint (create/manage projects & tasks from AI clients)
+
+`POST /api/mcp` — a dependency-free MCP (JSON-RPC over Streamable HTTP) server so
+Claude / ChatGPT / Cursor / etc. can drive the same project/task actions as the UI.
+Built in-app (`src/lib/mcp/{protocol,tools}.ts`, route `src/app/api/mcp/route.ts`),
+reusing `createProject`/`createTask`/`updateTaskStatus` + reads (so audit logs,
+`ActivityLog`, and assignment emails all fire identically).
+
+- **Public URL:** `https://team-mcp.pwasecondbrain.uk/api/mcp` — a **separate hostname**
+  (tunnel ingress → same app :8796) with **NO Cloudflare Access**, because AI clients
+  can't do the Google-login flow. The **bearer token is the gate** instead. Added via
+  `tools/cloudflare-tunnel/expose.js team-mcp 8796` (no emails = public). The human app
+  on `team.pwasecondbrain.uk` stays fully Access-gated and unaffected.
+- **Auth:** `Authorization: Bearer <MCP_API_TOKEN>` (in `shared/.env.production`, root-only).
+  Acts as one admin **service identity** = `MCP_ACTOR_EMAIL` (default `okamotomiak@gmail.com`).
+  Missing/invalid token → 401; unset token → 503 (endpoint disabled). Rotate by changing
+  the env var + `systemctl restart va-management-web`. **Never commit/print the token.**
+- **Tools (6):** `list_projects`, `create_project`, `list_tasks`, `create_task` (resolves
+  project + assignee by id/name/email; assigning a VA sends the normal email; defaults to
+  the service user), `update_task_status`, and `list_assignees` — which annotates each
+  active VA with workload (open-task count), comp role, `skillSpecs`, recent task titles,
+  clients worked with, and (given a `client` arg) a `workedWithClient` flag, **ranked best-fit**
+  (prior client experience, then lowest workload) so the AI can suggest the right VA.
+- **Protocol** is hand-rolled + pure (`protocol.ts`, unit-tested) and verified against the
+  official `@modelcontextprotocol/sdk` client (same family Claude/ChatGPT use). Stateless
+  JSON responses; `GET` → 405 (no server-initiated SSE). To add a tool: extend `MCP_TOOLS`
+  + `executeTool`.
+
 ## Constraints
 
 - **Never write to the original VA workbook** — it's read-only (import + parity

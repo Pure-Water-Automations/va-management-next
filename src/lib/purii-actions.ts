@@ -12,6 +12,9 @@ import { getCapacity, getCheckins } from "@/lib/reads/hr-extra";
 import { getVaDashboard } from "@/lib/reads/va";
 import { getPayrollDashboard } from "@/lib/reads/payroll";
 import { getPipeline } from "@/lib/reads/recruitment";
+import * as tasksActions from "@/lib/actions/tasks";
+import { executeTool as mcpTaskTool } from "@/lib/mcp/tools";
+import type { Role, TaskStatus as TaskStatusT } from "@prisma/client";
 
 /**
  * Purii "Permission Bypass" tool registry. Two kinds of tools:
@@ -31,6 +34,28 @@ const WORKERS = ["sheet-mirror-export", "tier-check", "capacity-monitor", "payro
 
 export type Proposal = { tool: string; args: Record<string, unknown>; summary: string };
 type Built = Proposal | { error: string };
+
+// ── Task/Project helpers (shared by the create/update/reassign/delete tools) ──
+const READONLY_CTX = { actorId: "", actorRole: "HR_MANAGER" as Role };
+async function taskActorCtx(actorEmail: string): Promise<{ actorId: string; actorRole: Role }> {
+  const u = await db.user.findUnique({ where: { email: actorEmail.toLowerCase() }, select: { id: true, role: true } });
+  if (!u) throw new Error("I couldn't resolve your account.");
+  return { actorId: u.id, actorRole: u.role };
+}
+async function resolveTaskRef(ref: string): Promise<{ id: string; title: string } | null> {
+  const r = (ref || "").trim();
+  if (!r) return null;
+  const byId = await db.task.findUnique({ where: { id: r }, select: { id: true, title: true } });
+  if (byId) return byId;
+  return db.task.findFirst({ where: { title: { contains: r, mode: "insensitive" } }, orderBy: { createdAt: "desc" }, select: { id: true, title: true } });
+}
+async function resolveUserRef(ref: string): Promise<{ id: string; name: string | null; email: string } | null> {
+  const r = (ref || "").trim();
+  if (!r) return null;
+  const byEmail = await db.user.findFirst({ where: { email: { equals: r, mode: "insensitive" } }, select: { id: true, name: true, email: true } });
+  if (byEmail) return byEmail;
+  return db.user.findFirst({ where: { name: { contains: r, mode: "insensitive" }, active: true }, select: { id: true, name: true, email: true } });
+}
 type Tool = {
   def: { type: "function"; function: { name: string; description: string; parameters: object } };
   kind: "action" | "query";
@@ -413,6 +438,80 @@ const TOOLS: Record<string, Tool> = {
       const names = new Map((await db.va.findMany({ select: { vaId: true, name: true } })).map((v) => [v.vaId, v.name]));
       return rows.map((r) => ({ name: names.get(r.vaId) ?? r.vaId, h: r._sum.taskSpentHrs ?? 0 })).sort((x, y) => y.h - x.h).slice(0, limit).map((r, i) => `${i + 1}. ${r.name} — ${Math.round(r.h)}h`).join("\n");
     },
+  },
+
+  // ----- Projects & Tasks (reuses the same actions/MCP tools as the UI) -----
+  create_task: {
+    kind: "action",
+    def: fn("create_task", "Create and assign a task, optionally on a project. Project/assignee are resolved by name or email.", { title: { type: "string" }, project: { type: "string" }, assignee: { type: "string" }, priority: { type: "string", enum: ["Low", "Medium", "High"] }, dueDate: { type: "string" } }, ["title"]),
+    build: async (a) => {
+      const title = s(a.title);
+      if (!title) return { error: "What should the task be called?" };
+      const on = s(a.project) ? ` on **${s(a.project)}**` : "";
+      const who = s(a.assignee) ? `**${s(a.assignee)}**` : "you";
+      return { tool: "create_task", args: { title, project: s(a.project), assignee: s(a.assignee), priority: s(a.priority), dueDate: s(a.dueDate) }, summary: `create task **${title}**${on}, assigned to ${who}` };
+    },
+    exec: async (a, actor) => {
+      const ctx = await taskActorCtx(actor);
+      const r = await mcpTaskTool("create_task", { title: s(a.title), project: s(a.project), assignee: s(a.assignee), priority: s(a.priority), dueDate: s(a.dueDate) }, ctx);
+      return r.isError ? `Hmm — ${r.text}` : `Done — created **${s(a.title)}**. ✅`;
+    },
+  },
+  update_task_status: {
+    kind: "action",
+    def: fn("update_task_status", "Change a task's status. Identify the task by title or id.", { task: { type: "string" }, status: { type: "string", enum: ["NotStarted", "InProgress", "Done", "Blocked"] } }, ["task", "status"]),
+    build: async (a) => {
+      const t = await resolveTaskRef(s(a.task));
+      if (!t) return { error: `I couldn't find a task matching "${s(a.task)}".` };
+      const st = s(a.status);
+      if (!["NotStarted", "InProgress", "Done", "Blocked"].includes(st)) return { error: "Status must be NotStarted, InProgress, Done, or Blocked." };
+      return { tool: "update_task_status", args: { taskId: t.id, status: st }, summary: `set **${t.title}** to **${st}**` };
+    },
+    exec: async (a, actor) => {
+      const ctx = await taskActorCtx(actor);
+      const u = await tasksActions.updateTaskStatus(ctx.actorId, ctx.actorRole, s(a.taskId), s(a.status) as TaskStatusT);
+      return `Done — **${u.title}** is now **${u.status}**. ✅`;
+    },
+  },
+  reassign_task: {
+    kind: "action",
+    def: fn("reassign_task", "Reassign a task to a different teammate. Task by title/id, assignee by name/email.", { task: { type: "string" }, assignee: { type: "string" } }, ["task", "assignee"]),
+    build: async (a) => {
+      const t = await resolveTaskRef(s(a.task));
+      if (!t) return { error: `No task matched "${s(a.task)}".` };
+      const u = await resolveUserRef(s(a.assignee));
+      if (!u) return { error: `No teammate matched "${s(a.assignee)}".` };
+      return { tool: "reassign_task", args: { taskId: t.id, assigneeId: u.id }, summary: `reassign **${t.title}** to **${u.name ?? u.email}**` };
+    },
+    exec: async (a, actor) => {
+      const ctx = await taskActorCtx(actor);
+      const r = await tasksActions.reassignTask(ctx.actorId, ctx.actorRole, s(a.taskId), s(a.assigneeId));
+      return `Done — **${r.title}** reassigned to **${r.assignee}**. ✅`;
+    },
+  },
+  delete_task: {
+    kind: "action",
+    def: fn("delete_task", "Permanently delete a task. Identify it by title or id.", { task: { type: "string" } }, ["task"]),
+    build: async (a) => {
+      const t = await resolveTaskRef(s(a.task));
+      if (!t) return { error: `No task matched "${s(a.task)}".` };
+      return { tool: "delete_task", args: { taskId: t.id }, summary: `permanently delete task **${t.title}**` };
+    },
+    exec: async (a, actor) => {
+      const ctx = await taskActorCtx(actor);
+      const r = await tasksActions.deleteTask(ctx.actorId, ctx.actorRole, s(a.taskId));
+      return `Deleted **${r.title}**. 🗑️`;
+    },
+  },
+  list_tasks: {
+    kind: "query",
+    def: fn("list_tasks", "List tasks, optionally for one project or status.", { project: { type: "string" }, status: { type: "string" } }, []),
+    run: async (a) => (await mcpTaskTool("list_tasks", { project: s(a.project), status: s(a.status) }, READONLY_CTX)).text,
+  },
+  list_projects: {
+    kind: "query",
+    def: fn("list_projects", "List projects with status, client, and task counts.", { status: { type: "string" } }, []),
+    run: async (a) => (await mcpTaskTool("list_projects", { status: s(a.status) }, READONLY_CTX)).text,
   },
 };
 
