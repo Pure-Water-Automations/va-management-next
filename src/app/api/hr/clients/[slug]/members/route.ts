@@ -34,6 +34,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     email = fd.get("email") ?? "";
     const rawRole = fd.get("role");
     if (rawRole === "CLIENT_ADMIN") role = "CLIENT_ADMIN";
+    // Validate email format from form data
+    const emailCheck = z.string().email().safeParse(email);
+    if (!emailCheck.success) return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
   } else {
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -56,11 +59,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       select: { id: true },
     });
   } else {
-    // Ensure role is CLIENT_*
-    await db.user.update({
+    // Only update role if user is already a client role — don't downgrade internal users
+    const existingUser = await db.user.findUnique({
       where: { id: member.id },
-      data: { role, active: true },
+      select: { role: true },
     });
+    if (existingUser?.role === "CLIENT_ADMIN" || existingUser?.role === "CLIENT_MEMBER") {
+      await db.user.update({
+        where: { id: member.id },
+        data: { role, active: true },
+      });
+    }
   }
 
   await db.clientMembership.upsert({
