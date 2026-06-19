@@ -110,6 +110,14 @@ export function Sidebar({
           ))}
         </div>
       ))}
+      {/* HR managers and people ops can manage clients and client requests */}
+      {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
+        <div>
+          <div className="nav-label">Clients</div>
+          <NavItemLink href="/hr/clients" label="Organizations" />
+          <NavItemLink href="/hr/requests" label="Client Requests" />
+        </div>
+      )}
       {/* VA-console users with delegation authority (a Senior VA, or any tier flagged
           "Can delegate" on the Compensation Roles screen) get the delegation entry points. */}
       {view === "VA" && canDelegate && (
