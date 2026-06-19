@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isBetaVisible } from "@/lib/auth/access";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
@@ -15,6 +16,7 @@ import { tourForView } from "@/lib/purii";
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   const view = await getEffectiveView(user);
+  if (view === "CLIENT") redirect("/client");
   let adminVas: { vaId: string; name: string }[] = [];
   let impersonatedVaId: string | null = null;
   if (user.isAdmin) {
