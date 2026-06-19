@@ -13,7 +13,11 @@ export async function clientGuard() {
       return { error: NextResponse.json({ error: "No client organization" }, { status: 403 }) };
     }
     return { user, membership, orgId: membership.clientOrganizationId };
-  } catch {
+  } catch (err) {
+    // Re-throw Next.js redirect/not-found errors so they propagate correctly.
+    if (err instanceof Error && (err.message === "NEXT_REDIRECT" || err.message === "NEXT_NOT_FOUND")) {
+      throw err;
+    }
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 }

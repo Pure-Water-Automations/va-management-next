@@ -17,10 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const tasks = await db.task.findMany({
     where: {
       projectId,
-      OR: [
-        { clientTaskRequest: { isNot: null } },
-        { comments: { some: { visibility: "CLIENT_VISIBLE" } } },
-      ],
+      clientTaskRequest: { clientOrganizationId: g.orgId },
     },
     select: {
       id: true,
