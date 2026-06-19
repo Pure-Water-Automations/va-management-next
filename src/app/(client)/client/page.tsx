@@ -2,6 +2,8 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { getClientMembership, assertClientRole } from "@/lib/auth/client";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { Stat } from "@/components/ui/Stat";
+import { Card } from "@/components/ui/Card";
 
 export default async function ClientDashboardPage() {
   const user = await getCurrentUser();
@@ -39,39 +41,66 @@ export default async function ClientDashboardPage() {
   ]);
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }}>
+    <div>
+      <h1
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "var(--text-2xl)",
+          fontWeight: "var(--weight-bold)",
+          color: "var(--color-text-primary)",
+          letterSpacing: "var(--tracking-tight)",
+          margin: "0 0 var(--space-6)",
+        }}
+      >
         {membership.clientOrganization.name}
       </h1>
-      <div style={{ display: "flex", gap: 24, marginBottom: 32 }}>
-        <div style={{ padding: "16px 24px", border: "1px solid var(--border)", borderRadius: 8 }}>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{openRequestCount}</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Open Requests</div>
-        </div>
-        <div style={{ padding: "16px 24px", border: "1px solid var(--border)", borderRadius: 8 }}>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{activeProjectCount}</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Active Projects</div>
-        </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "var(--space-4)",
+          marginBottom: "var(--space-8)",
+        }}
+      >
+        <Stat label="Open requests" value={openRequestCount} />
+        <Stat label="Active projects" value={activeProjectCount} variant="sky" />
       </div>
 
       {recentComments.length > 0 && (
-        <div>
-          <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Recent Updates</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <section>
+          <h2
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "var(--text-lg)",
+              fontWeight: "var(--weight-semibold)",
+              color: "var(--color-text-primary)",
+              margin: "0 0 var(--space-3)",
+            }}
+          >
+            Recent updates
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             {recentComments.map((c) => (
-              <div
-                key={c.id}
-                style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 6 }}
-              >
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
-                  {c.author.name} on <strong>{c.task.title}</strong> ·{" "}
+              <Card key={c.id} padding="var(--space-4)">
+                <div
+                  style={{
+                    fontSize: "var(--text-xs)",
+                    color: "var(--color-text-tertiary)",
+                    marginBottom: "var(--space-1)",
+                  }}
+                >
+                  {c.author.name} on{" "}
+                  <strong style={{ color: "var(--color-text-secondary)" }}>{c.task.title}</strong> ·{" "}
                   {new Date(c.createdAt).toLocaleDateString()}
                 </div>
-                <div style={{ fontSize: 14 }}>{c.body}</div>
-              </div>
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--color-text-primary)", lineHeight: "var(--leading-relaxed)" }}>
+                  {c.body}
+                </div>
+              </Card>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

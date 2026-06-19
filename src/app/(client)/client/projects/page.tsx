@@ -3,6 +3,13 @@ import { getClientMembership, assertClientRole } from "@/lib/auth/client";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Card } from "@/components/ui/Card";
+import { StatusPill } from "@/components/StatusPill";
+
+const meta: React.CSSProperties = {
+  fontSize: "var(--text-xs)",
+  color: "var(--color-text-tertiary)",
+};
 
 export default async function ClientProjectsPage() {
   const user = await getCurrentUser();
@@ -26,37 +33,61 @@ export default async function ClientProjectsPage() {
   });
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }}>Projects</h1>
+    <div>
+      <h1
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "var(--text-2xl)",
+          fontWeight: "var(--weight-bold)",
+          color: "var(--color-text-primary)",
+          letterSpacing: "var(--tracking-tight)",
+          margin: "0 0 var(--space-6)",
+        }}
+      >
+        Projects
+      </h1>
+
       {projects.length === 0 && (
-        <p style={{ color: "var(--text-secondary)" }}>No projects yet.</p>
+        <Card padding="var(--space-6)">
+          <p style={{ margin: 0, color: "var(--color-text-tertiary)" }}>No projects yet.</p>
+        </Card>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
         {projects.map((p) => (
-          <Link
-            key={p.id}
-            href={`/client/projects/${p.id}`}
-            style={{
-              display: "block",
-              padding: 16,
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              textDecoration: "none",
-              color: "inherit",
-            }}
-          >
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{p.name}</div>
-            {p.description && (
-              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
-                {p.description}
+          <Link key={p.id} href={`/client/projects/${p.id}`} style={{ display: "block" }}>
+            <Card padding="var(--space-5)" style={{ transition: "box-shadow var(--duration-base) var(--ease-out)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "var(--space-3)",
+                }}
+              >
+                <div style={{ fontWeight: "var(--weight-semibold)", fontSize: "var(--text-base)", color: "var(--color-text-primary)" }}>
+                  {p.name}
+                </div>
+                <StatusPill status={p.status} />
               </div>
-            )}
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", display: "flex", gap: 16 }}>
-              <span>Status: {p.status}</span>
-              <span>Tasks: {p._count.tasks}</span>
-              {p.owner?.name && <span>Owner: {p.owner.name}</span>}
-              {p.dueDate && <span>Due: {new Date(p.dueDate).toLocaleDateString()}</span>}
-            </div>
+              {p.description && (
+                <div
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    color: "var(--color-text-secondary)",
+                    margin: "var(--space-2) 0",
+                    lineHeight: "var(--leading-relaxed)",
+                  }}
+                >
+                  {p.description}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: "var(--space-4)", marginTop: "var(--space-3)", flexWrap: "wrap" }}>
+                <span style={meta}>{p._count.tasks} task{p._count.tasks === 1 ? "" : "s"}</span>
+                {p.owner?.name && <span style={meta}>Owner: {p.owner.name}</span>}
+                {p.dueDate && <span style={meta}>Due {new Date(p.dueDate).toLocaleDateString()}</span>}
+              </div>
+            </Card>
           </Link>
         ))}
       </div>
