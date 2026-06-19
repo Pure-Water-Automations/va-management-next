@@ -9,6 +9,10 @@ import { Card } from "@/components/ui/Card";
 const label: React.CSSProperties = { fontSize: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--color-text-tertiary)", fontWeight: 700, marginBottom: 6 };
 const input: React.CSSProperties = { border: "1px solid var(--color-border)", borderRadius: "var(--radius-input)", padding: "9px 11px", font: "inherit", fontSize: "var(--text-sm)" };
 
+function targetLabel(targetHoursWeekly: number | null | undefined) {
+  return `${targetHoursWeekly ?? 0}h/week`;
+}
+
 export function VaQuickActions({ defaults }: { defaults: { targetHoursWeekly?: number | null; skillSpecs?: string | null } }) {
   const router = useRouter();
   const [target, setTarget] = useState(String(defaults.targetHoursWeekly ?? ""));
@@ -31,10 +35,13 @@ export function VaQuickActions({ defaults }: { defaults: { targetHoursWeekly?: n
 
       <div style={{ display: "grid", gap: 18, gridTemplateColumns: "1fr" }}>
         <div>
-          <div style={label}>Request a different target</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input style={{ ...input, width: 110 }} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="hrs/wk" />
-            <Button size="sm" variant="ghost" loading={busy === "hours"} onClick={() => run("hours", "/api/va/request-hours", { newTarget: Number(target), notes: "" })}>Request</Button>
+          <div style={label}>Target hours</div>
+          <div className="small" style={{ marginBottom: 8 }}>
+            Current target: <strong style={{ color: "var(--color-text-primary)" }}>{targetLabel(defaults.targetHoursWeekly)}</strong>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input style={{ ...input, width: 110 }} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="hrs/wk" aria-label="Requested target hours per week" />
+            <Button size="sm" variant="ghost" loading={busy === "hours"} onClick={() => run("hours", "/api/va/request-hours", { newTarget: Number(target), notes: "" })}>Request change</Button>
           </div>
         </div>
 

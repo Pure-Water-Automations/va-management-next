@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 
+function targetLabel(targetHoursWeekly: number | null | undefined) {
+  return `${targetHoursWeekly ?? 0}h/week`;
+}
+
 export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: number | null; availabilityNotes?: string | null } }) {
   const router = useRouter();
   const [target, setTarget] = useState(String(defaults.targetHoursWeekly ?? ""));
@@ -43,7 +47,10 @@ export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: numb
     <div style={{ maxWidth: 460 }}>
       <div style={field}>
         <label style={label}>Target hours / week</label>
-        <input style={input} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="e.g. 20" />
+        <div className="small" style={{ marginBottom: 2 }}>
+          Current target: <strong style={{ color: "var(--color-text-primary)" }}>{targetLabel(defaults.targetHoursWeekly)}</strong>
+        </div>
+        <input style={input} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="e.g. 20" aria-label="Target hours per week" />
       </div>
       <div style={field}>
         <label style={label}>Availability notes</label>

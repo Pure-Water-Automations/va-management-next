@@ -9,6 +9,14 @@ const head: React.CSSProperties = { padding: "16px 20px", borderBottom: "1px sol
 const title: React.CSSProperties = { fontFamily: "var(--font-display)", fontSize: "var(--text-xl)", margin: 0 };
 const rowS: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--color-border-subtle)" };
 
+function formatTarget(targetHoursWeekly: number | null | undefined) {
+  return `${targetHoursWeekly ?? 0}h/wk target`;
+}
+
+function formatExpected14d(targetHoursWeekly: number | null | undefined) {
+  return `${((targetHoursWeekly ?? 0) * 2).toFixed(1)}h expected / 2wk`;
+}
+
 export default async function CapacityPage() {
   const { flagged, events } = await getCapacity();
   return (
@@ -30,7 +38,9 @@ export default async function CapacityPage() {
             <div key={c.va.vaId} style={rowS}>
               <div>
                 <div style={{ fontWeight: 600 }}>{c.va.name}</div>
-                <div className="small">{Math.round(c.utilizationPct)}% utilization · {c.last14dHours.toFixed(1)}h / 2wk</div>
+                <div className="small">
+                  {Math.round(c.utilizationPct)}% utilization · {c.last14dHours.toFixed(1)}h logged / 2wk · {formatExpected14d(c.va.targetHoursWeekly)} · {formatTarget(c.va.targetHoursWeekly)}
+                </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Badge variant={c.overburdened ? "danger" : "warning"} dot>{c.overburdened ? "Overburdened" : "Underutilized"}</Badge>
