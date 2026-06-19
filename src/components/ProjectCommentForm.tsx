@@ -49,6 +49,7 @@ export function ProjectCommentForm({ projectId }: { projectId: string }) {
         <select
           value={visibility}
           onChange={(e) => setVisibility(e.target.value as CommentVisibility)}
+          aria-label="Comment visibility"
           style={{ ...input, padding: "4px 8px", fontSize: "var(--text-sm)" }}
         >
           <option value="INTERNAL_ONLY">Internal only</option>
