@@ -58,6 +58,7 @@ export async function isBetaVisible(email: string | null | undefined): Promise<b
   return isFounder(email) && (await isBetaOn());
 }
 
+// CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
 const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "VA"];
 
 /**
