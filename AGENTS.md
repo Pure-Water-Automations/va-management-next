@@ -3,7 +3,9 @@
 The **cloud replacement** for the Google Apps Script (GAS) VA Management System.
 A Next.js + PostgreSQL web app where **Postgres is the source of truth**; the
 Google Sheet is kept only as a **read-only mirror** of the DB for easy human
-inspection. Live at **https://team.pwasecondbrain.uk** behind Cloudflare Access.
+inspection. Live at **https://team.pwasecondbrain.uk**, gated by **in-app Google
+login (NextAuth)** — there is **no Cloudflare Access** on the hostname (removed
+2026-06; see Auth below).
 
 > Migrated off GAS June 2026. The original GAS project (`Documents/GAS projects/
 > VA MAanager`, deployment `@64`) and the Express `va-console` proxy are left
@@ -15,15 +17,16 @@ inspection. Live at **https://team.pwasecondbrain.uk** behind Cloudflare Access.
 The GAS consoles were slow (HtmlService cold starts, `google.script.run`, ~4s
 `SpreadsheetApp` reads) and the recruitment layer was buggy (undefined functions,
 broken routing, wrong-tab writes — see `../REVIEW-riza-testing.md`). This app is
-the proven Event Planner Console pattern (Next 15 + Prisma + Postgres + CF Access
-+ scoped `@googleapis/*`), restyled with the **PWA design system**.
+the proven Event Planner Console pattern (Next 15 + Prisma + Postgres + scoped
+`@googleapis/*`), with **NextAuth Google login**, restyled with the **PWA design
+system**.
 
 ## Where it lives
 
 | | Path |
 |---|---|
-| Local source (canonical) | `Documents/GAS projects/VA MAanager/va-management-next` |
-| Git | repo `okamotomiak/gas-projects`, branch `va-management-cloud` |
+| Local source (canonical) | `~/Documents/va-management-next` (standalone repo) |
+| Git | repo `okamotomiak/va-management-next`, branch `main`; deploy `./deploy.sh` |
 | VPS deploy | `/app/SecondBrain/va-management-console/current` |
 | VPS env + secrets | `/app/SecondBrain/va-management-console/shared/.env.production`, `shared/secrets/service-account.json` |
 | systemd web | `va-management-web.service` (port **8796**, loopback) |
@@ -36,7 +39,7 @@ the proven Event Planner Console pattern (Next 15 + Prisma + Postgres + CF Acces
 ## Architecture
 
 ```
-Browser ─https─> Cloudflare Access (Google login) ─> Tunnel ─> next start (127.0.0.1:8796)
+Browser ─https─> Tunnel ─> next start (127.0.0.1:8796) ─> NextAuth Google login
                                                                   │
    reads/writes ─> PostgreSQL (va_console) via Prisma   ← SOURCE OF TRUTH
    automations ──> systemd timers running tsx workers
@@ -44,17 +47,25 @@ Browser ─https─> Cloudflare Access (Google login) ─> Tunnel ─> next star
                    Workspace Gmail send, Sheets (read import + write mirror)
 ```
 
-- **Auth:** CF Access sets `Cf-Access-Authenticated-User-Email`; `src/lib/auth/
-  access.ts` maps it to a DB `User` row carrying a `role`. A user must be BOTH in
-  the Access allow policy AND have a `User` row. Dev (`npm run dev`) falls back to
+- **Auth: in-app Google login via NextAuth.** `getCurrentUser`
+  (`src/lib/auth/access.ts`) reads the NextAuth session (`/api/auth/[...nextauth]`,
+  `src/lib/auth/nextauth.ts`, GoogleProvider, JWT sessions) and **redirects
+  unauthenticated users to `/login`**. The NextAuth `signIn` callback admits a
+  Google account **only if** a matching `User` row exists and is `active` — so the
+  **DB `User` table is the allow-list**. There is **no Cloudflare Access** on the
+  hostname (the whole edge gate was removed 2026-06; nothing reads
+  `Cf-Access-Authenticated-User-Email` anymore). Dev (`npm run dev`) falls back to
   `DEV_AUTH_EMAIL`. Roles: HR_MANAGER, PEOPLE_OPS, TEAM_LEAD, BOOKKEEPER,
-  RECRUITER, SENIOR_VA, VA (`src/lib/auth/roles.ts`).
+  RECRUITER, SENIOR_VA, VA, CLIENT_ADMIN, CLIENT_MEMBER (`src/lib/auth/roles.ts`).
+  Client-portal users additionally need a `ClientMembership` to an active
+  `ClientOrganization` (`src/lib/auth/client.ts`).
 - **Write actions:** `src/lib/actions/*` + `src/app/api/*/route.ts` via the
   `action()` wrapper (`src/lib/api.ts`) — identity + role guard + audit. Every
   mutation writes `ActivityLog`; the wrapper writes `AuditLog`.
-- **Allowed users today:** `okamotomiak@gmail.com`, `j.okamoto@hji.edu` (both
-  Admin/HR_MANAGER). To add someone: add their email to the Access policy (re-run
-  `tools/cloudflare-tunnel/expose.js team 8796 <emails...>`) AND seed a `User` row.
+- **Adding a user is DB-only** (no Cloudflare step): insert an `active` `User` row
+  with the right `role` (and, for a client, a `ClientMembership` to their
+  `ClientOrganization`). They then sign in at `/login` with that Google account.
+  Removing/disabling access = set `User.active = false` (or delete the row).
 
 ## Data model
 
@@ -106,8 +117,8 @@ reusing `createProject`/`createTask`/`updateTaskStatus` + reads (so audit logs,
 - **Public URL:** `https://team-mcp.pwasecondbrain.uk/api/mcp` — a **separate hostname**
   (tunnel ingress → same app :8796) with **NO Cloudflare Access**, because AI clients
   can't do the Google-login flow. The **bearer token is the gate** instead. Added via
-  `tools/cloudflare-tunnel/expose.js team-mcp 8796` (no emails = public). The human app
-  on `team.pwasecondbrain.uk` stays fully Access-gated and unaffected.
+  `tools/cloudflare-tunnel/expose.js team-mcp 8796` (no emails = public). Separate
+  from the human app's NextAuth login on `team.pwasecondbrain.uk` and unaffected by it.
 - **Auth:** `Authorization: Bearer <MCP_API_TOKEN>` (in `shared/.env.production`, root-only).
   Acts as one admin **service identity** = `MCP_ACTOR_EMAIL` (default `okamotomiak@gmail.com`).
   Missing/invalid token → 401; unset token → 503 (endpoint disabled). Rotate by changing
