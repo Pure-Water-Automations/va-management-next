@@ -8,6 +8,8 @@ const optionalEnvString = <T extends z.ZodTypeAny>(schema: T) =>
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
+  NEXTAUTH_SECRET: z.string().min(1),
+  NEXTAUTH_URL: optionalEnvString(z.string().url()),
   APP_BASE_URL: optionalEnvString(z.string().url()),
   DEV_AUTH_EMAIL: optionalEnvString(z.string().email()),
   GOOGLE_SERVICE_ACCOUNT_JSON: optionalEnvString(z.string().min(1)),
@@ -31,6 +33,17 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Model for the "Enhance with Second Brain" agent (brief synthesis). Defaults to
+  // anthropic/claude-3.5-haiku in code — better grounded synthesis than DeepSeek.
+  OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
+  OPENROUTER_ENHANCE_SEARCH_MODEL: optionalEnvString(z.string()),
+  // MCP endpoint: shared bearer token + the service identity it acts as. The
+  // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
+  MCP_API_TOKEN: optionalEnvString(z.string()),
+  MCP_ACTOR_EMAIL: optionalEnvString(z.string().email()),
+  // SecondBrain cloud MCP endpoint (co-located on the same VPS). Used by the
+  // "Enhance with Second Brain" feature to search Notion/Drive/meeting mirrors.
+  SECONDBRAIN_MCP_URL: optionalEnvString(z.string().url()),
   // Shared secret for trusted server-to-server callers (e.g. va-world) hitting
   // the read-only /api/external/* bridge. Never exposed to the browser.
   EXTERNAL_APP_SECRET: optionalEnvString(z.string().min(1)),

@@ -32,12 +32,14 @@ console, say so briefly. Don't mention being an AI.
 
 NAVIGATION (left sidebar, grouped):
 - HR view (HR Manager, People-Ops, Team Lead):
-  • Daily → Dashboard, Tier Reviews, Capacity Alerts
+  • Daily → Dashboard, Tier Reviews, Evaluations, Capacity Alerts
   • Manage → VA Registry, Compensation Roles, Forms & Check-ins
+  • Projects → Projects, All Tasks, Delegate, Workload, Templates
   • Recruitment → Pipeline, Training Log, Gate Review, Onboarding
 - Payroll view (Bookkeeper): Payroll → Active Period, Archive
 - Recruitment view (Recruiter): Recruitment → Pipeline, Training Log
-- VA view (VA, Senior VA): My Console → Overview, Tier Progress, Monthly Check-in
+- VA view (VA): My Console → Overview, Tier Progress, Evaluation, Monthly Check-in, My Tasks
+- Senior VAs work in the VA view but also get a Delegation group → All Tasks, Delegate, Projects.
 
 HOW TO DO COMMON TASKS:
 - Approve a VA's tier promotion (HR Manager only): Daily → Tier Reviews → find the
@@ -49,6 +51,23 @@ HOW TO DO COMMON TASKS:
 - Handle a capacity alert (someone overburdened/underutilized): Daily → Capacity
   Alerts → **Mark reviewed**. The system flags these from the last 14 days of hours.
 - See who has checked in this month: Manage → Forms & Check-ins.
+- Create a project (HR Manager / Team Lead): Projects → Projects → **+ New Project**
+  (name, description, client, owner, priority, due date). Open a project to see its
+  tasks, progress, and activity.
+- Delegate / create a task: Projects → **Delegate** (full form), or open a project and
+  use **+ Add task** for a quick one. Pick the assignee from the dropdown — VAs are
+  listed **least-busy first** with their open-task count, so you can spread load. A new
+  task emails the assignee automatically.
+- Reassign a task (managers): open the task (Projects → All Tasks → the task, or from a
+  project) → use the **Assigned to** dropdown to pick a different VA. The new assignee
+  is notified.
+- Reassign a project / change its owner: Projects → open the project → **Edit** → change
+  the **Owner**.
+- Update a task's status: open the task → the status dropdown (or the **Workload** /
+  board views). Senior VAs and the assignee can update their own tasks.
+- See team workload: Projects → **Workload** — open tasks per VA.
+- (VA) See your tasks: My Console → **My Tasks**. Update status as you work. A Tier-1+
+  VA can also add a task onto a project they're on.
 - Find or share the public VA **application form**: it lives at **${APPLY_URL}** and is
   linked on **Manage → Forms & Check-ins**. Send it to prospective VAs; their submissions
   show up in **Recruitment → Pipeline** as **Applied** (with an automatic AI first-pass screen).
@@ -194,6 +213,9 @@ const HR_TOUR: TourStep[] = [
   { sprite: "thinking", title: "Forms & Check-ins", body: "Your VAs' monthly check-in responses, plus the form/application links you share with them.", href: "/hr/checkins", cta: "Open Forms & Check-ins" },
   { sprite: "thumbs-up", title: "Contract template", body: "The agreement candidates e-sign. Edit the template here — changes apply to the next contract you send.", href: "/admin/contract", cta: "Open Contract template" },
   { sprite: "thinking", title: "Email sender", body: "Connect the Gmail account that sends contracts, invites, and alerts — and control the test-mode redirect while the team trials the app.", href: "/admin/email", cta: "Open Email sender" },
+  // Projects & Tasks
+  { sprite: "open-arms", title: "Projects", body: "Group related work into projects — each with tasks, progress, an owner, and an activity feed. Create one with **+ New Project**, then open it to manage its tasks.", href: "/hr/projects", cta: "Open Projects" },
+  { sprite: "pointing", title: "Tasks & Delegation", body: "Delegate work to your VAs here — the assignee picker lists who's **least busy first** (with their open-task count). Track everything under All Tasks, reassign from a task, and balance load on Workload.", href: "/hr/tasks", cta: "Open Tasks" },
   // Recruitment
   { sprite: "pointing", title: "Recruitment — Pipeline", body: "Every candidate by stage — from applied and interviewed, through the hiring decision, the pre-trial review, the 10-hour trial and gate, to contract, signing and onboarding.", href: "/recruitment", cta: "Open Pipeline" },
   { sprite: "thinking", title: "Training Log", body: "Each invited candidate's progress through the 10-hour skills trial — hours logged and tasks completed.", href: "/recruitment/training", cta: "Open Training Log" },
@@ -209,6 +231,7 @@ const VA_TOUR: TourStep[] = [
   { sprite: "open-arms", title: "Tier Progress", body: "See how close you are to your next role and what's still needed.", href: "/va/tier", cta: "Open Tier Progress" },
   { sprite: "thumbs-up", title: "Evaluation", body: "Complete your performance self-assessment and review your supervisor's feedback — your rating feeds promotion decisions.", href: "/va/evaluation", cta: "Open Evaluation" },
   { sprite: "thinking", title: "Monthly Check-in", body: "Once a month, tell us your target hours, availability, and how your workload feels. It only takes a moment.", href: "/va/checkin", cta: "Open Check-in" },
+  { sprite: "pointing", title: "My Tasks", body: "Your assigned tasks live here. Open one to read the details and update its status as you work through it.", href: "/va/tasks", cta: "Open My Tasks" },
   { sprite: "celebrating", title: "All done! 🎉", body: "That's it. Tap me whenever you need a hand." },
 ];
 

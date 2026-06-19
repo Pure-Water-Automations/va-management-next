@@ -16,6 +16,9 @@ export async function openrouterChat(body: {
   tool_choice?: unknown;
   temperature?: number;
   max_tokens?: number;
+  // Optional per-call model override (e.g. the enhance agent uses Claude Haiku for
+  // better grounded synthesis). Falls back to OPENROUTER_MATRIX_MODEL when unset.
+  model?: string;
 }): Promise<ORResponse> {
   if (!env.OPENROUTER_API_KEY?.trim()) throw new Error("OpenRouter API key not configured");
   const base = env.OPENROUTER_BASE_URL?.replace(/\/+$/, "") || "https://openrouter.ai/api/v1";
@@ -26,8 +29,8 @@ export async function openrouterChat(body: {
       authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
     },
     body: JSON.stringify({
-      model: env.OPENROUTER_MATRIX_MODEL || "deepseek/deepseek-chat-v3.1",
       ...body,
+      model: body.model || env.OPENROUTER_MATRIX_MODEL || "deepseek/deepseek-chat-v3.1",
     }),
   });
   if (!res.ok) {

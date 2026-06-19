@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { listVisibleRecordings } from "@/lib/reads/recordings";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -16,7 +16,7 @@ function fmt(sec: number | null): string {
 
 export default async function RecordingsLibrary() {
   const user = await getCurrentUser();
-  if (!user.isAdmin) notFound();
+  if (!(await isBetaVisible(user.email))) notFound();
 
   const recs = await listVisibleRecordings(user, { scope: "all" });
 

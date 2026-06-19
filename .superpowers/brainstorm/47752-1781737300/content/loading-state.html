@@ -1,0 +1,108 @@
+<h2>What does the supervisor see while Second Brain searches?</h2>
+<p class="subtitle">Clicking "Enhance with Second Brain" triggers a search + AI synthesis — takes ~3–8 seconds.</p>
+
+<div class="cards" style="margin-top: 32px;">
+
+  <!-- Option A: Button loading → modal appears when ready -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: var(--color-bg-secondary); padding: 20px; min-height: 260px; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center;">
+
+      <!-- Step 1: button loading -->
+      <div style="width: 100%;">
+        <div style="font-size: 10px; font-weight: 600; color: var(--color-text-secondary); text-align: center; margin-bottom: 6px;">STEP 1: Button shows loading</div>
+        <div style="display: flex; justify-content: center;">
+          <div style="background: var(--color-accent, #1b3a6b); color: white; border-radius: 6px; padding: 8px 18px; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; opacity: 0.85;">
+            <span style="display: inline-block; width: 10px; height: 10px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite;">◌</span>
+            Searching Second Brain…
+          </div>
+        </div>
+      </div>
+
+      <div style="color: var(--color-text-tertiary); font-size: 20px;">↓</div>
+
+      <!-- Step 2: modal appears fully populated -->
+      <div style="width: 100%;">
+        <div style="font-size: 10px; font-weight: 600; color: var(--color-text-secondary); text-align: center; margin-bottom: 6px;">STEP 2: Modal appears with full results</div>
+        <div style="background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9px;">
+          <div>
+            <div style="font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px;">CONTEXT FOUND</div>
+            <div style="border: 1px solid #2e7d32; border-radius: 5px; padding: 6px; margin-bottom: 4px; background: #f1f8e9;">📄 NE Website Brief ✓</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 5px; padding: 6px;">📹 NE Strategy Call</div>
+          </div>
+          <div>
+            <div style="font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px;">SUGGESTED TASKS (4)</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 5px; padding: 6px; margin-bottom: 4px;">Audit NE website</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 5px; padding: 6px; margin-bottom: 4px;">Draft homepage copy</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 5px; padding: 6px;">Collect brand assets</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Button loads, then modal pops with full results</h3>
+      <p>Wait on the page. Button spins for ~5s, then modal opens already populated. Simple, no skeleton needed. Page stays stable during the wait.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Modal opens immediately with skeleton, results stream in -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: var(--color-bg-secondary); padding: 20px; min-height: 260px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; justify-content: center;">
+
+      <!-- Modal with skeleton -->
+      <div style="font-size: 10px; font-weight: 600; color: var(--color-text-secondary); text-align: center; margin-bottom: 4px;">Modal opens instantly → results appear as they arrive</div>
+      <div style="background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px;">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+          <span style="display: inline-block; width: 10px; height: 10px; border: 2px solid var(--color-border); border-top-color: var(--color-accent, #1b3a6b); border-radius: 50%;">◌</span>
+          <span style="font-size: 11px; font-weight: 700; color: var(--color-accent, #1b3a6b);">Searching Second Brain for "NE Website Refresh"…</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9px;">
+          <!-- Left: context loading in -->
+          <div>
+            <div style="font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px;">CONTEXT FOUND</div>
+            <!-- Already loaded -->
+            <div style="border: 1px solid var(--color-border); border-radius: 5px; padding: 7px; margin-bottom: 4px;">
+              <div style="font-weight: 600;">📄 NE Website Brief</div>
+              <div style="color: var(--color-text-secondary); margin-top: 2px;">WP site, brand refresh needed…</div>
+              <div style="display: flex; gap: 4px; margin-top: 4px;">
+                <span style="background: var(--color-accent, #1b3a6b); color: white; border-radius: 3px; padding: 1px 6px; font-size: 8px;">✓</span>
+                <span style="background: var(--color-border); border-radius: 3px; padding: 1px 6px; font-size: 8px;">✗</span>
+              </div>
+            </div>
+            <!-- Skeleton (still loading) -->
+            <div style="border: 1px dashed var(--color-border); border-radius: 5px; padding: 7px; opacity: 0.5;">
+              <div style="background: var(--color-border); border-radius: 3px; height: 8px; width: 70%; margin-bottom: 4px;"></div>
+              <div style="background: var(--color-border); border-radius: 3px; height: 6px; width: 90%;"></div>
+              <div style="font-size: 8px; color: var(--color-text-tertiary); margin-top: 4px; font-style: italic;">Searching meetings…</div>
+            </div>
+          </div>
+          <!-- Right: tasks loading in -->
+          <div>
+            <div style="font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px;">SUGGESTED TASKS</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 5px; padding: 7px; margin-bottom: 4px;">
+              <div style="font-weight: 600;">Audit current NE website</div>
+              <div style="display: flex; gap: 4px; margin-top: 4px;">
+                <span style="background: var(--color-accent, #1b3a6b); color: white; border-radius: 3px; padding: 1px 6px; font-size: 8px;">✓ Add</span>
+                <span style="background: var(--color-border); border-radius: 3px; padding: 1px 6px; font-size: 8px;">✗</span>
+              </div>
+            </div>
+            <!-- Skeleton tasks loading -->
+            <div style="border: 1px dashed var(--color-border); border-radius: 5px; padding: 7px; opacity: 0.4; margin-bottom: 4px;">
+              <div style="background: var(--color-border); border-radius: 3px; height: 8px; width: 80%;"></div>
+            </div>
+            <div style="border: 1px dashed var(--color-border); border-radius: 5px; padding: 7px; opacity: 0.25;">
+              <div style="background: var(--color-border); border-radius: 3px; height: 8px; width: 65%;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+          <span style="background: var(--color-border); border-radius: 4px; padding: 4px 10px; font-size: 9px; opacity: 0.5; font-weight: 600;">Confirm selected (loading…)</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Modal opens instantly, results stream in</h3>
+      <p>Modal opens immediately with skeleton cards. Context pieces and task suggestions appear as they arrive. Feels alive. Supervisor can start reviewing early results while the rest loads.</p>
+    </div>
+  </div>
+
+</div>

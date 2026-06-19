@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { ClientSelect } from "@/components/ClientSelect";
+import { humanizeStatus } from "@/components/ui/task-format";
 
 const STRATEGIES = [
   "Create",
@@ -135,7 +136,7 @@ export function TaskEditForm({ task, clients }: { task: TaskEditFormTask; client
           <select style={input} value={status} onChange={(e) => setStatus(e.target.value)}>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {humanizeStatus(s)}
               </option>
             ))}
           </select>

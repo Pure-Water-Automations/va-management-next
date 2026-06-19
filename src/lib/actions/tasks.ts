@@ -21,6 +21,7 @@ export type CreateTaskInput = {
   relatedSops?: unknown;
   relatedTrainings?: unknown;
   suggestedTools?: unknown;
+  claimable?: unknown; // post to the open pool instead of assigning to a specific VA
 };
 
 export type UpdateTaskInput = Partial<Omit<CreateTaskInput, "assignedToId"> & { status?: unknown }>;
@@ -98,7 +99,9 @@ async function sendTaskAssignmentEmail(opts: {
 
 export async function createTask(actorId: string, actorRole: Role, input: CreateTaskInput) {
   const title = requireText(input.title, "title");
-  const assignedToId = requireText(input.assignedToId, "assignedToId");
+  // Claimable (open-pool) tasks have no assignee yet — the creator "holds" them until claimed.
+  const claimable = input.claimable === true || input.claimable === "true";
+  const assignedToId = claimable ? (optionalText(input.assignedToId) ?? actorId) : requireText(input.assignedToId, "assignedToId");
   const projectId = optionalText(input.projectId);
 
   // Authority (cards #22/#24): managers + tier-flagged VAs may delegate freely;
@@ -128,6 +131,7 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
       projectId: projectId ?? null,
       assignedToId,
       assignedById: actorId,
+      claimable,
       dueDate: optionalDate(input.dueDate),
       links: optionalText(input.links),
       relatedSops: input.relatedSops ?? undefined,
@@ -144,7 +148,7 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
   const settings = await loadSettings();
   const from = settingStr(settings, "system_email_from");
   let emailSent = false;
-  if (from && task.assignedTo.email) {
+  if (!claimable && from && task.assignedTo.email) {
     emailSent = await sendTaskAssignmentEmail({
       from,
       toEmail: task.assignedTo.email,
@@ -165,14 +169,16 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
 
   await logActivity({
     source: "task_action",
-    eventType: "task_assigned",
+    eventType: claimable ? "task_posted_to_pool" : "task_assigned",
     severity: "success",
-    summary: `Task "${task.title}" assigned to ${task.assignedTo.name ?? task.assignedTo.email}.`,
+    summary: claimable
+      ? `Task "${task.title}" posted to the Available pool.`
+      : `Task "${task.title}" assigned to ${task.assignedTo.name ?? task.assignedTo.email}.`,
   });
 
   // In-console notification for the assignee (any delegator, incl. managers) so the
   // person the task was assigned to sees the bell — the email above is separate.
-  if (task.assignedToId !== actorId) {
+  if (!claimable && task.assignedToId !== actorId) {
     await createNotification(
       task.assignedToId,
       "task_assigned",
@@ -242,6 +248,88 @@ export async function updateTaskStatus(
   }
 
   return updated;
+}
+
+/** Reassign a task to a different VA (managers only). Notifies the new assignee. */
+export async function reassignTask(actorId: string, actorRole: Role, taskId: string, newAssigneeId: string) {
+  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can reassign tasks");
+  const id = requireText(newAssigneeId, "assigneeId");
+  const newAssignee = await db.user.findUniqueOrThrow({ where: { id }, select: { id: true, name: true, email: true } });
+  const task = await db.task.update({
+    where: { id: requireText(taskId, "taskId") },
+    data: { assignedToId: id },
+    select: { id: true, title: true },
+  });
+
+  await logActivity({
+    source: "task_action",
+    eventType: "task_reassigned",
+    severity: "info",
+    summary: `Task "${task.title}" reassigned to ${newAssignee.name ?? newAssignee.email}.`,
+  });
+
+  if (id !== actorId) {
+    await createNotification(id, "task_assigned", `You were assigned a task: "${task.title}"`, `/va/tasks/${task.id}`);
+  }
+  return { id: task.id, title: task.title, assignee: newAssignee.name ?? newAssignee.email };
+}
+
+/** A VA requests to claim an open (claimable) task; a manager then approves it. */
+export async function claimTask(actorId: string, taskId: string) {
+  const id = requireText(taskId, "taskId");
+  const task = await db.task.findUniqueOrThrow({
+    where: { id },
+    select: { id: true, title: true, claimable: true, claimRequestedById: true, assignedById: true },
+  });
+  if (!task.claimable) throw new Error("That task isn't open to claim.");
+  if (task.claimRequestedById) throw new Error("Someone already requested this one — a manager is reviewing it.");
+  const me = await db.user.findUniqueOrThrow({ where: { id: actorId }, select: { name: true, email: true } });
+  await db.task.update({ where: { id }, data: { claimRequestedById: actorId } });
+  await logActivity({
+    source: "task_action",
+    eventType: "task_claim_requested",
+    severity: "info",
+    summary: `${me.name ?? me.email} requested to claim "${task.title}".`,
+  });
+  if (task.assignedById && task.assignedById !== actorId) {
+    await createNotification(task.assignedById, "task_claim_requested", `${me.name ?? me.email} wants to claim "${task.title}" — approve it`, `/hr/tasks/available`);
+  }
+  return { id, title: task.title };
+}
+
+/** Manager approves (assigns to the claimer) or rejects (reopens) a pending claim. */
+export async function resolveClaim(actorId: string, actorRole: Role, taskId: string, approve: boolean) {
+  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can approve claims");
+  const id = requireText(taskId, "taskId");
+  const task = await db.task.findUniqueOrThrow({ where: { id }, select: { id: true, title: true, claimRequestedById: true } });
+  if (!task.claimRequestedById) throw new Error("There's no pending claim on that task.");
+
+  if (!approve) {
+    await db.task.update({ where: { id }, data: { claimRequestedById: null } });
+    await logActivity({ source: "task_action", eventType: "task_claim_rejected", severity: "info", summary: `Claim on "${task.title}" declined — back in the pool.` });
+    return { id, title: task.title, approved: false };
+  }
+
+  const claimer = task.claimRequestedById;
+  await db.task.update({ where: { id }, data: { assignedToId: claimer, assignedById: actorId, claimable: false, claimRequestedById: null } });
+  await logActivity({ source: "task_action", eventType: "task_claim_approved", severity: "success", summary: `Claim on "${task.title}" approved.` });
+  await createNotification(claimer, "task_assigned", `Your claim was approved — "${task.title}" is yours`, `/va/tasks/${id}`);
+  return { id, title: task.title, approved: true };
+}
+
+/** Delete a task (managers only). Comments/checklist/dependencies cascade. */
+export async function deleteTask(actorId: string, actorRole: Role, taskId: string) {
+  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can delete tasks");
+  const id = requireText(taskId, "taskId");
+  const task = await db.task.findUniqueOrThrow({ where: { id }, select: { title: true } });
+  await db.task.delete({ where: { id } });
+  await logActivity({
+    source: "task_action",
+    eventType: "task_deleted",
+    severity: "warning",
+    summary: `Task "${task.title}" deleted.`,
+  });
+  return { id, title: task.title };
 }
 
 export async function updateTask(

@@ -17,7 +17,7 @@ const TASK_INCLUDE = {
 
 export async function getMyTasks(userId: string) {
   const tasks = await db.task.findMany({
-    where: { assignedToId: userId },
+    where: { assignedToId: userId, claimable: false },
     include: TASK_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
@@ -31,6 +31,7 @@ export async function getAllTasks(opts?: {
 }) {
   return db.task.findMany({
     where: {
+      claimable: false, // open-pool tasks live only in Available, not normal task lists
       ...(opts?.assignedToId ? { assignedToId: opts.assignedToId } : {}),
       ...(opts?.status ? { status: opts.status as TaskStatus } : {}),
       ...(opts?.client
@@ -53,6 +54,25 @@ export async function getTaskDetail(taskId: string) {
           dependsOn: { select: { id: true, title: true, status: true } },
         },
       },
+    },
+  });
+}
+
+/** Tasks in the open/claimable pool (claimable=true), with any pending claimer. */
+export async function getAvailableTasks() {
+  return db.task.findMany({
+    where: { claimable: true },
+    orderBy: [{ claimRequestedById: "asc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      instructions: true,
+      priority: true,
+      dueDate: true,
+      client: true,
+      project: { select: { id: true, name: true } },
+      assignedBy: { select: { name: true } },
+      claimRequestedBy: { select: { id: true, name: true, email: true } },
     },
   });
 }

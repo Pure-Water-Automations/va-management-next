@@ -1,0 +1,120 @@
+<h2>Where should the "Enhance" confirmation UI live?</h2>
+<p class="subtitle">This is where the supervisor reviews found context + suggested tasks before accepting or rejecting them.</p>
+
+<div class="cards" style="margin-top: 32px;">
+
+  <!-- Option A: Slide-in drawer -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: var(--color-bg-secondary); padding: 16px; min-height: 260px; position: relative; overflow: hidden;">
+      <!-- Simulated project page behind drawer -->
+      <div style="opacity: 0.35; font-size: 11px; padding: 8px;">
+        <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px;">🔵 NE Website Refresh</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+          <div style="background: var(--color-border); border-radius: 4px; width: 60px; height: 32px;"></div>
+          <div style="background: var(--color-border); border-radius: 4px; width: 60px; height: 32px;"></div>
+          <div style="background: var(--color-border); border-radius: 4px; width: 60px; height: 32px;"></div>
+        </div>
+        <div style="background: var(--color-border); border-radius: 4px; height: 60px; margin-bottom: 6px;"></div>
+        <div style="background: var(--color-border); border-radius: 4px; height: 60px;"></div>
+      </div>
+      <!-- Drawer overlay -->
+      <div style="position: absolute; right: 0; top: 0; bottom: 0; width: 70%; background: var(--color-bg); border-left: 2px solid var(--color-accent, #1b3a6b); box-shadow: -4px 0 16px rgba(0,0,0,0.15); padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-weight: 700; font-size: 12px; color: var(--color-accent, #1b3a6b);">✨ Second Brain found this</div>
+        <!-- Context card -->
+        <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; font-size: 10px;">
+          <div style="font-weight: 600; margin-bottom: 3px;">📄 NE Website Brief (Notion)</div>
+          <div style="color: var(--color-text-secondary); line-height: 1.4;">Current site uses WP, last updated Feb 2025. Brand refresh needed…</div>
+          <div style="display: flex; gap: 4px; margin-top: 6px;">
+            <span style="background: #e8f5e9; color: #2e7d32; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 600;">✓ Accept</span>
+            <span style="background: #fce4ec; color: #c62828; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 600;">✗ Skip</span>
+          </div>
+        </div>
+        <!-- Task suggestions -->
+        <div style="font-weight: 700; font-size: 11px; color: var(--color-accent, #1b3a6b); margin-top: 4px;">Suggested tasks</div>
+        <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; font-size: 10px;">
+          <div style="font-weight: 600;">Audit current NE website</div>
+          <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <span style="background: #e8f5e9; color: #2e7d32; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 600;">✓ Add</span>
+            <span style="background: #fce4ec; color: #c62828; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 600;">✗ Skip</span>
+          </div>
+        </div>
+        <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; font-size: 10px;">
+          <div style="font-weight: 600;">Draft new copy for homepage</div>
+          <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <span style="background: #e8f5e9; color: #2e7d32; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 600;">✓ Add</span>
+            <span style="background: #fce4ec; color: #c62828; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 600;">✗ Skip</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Slide-in drawer</h3>
+      <p>Panel slides in from the right over the project page. Context pieces on top, task suggestions below. One scrollable column. Project stays visible behind it.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Full-screen modal, two columns -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: rgba(0,0,0,0.5); padding: 16px; min-height: 260px; display: flex; align-items: center; justify-content: center;">
+      <div style="background: var(--color-bg); border-radius: 10px; width: 100%; padding: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+        <div style="font-weight: 700; font-size: 12px; color: var(--color-accent, #1b3a6b); margin-bottom: 8px;">✨ Second Brain Enhanced — NE Website Refresh</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <!-- Left: context -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px;">CONTEXT FOUND</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 7px; font-size: 9px; margin-bottom: 4px;">
+              <div style="font-weight: 600;">📄 NE Website Brief</div>
+              <div style="color: var(--color-text-secondary); margin-top: 2px;">WP site, brand refresh needed…</div>
+              <div style="display: flex; gap: 3px; margin-top: 4px;">
+                <span style="background: #e8f5e9; color: #2e7d32; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✓</span>
+                <span style="background: #fce4ec; color: #c62828; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✗</span>
+              </div>
+            </div>
+            <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 7px; font-size: 9px;">
+              <div style="font-weight: 600;">📹 NE Strategy Call (Jun 5)</div>
+              <div style="color: var(--color-text-secondary); margin-top: 2px;">Justin: we need a new hero section…</div>
+              <div style="display: flex; gap: 3px; margin-top: 4px;">
+                <span style="background: #e8f5e9; color: #2e7d32; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✓</span>
+                <span style="background: #fce4ec; color: #c62828; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✗</span>
+              </div>
+            </div>
+          </div>
+          <!-- Right: tasks -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: var(--color-text-secondary); margin-bottom: 4px;">SUGGESTED TASKS</div>
+            <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 7px; font-size: 9px; margin-bottom: 4px;">
+              <div style="font-weight: 600;">Audit current NE website</div>
+              <div style="display: flex; gap: 3px; margin-top: 4px;">
+                <span style="background: #e8f5e9; color: #2e7d32; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✓ Add</span>
+                <span style="background: #fce4ec; color: #c62828; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✗</span>
+              </div>
+            </div>
+            <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 7px; font-size: 9px; margin-bottom: 4px;">
+              <div style="font-weight: 600;">Draft new homepage copy</div>
+              <div style="display: flex; gap: 3px; margin-top: 4px;">
+                <span style="background: #e8f5e9; color: #2e7d32; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✓ Add</span>
+                <span style="background: #fce4ec; color: #c62828; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✗</span>
+              </div>
+            </div>
+            <div style="border: 1px solid var(--color-border); border-radius: 6px; padding: 7px; font-size: 9px;">
+              <div style="font-weight: 600;">Collect brand assets from Justin</div>
+              <div style="display: flex; gap: 3px; margin-top: 4px;">
+                <span style="background: #e8f5e9; color: #2e7d32; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✓ Add</span>
+                <span style="background: #fce4ec; color: #c62828; border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 600;">✗</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 6px; margin-top: 10px; justify-content: flex-end;">
+          <span style="background: var(--color-border); border-radius: 4px; padding: 4px 10px; font-size: 9px; font-weight: 600;">Cancel</span>
+          <span style="background: var(--color-accent, #1b3a6b); color: white; border-radius: 4px; padding: 4px 10px; font-size: 9px; font-weight: 600;">Confirm selected</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Full-screen modal, two columns</h3>
+      <p>Centered modal overlay. Context on the left, suggested tasks on the right, side-by-side. "Confirm selected" at the bottom applies everything at once.</p>
+    </div>
+  </div>
+
+</div>

@@ -21,6 +21,8 @@ enum Role {
   RECRUITER
   SENIOR_VA
   VA
+  CLIENT_ADMIN
+  CLIENT_MEMBER
 }
 
 enum ProjectStatus {
@@ -63,6 +65,25 @@ enum TaskStrategy {
   Recurring
 }
 
+enum ClientOrgStatus {
+  active
+  paused
+  churned
+}
+
+enum ClientTaskRequestStatus {
+  RECEIVED
+  TRIAGE_NEEDED
+  READY_TO_ASSIGN
+  ASSIGNED
+  DECLINED
+}
+
+enum CommentVisibility {
+  INTERNAL_ONLY
+  CLIENT_VISIBLE
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -79,10 +100,13 @@ model User {
   projectsCreated  Project[]        @relation("ProjectCreator")
   tasksAssigned    Task[]           @relation("TaskAssignee")
   tasksCreated     Task[]           @relation("TaskCreator")
+  taskClaimRequests Task[]          @relation("TaskClaimRequester")
   taskComments     TaskComment[]    @relation("TaskCommentAuthor")
   projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
   savedViews       SavedView[]
   notifications    Notification[]
+  clientMemberships    ClientMembership[]
+  clientTaskRequests   ClientTaskRequest[] @relation("ClientTaskRequestSubmitter")
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────
@@ -758,15 +782,18 @@ model Project {
   links       String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  clientOrganizationId String?
 
-  owner     User             @relation("ProjectOwner", fields: [ownerId], references: [id])
-  createdBy User             @relation("ProjectCreator", fields: [createdById], references: [id])
-  tasks     Task[]
-  comments  ProjectComment[]
+  owner              User               @relation("ProjectOwner", fields: [ownerId], references: [id])
+  createdBy          User               @relation("ProjectCreator", fields: [createdById], references: [id])
+  tasks              Task[]
+  comments           ProjectComment[]
+  clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
 
   @@index([ownerId])
   @@index([status])
   @@index([client])
+  @@index([clientOrganizationId])
 }
 
 model Task {
@@ -786,47 +813,61 @@ model Task {
   relatedSops      Json?
   relatedTrainings Json?
   suggestedTools   Json?
+  // Open/claimable pool: a non-urgent task anyone can claim, with a manager confirming
+  // the claim. While claimable it is "held" by its creator (assignedToId) but surfaced
+  // in the Available Tasks pool, not as a normal assignment.
+  claimable          Boolean   @default(false)
+  claimRequestedById String?
+  clientOrganizationId String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  project    Project?      @relation(fields: [projectId], references: [id])
-  assignedTo User          @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  assignedBy User          @relation("TaskCreator", fields: [assignedById], references: [id])
-  comments   TaskComment[]
-  checklist    ChecklistItem[]
-  dependencies TaskDependency[] @relation("DependentTask")
-  dependents   TaskDependency[] @relation("DependencyTask")
+  project              Project?      @relation(fields: [projectId], references: [id])
+  assignedTo           User          @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedBy           User          @relation("TaskCreator", fields: [assignedById], references: [id])
+  claimRequestedBy     User?         @relation("TaskClaimRequester", fields: [claimRequestedById], references: [id])
+  comments             TaskComment[]
+  checklist            ChecklistItem[]
+  dependencies         TaskDependency[] @relation("DependentTask")
+  dependents           TaskDependency[] @relation("DependencyTask")
+  clientOrganization   ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
+  clientTaskRequest    ClientTaskRequest?  @relation("ClientTaskRequestTask")
 
   @@index([assignedToId])
   @@index([projectId])
   @@index([status])
   @@index([client])
+  @@index([clientOrganizationId])
 }
 
 model TaskComment {
-  id        String   @id @default(cuid())
-  taskId    String
-  authorId  String
-  body      String
-  createdAt DateTime @default(now())
+  id         String            @id @default(cuid())
+  taskId     String
+  authorId   String
+  body       String
+  visibility CommentVisibility @default(INTERNAL_ONLY)
+  createdAt  DateTime          @default(now())
 
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author User @relation("TaskCommentAuthor", fields: [authorId], references: [id])
 
   @@index([taskId])
+  @@index([visibility])
 }
 
 model ProjectComment {
-  id        String   @id @default(cuid())
-  projectId String
-  authorId  String
-  body      String
-  createdAt DateTime @default(now())
+  id         String            @id @default(cuid())
+  projectId  String
+  authorId   String
+  body       String
+  visibility CommentVisibility @default(INTERNAL_ONLY)
+  createdAt  DateTime          @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author  User    @relation("ProjectCommentAuthor", fields: [authorId], references: [id])
 
   @@index([projectId])
+  @@index([visibility])
 }
 
 model SavedView {
@@ -914,4 +955,61 @@ model Client {
   syncedAt  DateTime @default(now())
 
   @@index([active])
+}
+
+// ── Client Portal ─────────────────────────────────────────────────────────
+
+model ClientOrganization {
+  id           String          @id @default(cuid())
+  name         String
+  slug         String          @unique
+  notionId     String?
+  status       ClientOrgStatus @default(active)
+  active       Boolean         @default(true)
+  logoUrl      String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  memberships  ClientMembership[]
+  projects     Project[]
+  tasks        Task[]
+  taskRequests ClientTaskRequest[]
+
+  @@index([slug])
+  @@index([active])
+}
+
+model ClientMembership {
+  id                   String             @id @default(cuid())
+  userId               String
+  clientOrganizationId String
+  createdAt            DateTime           @default(now())
+  user                 User               @relation(fields: [userId], references: [id])
+  clientOrganization   ClientOrganization @relation(fields: [clientOrganizationId], references: [id])
+
+  @@unique([userId, clientOrganizationId])
+  @@index([userId])
+  @@index([clientOrganizationId])
+}
+
+model ClientTaskRequest {
+  id                   String                  @id @default(cuid())
+  title                String
+  description          String
+  priorityPreference   Priority                @default(Medium)
+  dueDatePreference    DateTime?
+  fileReference        String?
+  status               ClientTaskRequestStatus @default(RECEIVED)
+  submittedById        String
+  clientOrganizationId String
+  assignedTaskId       String?                 @unique
+  declineReason        String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  submittedBy          User               @relation("ClientTaskRequestSubmitter", fields: [submittedById], references: [id])
+  clientOrganization   ClientOrganization @relation(fields: [clientOrganizationId], references: [id])
+  assignedTask         Task?              @relation("ClientTaskRequestTask", fields: [assignedTaskId], references: [id])
+
+  @@index([clientOrganizationId])
+  @@index([status])
+  @@index([submittedById])
 }
