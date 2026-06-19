@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { clientGuard } from "../../../../_guard";
+import { clientGuard } from "../../../_guard";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const g = await clientGuard();

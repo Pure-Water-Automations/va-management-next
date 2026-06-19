@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { clientGuard } from "../../../../_guard";
+import { clientGuard } from "../../../_guard";
 import { z } from "zod";
 
 const CommentSchema = z.object({ body: z.string().min(1).max(2000) });

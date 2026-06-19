@@ -16,7 +16,11 @@ export async function GET() {
   if ("error" in g) return g.error;
 
   const requests = await db.clientTaskRequest.findMany({
-    where: { clientOrganizationId: g.orgId },
+    where: {
+      clientOrganizationId: g.orgId,
+      // CLIENT_MEMBER sees only their own; CLIENT_ADMIN sees all org requests
+      ...(g.user.role === "CLIENT_MEMBER" ? { submittedById: g.user.id } : {}),
+    },
     select: {
       id: true,
       title: true,

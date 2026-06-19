@@ -8,7 +8,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
 
   const request = await db.clientTaskRequest.findFirst({
-    where: { id, clientOrganizationId: g.orgId },
+    where: {
+      id,
+      clientOrganizationId: g.orgId,
+      // CLIENT_MEMBER can only read their own requests
+      ...(g.user.role === "CLIENT_MEMBER" ? { submittedById: g.user.id } : {}),
+    },
     select: {
       id: true,
       title: true,
