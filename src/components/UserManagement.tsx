@@ -28,6 +28,8 @@ const ROLE_LABELS: Record<Role, string> = {
   RECRUITER: "Recruiter",
   SENIOR_VA: "Senior VA",
   VA: "VA",
+  CLIENT_ADMIN: "Client Admin",
+  CLIENT_MEMBER: "Client Member",
 };
 
 type User = {
