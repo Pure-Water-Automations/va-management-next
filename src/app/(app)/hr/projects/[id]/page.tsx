@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isFounder } from "@/lib/auth/access";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
@@ -33,6 +33,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
+  const betaVisible = await isBetaVisible(user.email);
 
   return (
     <>
@@ -55,7 +56,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             priority={project.priority}
             canEdit={canEdit}
           />
-          {isFounder(user.email) && (
+          {betaVisible && (
             <EnhanceButton projectId={project.id} projectName={project.name} assignees={assignees} />
           )}
           {canEdit && (
@@ -158,7 +159,39 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     borderBottom: "1px dashed var(--color-border-subtle)",
                   }}
                 >
-                  <div style={{ fontSize: "var(--text-sm)" }}>{item.summary}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "var(--text-sm)" }}>{item.summary}</span>
+                    {item.visibility === "CLIENT_VISIBLE" && (
+                      <span
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: "#dbeafe",
+                          color: "#1d4ed8",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Client visible
+                      </span>
+                    )}
+                    {item.visibility === "INTERNAL_ONLY" && (
+                      <span
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: "#f3f4f6",
+                          color: "#6b7280",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Internal
+                      </span>
+                    )}
+                  </div>
                   <div className="small" style={{ color: "var(--color-text-tertiary)", marginTop: 2 }}>
                     {item.at.toLocaleDateString()}
                   </div>
