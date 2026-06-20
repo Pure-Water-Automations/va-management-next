@@ -30,3 +30,21 @@ test("matchAssignee: no match → null", () => {
   assert.equal(matchAssignee("", [{ id: "u1", name: "Aira" }]), null);
   assert.equal(matchAssignee(null, [{ id: "u1", name: "Aira" }]), null);
 });
+
+test("matchAssignee: loose substring is first-wins (documented best-effort behavior)", () => {
+  // "Ana" matches "Anabel" before "Ana Santos" since both contain it and Anabel
+  // is first. Intentional — it only pre-selects the dropdown (human overrides).
+  const users = [
+    { id: "u1", name: "Anabel" },
+    { id: "u2", name: "Ana Santos" },
+  ];
+  assert.equal(matchAssignee("Ana", users), "u1");
+});
+
+test("matchAssignee: skips users with null name", () => {
+  const users = [
+    { id: "u1", name: null },
+    { id: "u2", name: "Kanna" },
+  ];
+  assert.equal(matchAssignee("Kanna", users), "u2");
+});

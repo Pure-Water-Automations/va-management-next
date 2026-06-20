@@ -11,6 +11,11 @@ export function allItemsResolved(items: { status: ItemStatus }[]): boolean {
  * Best-effort match of a transcript-suggested assignee name to a known user id.
  * Case-insensitive; matches when either name contains the other (handles
  * "Aira" ↔ "Aira Mangila"). Returns the first match or null.
+ *
+ * Intentionally loose: a short suggestion ("Ana") can match a longer name
+ * ("Anabel") and ties go to the first user in the list. That's fine — this only
+ * pre-selects the assignee dropdown, which the reviewer can override before
+ * confirming.
  */
 export function matchAssignee(
   suggested: string | null | undefined,
