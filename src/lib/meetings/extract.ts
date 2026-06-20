@@ -30,6 +30,7 @@ export const EXCLUDED_TITLE_PATTERNS = [/fgs video review/i, /ne pwa projects/i]
 
 /** Parse flat YAML frontmatter + body from a harvested Meetings/*.md file. */
 export function parseMeetingFile(md: string): MeetingMeta {
+  md = md.replace(/\r\n/g, "\n");
   let title = "";
   let zoomAccount: string | null = null;
   let dateStr: string | undefined;

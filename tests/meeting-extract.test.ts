@@ -44,6 +44,15 @@ test("parseMeetingFile: missing frontmatter → empty meta, body intact", () => 
   assert.equal(m.body, "no frontmatter here");
 });
 
+test("parseMeetingFile: handles CRLF line endings", () => {
+  const crlf = `---\r\ntitle: "CRLF Meeting"\r\nzoom_account: "Northeast"\r\nrecording_start: "2026-06-19T23:58:27Z"\r\n---\r\n\r\nbody line`;
+  const m = parseMeetingFile(crlf);
+  assert.equal(m.title, "CRLF Meeting");
+  assert.equal(m.zoomAccount, "Northeast");
+  assert.equal(m.date?.toISOString(), "2026-06-19T23:58:27.000Z");
+  assert.match(m.body, /body line/);
+});
+
 test("shouldProcess: in-scope account passes", () => {
   assert.equal(shouldProcess({ zoomAccount: "Northeast", title: "Client Sync" }), true);
   assert.equal(shouldProcess({ zoomAccount: "Business (BFC)", title: "X" }), true);
