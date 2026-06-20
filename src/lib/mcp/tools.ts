@@ -1,8 +1,10 @@
-import type { Role, TaskStatus } from "@prisma/client";
+import type { DealStage, Role, TaskStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getProjectsList } from "@/lib/reads/projects";
 import { createProject } from "@/lib/actions/projects";
 import { createTask, updateTaskStatus } from "@/lib/actions/tasks";
+import { createDeal, convertDealToClient, DEAL_STAGES } from "@/lib/sales/deal";
+import { sendClientAgreement } from "@/lib/sales/agreement";
 
 export type McpCtx = { actorId: string; actorRole: Role };
 
@@ -183,6 +185,63 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       if (!taskId || !status || !VALID_STATUS.has(status)) return fail("taskId and a valid status (NotStarted|InProgress|Done|Blocked) are required");
       const updated = await updateTaskStatus(ctx.actorId, ctx.actorRole, taskId, status as TaskStatus);
       return json({ updated: true, id: updated.id, title: updated.title, status: updated.status });
+    }
+
+    case "list_deals": {
+      const stage = str(args, "stage");
+      const deals = await db.deal.findMany({
+        where: stage && DEAL_STAGES.includes(stage as DealStage) ? { stage: stage as DealStage } : {},
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+        include: { agreement: { select: { status: true, signedAt: true, paidAt: true, sentAt: true } } },
+      });
+      return json({
+        count: deals.length,
+        deals: deals.map((d) => ({
+          id: d.id,
+          org: d.orgName,
+          stage: d.stage,
+          package: d.packageName,
+          value: d.dealValue,
+          billing: d.billingType,
+          contactEmail: d.contactEmail,
+          clientOrgId: d.clientOrgId,
+          agreement: d.agreement ? { status: d.agreement.status, sent: !!d.agreement.sentAt, signed: !!d.agreement.signedAt, paid: !!d.agreement.paidAt } : null,
+        })),
+      });
+    }
+
+    case "create_deal": {
+      const orgName = str(args, "orgName");
+      if (!orgName) return fail("orgName is required");
+      const dealValue = typeof args.dealValue === "number" ? args.dealValue : undefined;
+      const startRaw = str(args, "startDate");
+      const deal = await createDeal({
+        orgName,
+        contactName: str(args, "contactName") ?? null,
+        contactEmail: str(args, "contactEmail") ?? null,
+        packageName: str(args, "packageName") ?? null,
+        dealValue: dealValue ?? null,
+        billingType: str(args, "billingType") ?? null,
+        startDate: startRaw ? new Date(startRaw) : null,
+        stage: (str(args, "stage") as DealStage | undefined) ?? "verbal_yes",
+        notionPageId: str(args, "notionPageId") ?? null,
+      });
+      return json({ created: true, id: deal.id, org: deal.orgName, stage: deal.stage });
+    }
+
+    case "send_client_agreement": {
+      const dealId = str(args, "dealId");
+      if (!dealId) return fail("dealId is required");
+      const a = await sendClientAgreement(dealId);
+      return json({ sent: true, dealId, status: a.status });
+    }
+
+    case "convert_deal_to_client": {
+      const dealId = str(args, "dealId");
+      if (!dealId) return fail("dealId is required");
+      const org = await convertDealToClient(dealId);
+      return json({ ok: true, clientOrgId: org.id, name: org.name, slug: org.slug, status: org.status });
     }
 
     default:

@@ -1,11 +1,28 @@
 # Client Sales & Onboarding Integration — Plan
 
 - **Date:** 2026-06-20
-- **Status:** Draft (for review)
+- **Status:** Implemented (all 5 phases) — see "Implementation status" below
 - **Author:** Justin + Claude
 - **Scope:** Bring the client-facing sales→signed→paid→onboarded lifecycle into the
   VA Management Console, reusing existing infrastructure, while keeping the
   top-of-funnel CRM where it already works (Notion).
+
+## Implementation status
+
+All five phases below are implemented in this branch.
+
+| Phase | What shipped |
+|---|---|
+| 1 — Client e-signer | `Deal` + `ClientAgreement` models; `lib/sales/{client-template,agreement}.ts`; the shared `/sign/[token]` page now resolves a candidate **or** a client agreement (generalized `pdf.tsx` audit + `store.ts` `deliverSignedDocument`); admin editor at `/admin/client-agreement`. |
+| 2 — Payment + gate | `lib/sales/payment.ts` (dependency-free Stripe REST, best-effort); verified webhook `/api/stripe/webhook` (`lib/sales/stripe-webhook.ts`); manual "Mark paid" fallback. A deal is only Won when **signed && paid**. |
+| 3 — Won → client | `lib/sales/deal.ts` `convertDealToClient` (idempotent) creates a portal `ClientOrganization` + `ClientOnboarding` and notifies the owner. |
+| 4 — Onboarding | `ClientOnboarding` model + checklist; in-app tokenized intake form `/intake/[token]` (replaces Formly/Sheets); completion grants portal `ClientMembership` + activates the org. |
+| 5 — Surface & automation | `/hr/sales` + `/hr/client-onboarding` boards; MCP tools (`list_deals`, `create_deal`, `send_client_agreement`, `convert_deal_to_client`); `worker/sales-followup.ts` (wired into the daily timer); one-way Notion-sync hook. |
+
+Validation: `tsc --noEmit` clean, `next build` clean, full test suite green
+(new pure tests: client-agreement template/vars, Stripe-signature verification,
+onboarding-checklist + slug). Stripe and the Drive archive are optional and
+no-op gracefully until configured.
 
 ---
 

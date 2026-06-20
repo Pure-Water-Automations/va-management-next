@@ -47,6 +47,11 @@ const envSchema = z.object({
   // Shared secret for trusted server-to-server callers (e.g. va-world) hitting
   // the read-only /api/external/* bridge. Never exposed to the browser.
   EXTERNAL_APP_SECRET: optionalEnvString(z.string().min(1)),
+  // Stripe (client sales payments). All optional so the app boots without Stripe
+  // configured; payment kickoff no-ops and falls back to manual "mark paid" until
+  // the secret key is set. The webhook route is disabled unless the secret is set.
+  STRIPE_SECRET_KEY: optionalEnvString(z.string()),
+  STRIPE_WEBHOOK_SECRET: optionalEnvString(z.string()),
   // Cheap multimodal model used to transcribe + summarize recording audio (via
   // OpenRouter input_audio). Gemini Flash-lite accepts audio and returns JSON with
   // timestamped segments for cheap (~$0.003 / 30-min recording). Fed compact mono

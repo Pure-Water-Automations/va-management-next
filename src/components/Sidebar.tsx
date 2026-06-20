@@ -22,6 +22,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/hr/roles", label: "Compensation Roles" },
         { href: "/hr/checkins", label: "Forms & Check-ins" },
         { href: "/admin/contract", label: "Contract template" },
+        { href: "/admin/client-agreement", label: "Client agreement" },
         { href: "/admin/email", label: "Email sender" },
       ],
     },
@@ -114,6 +115,8 @@ export function Sidebar({
       {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
         <div>
           <div className="nav-label">Clients</div>
+          <NavItemLink href="/hr/sales" label="Sales Pipeline" />
+          <NavItemLink href="/hr/client-onboarding" label="Onboarding" />
           <NavItemLink href="/hr/clients" label="Organizations" />
           <NavItemLink href="/hr/requests" label="Client Requests" />
         </div>

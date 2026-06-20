@@ -65,6 +65,40 @@ export const MCP_TOOLS: McpTool[] = [
       required: ["taskId", "status"],
     },
   },
+  {
+    name: "list_deals",
+    description: "List client sales deals (org, stage, package, value, and agreement sent/signed/paid state). Optionally filter by stage.",
+    inputSchema: { type: "object", properties: { stage: { type: "string", description: "Optional DealStage filter, e.g. verbal_yes | won" } } },
+  },
+  {
+    name: "create_deal",
+    description: "Create a client sales deal (bring a Notion-pipeline deal into the app to close it). Defaults stage to verbal_yes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orgName: { type: "string" },
+        contactName: { type: "string" },
+        contactEmail: { type: "string" },
+        packageName: { type: "string" },
+        dealValue: { type: "number", description: "USD" },
+        billingType: { type: "string", enum: ["retainer", "hourly", "project"] },
+        startDate: { type: "string", description: "ISO date" },
+        stage: { type: "string" },
+        notionPageId: { type: "string", description: "Notion Pipeline page URL or id" },
+      },
+      required: ["orgName"],
+    },
+  },
+  {
+    name: "send_client_agreement",
+    description: "Email the client contact a link to sign the service agreement in-app (the e-signer). Requires the deal to have a contact email.",
+    inputSchema: { type: "object", properties: { dealId: { type: "string" } }, required: ["dealId"] },
+  },
+  {
+    name: "convert_deal_to_client",
+    description: "Promote a signed & paid deal to a client: create the portal organization + onboarding record and set the deal Won. Idempotent.",
+    inputSchema: { type: "object", properties: { dealId: { type: "string" } }, required: ["dealId"] },
+  },
 ];
 
 export type ToolExecutor = (name: string, args: Record<string, unknown>) => Promise<{ text: string; isError?: boolean }>;

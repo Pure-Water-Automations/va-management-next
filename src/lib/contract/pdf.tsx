@@ -5,7 +5,16 @@ export type SignedPdfInput = {
   contentHtml: string;
   signerName: string;
   signatureImage: string | null; // data URL (image/png) or null
-  audit: { signedAt: string; signerIp: string | null; userAgent: string | null; templateHash: string; candidateId: string };
+  // `subjectId`/`subjectLabel` keep the audit footer subject-agnostic so the same
+  // signer powers candidate contracts and client service agreements.
+  audit: {
+    signedAt: string;
+    signerIp: string | null;
+    userAgent: string | null;
+    templateHash: string;
+    subjectId: string;
+    subjectLabel?: string;
+  };
 };
 
 type Block =
@@ -59,7 +68,7 @@ export async function generateSignedPdf(input: SignedPdfInput): Promise<Buffer> 
           <Text>Date: {input.audit.signedAt}</Text>
         </View>
         <Text style={s.audit}>
-          Audit — candidate {input.audit.candidateId} · IP {input.audit.signerIp ?? "n/a"} · {input.audit.userAgent ?? "n/a"} · template {input.audit.templateHash}
+          Audit — {input.audit.subjectLabel ?? "ref"} {input.audit.subjectId} · IP {input.audit.signerIp ?? "n/a"} · {input.audit.userAgent ?? "n/a"} · template {input.audit.templateHash}
         </Text>
       </Page>
     </Document>
