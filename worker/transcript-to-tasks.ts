@@ -23,7 +23,7 @@ import {
 } from "@/lib/meetings/extract";
 
 const MEETINGS_DIR = process.env.MEETINGS_DIR || "/app/SecondBrain/Meetings";
-const MODEL = process.env.OPENROUTER_TRANSCRIPT_MODEL || "google/gemini-2.5-flash-lite";
+const MODEL = env.OPENROUTER_TRANSCRIPT_MODEL || "google/gemini-2.5-flash-lite";
 const BATCH = Number(process.env.TRANSCRIPT_BATCH || "8");
 
 async function main() {
@@ -56,6 +56,10 @@ async function main() {
     }
 
     // Idempotency: which of these absolute paths are already recorded?
+    // TODO(scale): this materializes the whole Meetings dir into an `IN (...)`
+    // list each run. Fine for the hundreds of files we have; if it grows into
+    // the thousands, switch to a watermark (e.g. only consider files newer than
+    // the latest processed meetingDate) instead of an unbounded IN clause.
     const fullPaths = files.map((f) => path.join(MEETINGS_DIR, f));
     const existing = await db.meetingAction.findMany({
       where: { meetingFile: { in: fullPaths } },

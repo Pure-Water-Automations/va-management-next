@@ -33,6 +33,9 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Model for the transcript-to-tasks worker's action-item extraction. Defaults
+  // to google/gemini-2.5-flash-lite in the worker when unset.
+  OPENROUTER_TRANSCRIPT_MODEL: optionalEnvString(z.string()),
   // Model for the "Enhance with Second Brain" agent (brief synthesis). Defaults to
   // anthropic/claude-3.5-haiku in code — better grounded synthesis than DeepSeek.
   OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
