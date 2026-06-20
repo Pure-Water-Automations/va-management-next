@@ -870,6 +870,56 @@ model ProjectComment {
   @@index([visibility])
 }
 
+// ── Meeting Actions (Zoom transcript → tasks) ─────────────────────────────
+// AI-extracted action items from harvested Zoom transcripts, queued for a team
+// lead to confirm into real Tasks. `meetingFile` is the idempotency cursor: any
+// Meetings/*.md path not present here is unprocessed.
+
+enum MeetingActionStatus {
+  PENDING
+  RESOLVED
+}
+
+enum MeetingActionItemStatus {
+  PENDING
+  CONFIRMED
+  SKIPPED
+}
+
+model MeetingAction {
+  id           String              @id @default(cuid())
+  meetingFile  String              @unique
+  meetingTitle String
+  meetingDate  DateTime?
+  zoomAccount  String?
+  status       MeetingActionStatus @default(PENDING)
+  items        MeetingActionItem[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status])
+}
+
+model MeetingActionItem {
+  id                String                  @id @default(cuid())
+  meetingActionId   String
+  title             String
+  description       String?
+  suggestedAssignee String?
+  suggestedDueDate  DateTime?
+  clientContext     String?
+  status            MeetingActionItemStatus @default(PENDING)
+  taskId            String?                 // soft ref to Task.id (no FK, by design)
+  resolvedBy        String?                 // email of who confirmed/skipped
+  resolvedAt        DateTime?
+  createdAt         DateTime                @default(now())
+
+  meetingAction MeetingAction @relation(fields: [meetingActionId], references: [id], onDelete: Cascade)
+
+  @@index([meetingActionId])
+  @@index([status])
+}
+
 model SavedView {
   id        String   @id @default(cuid())
   userId    String
