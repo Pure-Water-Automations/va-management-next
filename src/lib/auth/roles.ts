@@ -63,6 +63,11 @@ export function isTaskDelegator(role: Role): boolean {
   return canManageTasks(role);
 }
 
+/** Roles allowed to review the Meeting Actions queue (Zoom transcript → tasks). */
+export function canReviewMeetingActions(role: Role): boolean {
+  return role === "HR_MANAGER" || role === "TEAM_LEAD" || role === "SENIOR_VA";
+}
+
 /** Roles that can create, edit, and delete projects. SENIOR_VA is excluded. */
 export function canManageProjects(role: Role): boolean {
   return role === "HR_MANAGER" || role === "PEOPLE_OPS" || role === "TEAM_LEAD";
