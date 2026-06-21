@@ -120,7 +120,9 @@ SENIOR_VA + admins) confirm or skip items on the **Meeting Actions** tab
 `canUserDelegateTasks`, so the ✓ Add button only shows for delegators) and the
 assignment email + `ActivityLog` fire identically. Model override:
 `OPENROUTER_TRANSCRIPT_MODEL` (default `google/gemini-2.5-flash-lite`); batch
-size `TRANSCRIPT_BATCH` (default 8/run). Each records a `SyncRun`.
+size `TRANSCRIPT_BATCH` (default 8/run); recency floor `TRANSCRIPT_MAX_AGE_DAYS`
+(default 30 — meetings older than this are skipped, not backfilled). Each records
+a `SyncRun`.
 
 ## MCP endpoint (create/manage projects & tasks from AI clients)
 

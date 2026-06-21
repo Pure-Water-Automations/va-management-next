@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   parseMeetingFile,
   shouldProcess,
+  isRecentEnough,
   parseExtractedItems,
   buildExtractionMessages,
 } from "../src/lib/meetings/extract";
@@ -105,4 +106,20 @@ test("buildExtractionMessages: includes header + transcript, truncates long bodi
   assert.equal(msgs[0].role, "system");
   assert.match(msgs[1].content, /MEETING: Aira & Oakwood Check-in/);
   assert.match(msgs[1].content, /truncated/);
+});
+
+test("isRecentEnough: within window passes, outside fails", () => {
+  const now = new Date("2026-06-20T00:00:00Z");
+  assert.equal(isRecentEnough(new Date("2026-06-10T00:00:00Z"), now, 30), true);
+  assert.equal(isRecentEnough(new Date("2026-04-08T00:00:00Z"), now, 30), false);
+});
+
+test("isRecentEnough: null/unknown date is treated as in-window", () => {
+  assert.equal(isRecentEnough(null, new Date("2026-06-20T00:00:00Z"), 30), true);
+});
+
+test("isRecentEnough: exactly at the cutoff still passes", () => {
+  const now = new Date("2026-06-20T00:00:00Z");
+  const exactly30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  assert.equal(isRecentEnough(exactly30, now, 30), true);
 });

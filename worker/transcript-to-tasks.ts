@@ -17,6 +17,7 @@ import { openrouterChat } from "@/lib/matrix/openrouter";
 import {
   parseMeetingFile,
   shouldProcess,
+  isRecentEnough,
   buildExtractionMessages,
   parseExtractedItems,
   type ProposedItem,
@@ -25,12 +26,17 @@ import {
 const MEETINGS_DIR = process.env.MEETINGS_DIR || "/app/SecondBrain/Meetings";
 const MODEL = env.OPENROUTER_TRANSCRIPT_MODEL || "google/gemini-2.5-flash-lite";
 const BATCH = Number(process.env.TRANSCRIPT_BATCH || "8");
+// Recency floor: only process meetings within this many days (skip the historical
+// backlog, whose action items are likely already stale). Override via env.
+const MAX_AGE_DAYS = Number(process.env.TRANSCRIPT_MAX_AGE_DAYS || "30");
 
 async function main() {
   const run = await db.syncRun.create({ data: { worker: "transcript-to-tasks", status: "FAILED" } });
+  const now = new Date();
   let processed = 0;
   let withItems = 0;
   let skippedScope = 0;
+  let skippedOld = 0;
   let parseFailed = 0;
 
   try {
@@ -77,6 +83,7 @@ async function main() {
 
       const meta = parseMeetingFile(md);
       if (!shouldProcess(meta)) { skippedScope++; continue; }
+      if (!isRecentEnough(meta.date, now, MAX_AGE_DAYS)) { skippedOld++; continue; }
 
       // ONE LLM call per meeting (strong-fit: single doc → strict JSON).
       let items: ProposedItem[] | null;
@@ -129,11 +136,11 @@ async function main() {
       data: {
         status: "SUCCESS",
         finishedAt: new Date(),
-        detailsJson: { processed, withItems, skippedScope, parseFailed, model: MODEL },
+        detailsJson: { processed, withItems, skippedScope, skippedOld, parseFailed, maxAgeDays: MAX_AGE_DAYS, model: MODEL },
       },
     });
     console.log(
-      `transcript-to-tasks: processed ${processed} (with items ${withItems}); ${skippedScope} out-of-scope; ${parseFailed} parse/LLM failures (retry next run)`,
+      `transcript-to-tasks: processed ${processed} (with items ${withItems}); ${skippedScope} out-of-scope; ${skippedOld} older than ${MAX_AGE_DAYS}d; ${parseFailed} parse/LLM failures (retry next run)`,
     );
   } catch (err) {
     await db.syncRun.update({

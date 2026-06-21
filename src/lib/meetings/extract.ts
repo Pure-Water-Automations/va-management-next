@@ -68,6 +68,19 @@ export function shouldProcess(meta: { zoomAccount: string | null; title: string 
   return true;
 }
 
+/**
+ * Recency floor: process a transcript only if its meeting date is within
+ * `maxAgeDays` of `now`. Keeps the worker from backfilling months of historical
+ * meetings (whose action items are likely already stale/done). A null/unknown
+ * date is treated as in-window — dateless files are rare and harmless to process,
+ * and we never want to silently drop a recent one for lack of a parsable date.
+ */
+export function isRecentEnough(date: Date | null, now: Date, maxAgeDays: number): boolean {
+  if (!date) return true;
+  const cutoff = now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000;
+  return date.getTime() >= cutoff;
+}
+
 const EXTRACTION_SYSTEM = [
   "You extract concrete, assignable action items from a virtual-assistant team's meeting transcript.",
   "Return ONLY a JSON array (no prose, no markdown fence). Each element:",
