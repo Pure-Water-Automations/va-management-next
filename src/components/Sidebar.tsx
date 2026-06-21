@@ -86,7 +86,7 @@ export function Sidebar({
   role,
   name,
   isAdmin = false,
-  showBeta = false,
+  showRecordings = false,
   canDelegate = false,
   showMeetingActions = false,
   meetingActionsCount = 0,
@@ -95,7 +95,7 @@ export function Sidebar({
   role: Role;
   name: string;
   isAdmin?: boolean;
-  showBeta?: boolean;
+  showRecordings?: boolean;
   canDelegate?: boolean;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
@@ -149,9 +149,9 @@ export function Sidebar({
           <NavItemLink href="/admin/users" label="Users" />
         </div>
       )}
-      {/* Recordings (Loom-style) — beta, founder-only preview (hidden when the
-          founder toggles beta off). Opens to more roles later. */}
-      {showBeta && (
+      {/* Recordings (Loom-style recorder + library) — open to admins so trusted
+          staff can record / review / test, not just founders. */}
+      {showRecordings && (
         <div>
           <div className="nav-label">Recordings</div>
           <NavItemLink href="/record" label="Record" />

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
+import { getCurrentUser, isRecordingsVisible } from "@/lib/auth/access";
 import { Recorder } from "@/components/recorder/Recorder";
 import { Card } from "@/components/ui/Card";
 import { r2Configured } from "@/lib/r2";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Admin-only while the feature is in preview (see docs/recordings-feature.md).
 export default async function RecordPage() {
   const user = await getCurrentUser();
-  if (!(await isBetaVisible(user.email))) notFound();
+  if (!isRecordingsVisible(user)) notFound();
 
   const storageOk = r2Configured();
 

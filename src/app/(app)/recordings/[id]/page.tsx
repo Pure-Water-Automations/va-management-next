@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
+import { getCurrentUser, isRecordingsVisible } from "@/lib/auth/access";
 import { isGateReviewer } from "@/lib/auth/roles";
 import { getRecordingDetail } from "@/lib/reads/recordings";
 import { RecordingDetailClient } from "@/components/recorder/RecordingDetailClient";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RecordingPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!(await isBetaVisible(user.email))) notFound();
+  if (!isRecordingsVisible(user)) notFound();
 
   const { id } = await params;
   const detail = await getRecordingDetail(user, id);

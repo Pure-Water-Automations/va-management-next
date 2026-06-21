@@ -58,6 +58,17 @@ export async function isBetaVisible(email: string | null | undefined): Promise<b
   return isFounder(email) && (await isBetaOn());
 }
 
+/**
+ * Recordings (the Loom-style recorder + library) are open to ADMINS, not just
+ * founders — so trusted staff (e.g. Aira) can record, review, and test. This is
+ * deliberately broader than `isBetaVisible` (which keeps Enhance/Discover
+ * founder-only) and independent of the beta toggle; the recorder is admin-gated,
+ * so regular VAs never see it regardless.
+ */
+export function isRecordingsVisible(user: CurrentUser): boolean {
+  return user.isAdmin || isFounder(user.email);
+}
+
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
 const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "VA"];
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isBetaVisible } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
@@ -53,9 +53,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     canDelegate = await canUserDelegateTasks(user.id, user.role);
   }
 
-  // Beta features (Enhance / Discover / Recordings) are founder-only and runtime-
-  // toggleable so the founder can hide them on demand (e.g. while demoing to VAs).
-  const betaVisible = await isBetaVisible(user.email);
+  // Enhance / Discover stay founder-only + runtime-toggleable (hidden during VA
+  // demos). Recordings is broader — open to admins (isRecordingsVisible) so trusted
+  // staff (e.g. Aira) can record / review / test.
+  const showRecordings = isRecordingsVisible(user);
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
@@ -71,7 +72,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
       <div className="app-shell">
         <label htmlFor="nav-toggle" className="nav-backdrop" aria-hidden="true" />
-        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} showBeta={betaVisible} canDelegate={canDelegate} showMeetingActions={showMeetingActions} meetingActionsCount={meetingActionsCount} />
+        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} showRecordings={showRecordings} canDelegate={canDelegate} showMeetingActions={showMeetingActions} meetingActionsCount={meetingActionsCount} />
         <main className="content" style={{ padding: 0 }}>
           {user.isAdmin && (
             <AdminBar
