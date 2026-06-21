@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { createTask } from "@/lib/actions/tasks";
+import { logActivity } from "@/lib/activity";
 import { allItemsResolved } from "@/lib/services/meeting-actions";
 import type { CurrentUser } from "@/lib/auth/access";
 
@@ -51,10 +52,18 @@ export async function skipMeetingActionItems(
     ? { meetingActionId: input.meetingActionId, status: "PENDING" as const }
     : { id: input.itemId, meetingActionId: input.meetingActionId, status: "PENDING" as const };
 
-  await db.meetingActionItem.updateMany({
+  const result = await db.meetingActionItem.updateMany({
     where,
     data: { status: "SKIPPED", resolvedBy: user.email, resolvedAt: new Date() },
   });
+  if (result.count > 0) {
+    await logActivity({
+      source: "meeting_action",
+      eventType: "items_skipped",
+      severity: "success",
+      summary: `Skipped ${result.count} meeting action item(s).`,
+    });
+  }
   await maybeResolveAction(input.meetingActionId);
-  return { ok: true };
+  return { ok: true, skipped: result.count };
 }

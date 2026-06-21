@@ -63,7 +63,11 @@ export function isTaskDelegator(role: Role): boolean {
   return canManageTasks(role);
 }
 
-/** Roles allowed to review the Meeting Actions queue (Zoom transcript → tasks). */
+/**
+ * Roles allowed to review the Meeting Actions queue (Zoom transcript → tasks).
+ * Intentionally excludes PEOPLE_OPS — the spec scopes this to HR Manager, Team
+ * Lead, and Senior VA (admins bypass via the route's isAdmin check).
+ */
 export function canReviewMeetingActions(role: Role): boolean {
   return role === "HR_MANAGER" || role === "TEAM_LEAD" || role === "SENIOR_VA";
 }

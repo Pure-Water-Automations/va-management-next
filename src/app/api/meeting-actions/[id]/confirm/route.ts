@@ -5,7 +5,7 @@ import { confirmMeetingActionItem } from "@/lib/actions/meeting-actions";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request) {
   let user;
   try {
     user = await getCurrentUser();
@@ -15,7 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user.isAdmin && !canReviewMeetingActions(user.role)) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
-  await params; // [id] = meetingActionId; the item carries its own parent link
 
   let body: { itemId?: string; assigneeId?: string; dueDate?: string };
   try {
