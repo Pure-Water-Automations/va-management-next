@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 export type Assignee = { id: string; name: string | null; email: string };
 export type MeetingItem = {
@@ -24,6 +26,17 @@ function fmtDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Most-frequently-suggested assignee across the card's items, or null. */
+function leadAssignee(items: MeetingItem[]): string | null {
+  const counts = new Map<string, number>();
+  for (const it of items) {
+    if (it.suggestedAssignee) counts.set(it.suggestedAssignee, (counts.get(it.suggestedAssignee) ?? 0) + 1);
+  }
+  let best: string | null = null, bestN = 0;
+  for (const [name, n] of counts) if (n > bestN) { best = name; bestN = n; }
+  return best;
 }
 
 export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[]; assignees: Assignee[] }) {
@@ -82,14 +95,19 @@ export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[
     const missing = card.items.find((it) => !edits[it.id]?.assigneeId);
     if (missing) { setError(`Pick an assignee for "${missing.title}" before confirming all.`); return; }
     setBusy(card.id);
+    let done = 0;
     try {
       for (const it of card.items) {
         const edit = edits[it.id];
         await post(`/api/meeting-actions/${card.id}/confirm`, { itemId: it.id, assigneeId: edit.assigneeId, dueDate: edit.dueDate || undefined });
+        done++;
       }
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to confirm all");
+      setError(
+        `Confirmed ${done} of ${card.items.length}. ${e instanceof Error ? e.message : "An item failed"}. The rest are still pending.`
+      );
+      router.refresh();
     } finally {
       setBusy(null);
     }
@@ -107,106 +125,152 @@ export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[
     }
   }
 
+  // Shared styles for form controls using the real design tokens.
+  const inputStyle: React.CSSProperties = {
+    background: "var(--color-bg)",
+    border: "1px solid var(--color-border)",
+    borderRadius: "var(--radius-input)",
+    color: "inherit",
+    fontSize: 12,
+    padding: "3px 6px",
+  };
+
   if (cards.length === 0) {
     return (
-      <div>
-        <h1 style={{ marginBottom: 4 }}>Meeting Actions</h1>
-        <p style={{ color: "var(--color-slate-400, #64748b)" }}>
+      <>
+        <div className="page-head">
+          <div>
+            <div className="crumb">Meetings</div>
+            <h1>Meeting Actions</h1>
+          </div>
+        </div>
+        <p style={{ color: "var(--color-text-tertiary)" }}>
           No pending meeting actions — check back after the next transcript is processed.
         </p>
-      </div>
+      </>
     );
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+    <>
+      <div className="page-head">
         <div>
-          <h1 style={{ marginBottom: 2 }}>Meeting Actions</h1>
-          <p style={{ color: "var(--color-slate-400, #64748b)", fontSize: 13 }}>
+          <div className="crumb">Meetings</div>
+          <h1>Meeting Actions</h1>
+          <p className="small" style={{ marginTop: 4 }}>
             AI-extracted tasks from recent meeting transcripts — review and confirm.
           </p>
         </div>
-        <span style={{ color: "var(--color-slate-400, #94a3b8)", fontSize: 13 }}>
+        <span style={{ color: "var(--color-text-tertiary)", fontSize: 13, alignSelf: "flex-end" }}>
           {cards.length} meeting{cards.length === 1 ? "" : "s"} pending · {totalItems} item{totalItems === 1 ? "" : "s"}
         </span>
       </div>
 
       {error && (
-        <div style={{ background: "#7f1d1d", color: "#fee2e2", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>
+        <div style={{ background: "var(--color-error-light)", color: "var(--color-error)", padding: "8px 12px", borderRadius: "var(--radius-sm)", marginBottom: 12, fontSize: 13 }}>
           {error}
         </div>
       )}
 
-      {cards.map((card) => {
-        const isCollapsed = collapsed[card.id];
-        const lead =
-          card.items.map((i) => i.suggestedAssignee).filter(Boolean).sort((a, b) =>
-            card.items.filter((x) => x.suggestedAssignee === b).length - card.items.filter((x) => x.suggestedAssignee === a).length,
-          )[0] || null;
-        return (
-          <div key={card.id} style={{ border: "1px solid var(--color-slate-700, #334155)", borderRadius: 8, marginBottom: 12, background: "var(--color-slate-800, #1e293b)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: isCollapsed ? "none" : "1px solid var(--color-slate-700, #334155)" }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{card.title}</div>
-                <div style={{ fontSize: 12, color: "var(--color-slate-400, #64748b)", marginTop: 2 }}>
-                  {[fmtDate(card.date), card.zoomAccount, lead ? `${lead} (lead)` : null].filter(Boolean).join(" · ")}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {cards.map((card) => {
+          const isCollapsed = collapsed[card.id];
+          const lead = leadAssignee(card.items);
+          return (
+            <Card key={card.id} padding={0}>
+              {/* Card header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: isCollapsed ? "none" : "1px solid var(--color-border)" }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{card.title}</div>
+                  <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                    {[fmtDate(card.date), card.zoomAccount, lead ? `${lead} (lead)` : null].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => confirmAll(card)}
+                    disabled={busy !== null}
+                  >
+                    Confirm all ({card.items.length})
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => skipAll(card)}
+                    disabled={busy !== null}
+                  >
+                    Skip all
+                  </Button>
+                  <Button
+                    variant="text"
+                    size="xs"
+                    onClick={() => setCollapsed((c) => ({ ...c, [card.id]: !c[card.id] }))}
+                  >
+                    {isCollapsed ? "Expand ▾" : "Collapse ▴"}
+                  </Button>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <button onClick={() => confirmAll(card)} disabled={busy !== null} style={{ background: "#22c55e", color: "#000", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 5, border: "none", cursor: "pointer" }}>
-                  Confirm all ({card.items.length})
-                </button>
-                <button onClick={() => skipAll(card)} disabled={busy !== null} style={{ background: "none", border: "none", color: "var(--color-slate-400, #64748b)", fontSize: 12, cursor: "pointer" }}>
-                  Skip all
-                </button>
-                <button onClick={() => setCollapsed((c) => ({ ...c, [card.id]: !c[card.id] }))} style={{ background: "none", border: "none", color: "#60a5fa", fontSize: 12, cursor: "pointer" }}>
-                  {isCollapsed ? "Expand ▾" : "Collapse ▴"}
-                </button>
-              </div>
-            </div>
 
-            {!isCollapsed &&
-              card.items.map((it) => (
-                <div key={it.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 16px", borderBottom: "1px solid var(--color-slate-900, #0f172a)" }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", flexShrink: 0, marginTop: 5 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{it.title}</div>
-                    {(it.description || it.clientContext) && (
-                      <div style={{ fontSize: 12, color: "var(--color-slate-400, #64748b)", marginTop: 2 }}>
-                        {[it.description, it.clientContext].filter(Boolean).join(" · ")}
-                      </div>
-                    )}
+              {/* Item rows */}
+              {!isCollapsed &&
+                card.items.map((it) => (
+                  <div key={it.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 16px", borderBottom: "1px solid var(--color-border-subtle)" }}>
+                    {/* Pending dot */}
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warning)", flexShrink: 0, marginTop: 5 }} />
+                    {/* Task info */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{it.title}</div>
+                      {(it.description || it.clientContext) && (
+                        <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                          {[it.description, it.clientContext].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    {/* Controls */}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                      <select
+                        aria-label="Assignee"
+                        value={edits[it.id]?.assigneeId ?? ""}
+                        onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], assigneeId: e.target.value } }))}
+                        style={inputStyle}
+                      >
+                        <option value="">Unassigned</option>
+                        {assignees.map((a) => (
+                          <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        aria-label="Due date"
+                        value={edits[it.id]?.dueDate ?? ""}
+                        onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], dueDate: e.target.value } }))}
+                        style={inputStyle}
+                      />
+                      <button
+                        aria-label={`Add task: ${it.title}`}
+                        onClick={() => confirmItem(card.id, it)}
+                        disabled={busy !== null}
+                        style={{ color: "var(--color-success)", background: "none", fontSize: 12, cursor: busy !== null ? "not-allowed" : "pointer", padding: "3px 8px", border: "1px solid var(--color-success)", borderRadius: "var(--radius-xs)", opacity: busy !== null ? 0.5 : 1 }}
+                      >
+                        ✓ Add
+                      </button>
+                      <button
+                        aria-label={`Skip: ${it.title}`}
+                        onClick={() => skipItem(card.id, it.id)}
+                        disabled={busy !== null}
+                        style={{ color: "var(--color-error)", background: "none", border: "none", fontSize: 12, cursor: busy !== null ? "not-allowed" : "pointer", opacity: busy !== null ? 0.5 : 1 }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                    <select
-                      value={edits[it.id]?.assigneeId ?? ""}
-                      onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], assigneeId: e.target.value } }))}
-                      style={{ background: "var(--color-slate-900, #0f172a)", border: "1px solid var(--color-slate-700, #334155)", borderRadius: 4, color: "inherit", fontSize: 12, padding: "3px 6px" }}
-                    >
-                      <option value="">Unassigned</option>
-                      {assignees.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="date"
-                      value={edits[it.id]?.dueDate ?? ""}
-                      onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], dueDate: e.target.value } }))}
-                      style={{ background: "var(--color-slate-900, #0f172a)", border: "1px solid var(--color-slate-700, #334155)", borderRadius: 4, color: "inherit", fontSize: 12, padding: "3px 6px" }}
-                    />
-                    <button onClick={() => confirmItem(card.id, it)} disabled={busy !== null} style={{ color: "#22c55e", background: "none", fontSize: 12, cursor: "pointer", padding: "3px 8px", border: "1px solid #22c55e", borderRadius: 4 }}>
-                      ✓ Add
-                    </button>
-                    <button onClick={() => skipItem(card.id, it.id)} disabled={busy !== null} style={{ color: "#ef4444", background: "none", border: "none", fontSize: 12, cursor: "pointer" }}>
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        );
-      })}
-    </div>
+                ))}
+            </Card>
+          );
+        })}
+      </div>
+    </>
   );
 }

@@ -137,14 +137,7 @@ export function Sidebar({
       {showMeetingActions && (
         <div>
           <div className="nav-label">Meetings</div>
-          <a href="/meeting-actions" className="nav-item" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span>Meeting Actions</span>
-            {meetingActionsCount > 0 && (
-              <span style={{ background: "#f59e0b", color: "#000", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 10 }}>
-                {meetingActionsCount}
-              </span>
-            )}
-          </a>
+          <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} />
         </div>
       )}
       {isAdmin && (
