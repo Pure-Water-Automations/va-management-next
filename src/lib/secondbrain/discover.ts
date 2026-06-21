@@ -7,7 +7,7 @@ const MAX_STEPS = 8;
 const MAX_TOOL_RESULT_CHARS = 3000;
 // Same split as the enhance agent: DeepSeek explores comms, Haiku writes the proposals.
 const SEARCH_MODEL = () => process.env.OPENROUTER_ENHANCE_SEARCH_MODEL || process.env.OPENROUTER_MATRIX_MODEL || "deepseek/deepseek-chat-v3.1";
-const PROPOSE_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-3.5-haiku";
+const PROPOSE_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-haiku-4.5";
 
 export type ProposedTask = { title: string; priority: "Low" | "Medium" | "High" };
 export type ProposedProject = {
