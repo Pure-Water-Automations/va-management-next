@@ -30,7 +30,7 @@ system**.
 | VPS deploy | `/app/SecondBrain/va-management-console/current` |
 | VPS env + secrets | `/app/SecondBrain/va-management-console/shared/.env.production`, `shared/secrets/service-account.json` |
 | systemd web | `va-management-web.service` (port **8796**, loopback) |
-| systemd timers | `va-management-daily.timer` (09:00 UTC, ordered automations) · `va-management-mirror.timer` (30 min) |
+| systemd timers | `va-management-daily.timer` (09:00 UTC, ordered automations) · `va-management-mirror.timer` (30 min) · `va-management-transcript.timer` (hourly :15, Zoom transcript → tasks) |
 | Postgres | DB/role `va_console` on the VPS (loopback `127.0.0.1:5432`) |
 | Source workbook (import + parity) | Sheet `1_a0V3skXADkSgK2Lqf5yFdDVzshhPkGzYQSwU-CKxKM` (read-only) |
 | Mirror sheet (Postgres → Sheet) | Sheet `1--Y_Ef7twh38rNAn3ddST7sxk4fOJOwm_cVY6x9fhaA` |
@@ -73,8 +73,10 @@ Browser ─https─> Tunnel ─> next start (127.0.0.1:8796) ─> NextAuth Googl
 CompensationRole, DeskLogHours/Efficiency [append logs — multiple rows per
 va/day], PayrollPeriod/Calculation, TierReview, CapacityFlagEvent, Candidate,
 TrainingSession, TrainingAssignment, Onboarding, Setting, Policy, NotionRef,
-ActivityLog) + User/SyncRun/AuditLog. Business logic in `src/lib/services/*`
-(payroll-calc, tier-eligibility, capacity, desklog-review) — 22 unit tests.
+ActivityLog, MeetingAction/MeetingActionItem) + User/SyncRun/AuditLog. Business
+logic in `src/lib/services/*` (payroll-calc, tier-eligibility, capacity,
+desklog-review, meeting-actions) — 22 unit tests + the transcript-extraction +
+meeting-action helpers (`src/lib/meetings/extract.ts`, pure + tested).
 
 ## Commands
 
@@ -104,7 +106,23 @@ ssh root@74.208.40.108 "systemctl start va-management-mirror"   # run mirror now
 `va-management-daily.timer` (09:00 UTC) runs `worker/` scripts **in order**:
 desklog-ingest → tier-check → capacity-monitor → payroll-close → monthly-checkin
 (ingest first because the rest read hours). `va-management-mirror.timer` exports
-Postgres → the mirror sheet every 30 min. Each records a `SyncRun`.
+Postgres → the mirror sheet every 30 min. `va-management-transcript.timer` runs
+`worker/transcript-to-tasks.ts` hourly at `:15` (after the Zoom harvester writes
+`SecondBrain/Meetings/*.md` at `:00`): one OpenRouter call per **new in-scope**
+transcript (accounts `Northeast` / `Business (BFC)`; titles `FGS Video review` /
+`NE PWA Projects` excluded) extracts proposed action items into `MeetingAction` /
+`MeetingActionItem`. `MeetingAction.meetingFile` (the absolute `.md` path) is the
+idempotency cursor — any file not yet a row is unprocessed; an empty-result
+meeting is written `RESOLVED` so it's never reprocessed; an unparseable LLM
+response writes no row and retries next run. Reviewers (HR_MANAGER / TEAM_LEAD /
+SENIOR_VA + admins) confirm or skip items on the **Meeting Actions** tab
+(`/meeting-actions`); confirming creates a real Task via `createTask` (gated by
+`canUserDelegateTasks`, so the ✓ Add button only shows for delegators) and the
+assignment email + `ActivityLog` fire identically. Model override:
+`OPENROUTER_TRANSCRIPT_MODEL` (default `google/gemini-2.5-flash-lite`); batch
+size `TRANSCRIPT_BATCH` (default 8/run); recency floor `TRANSCRIPT_MAX_AGE_DAYS`
+(default 30 — meetings older than this are skipped, not backfilled). Each records
+a `SyncRun`.
 
 ## MCP endpoint (create/manage projects & tasks from AI clients)
 

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the transcript-to-tasks worker hourly (15 min after the harvester at :00)
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+Persistent=true
+Unit=va-management-transcript.service
+
+[Install]
+WantedBy=timers.target
