@@ -6,11 +6,28 @@ import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
+import { Topbar } from "@/components/Topbar";
+import { VaTopNav } from "@/components/VaTopNav";
 import { AdminBar } from "@/components/AdminBar";
-import { NotificationBell } from "@/components/NotificationBell";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
+
+const EYEBROW: Record<string, string> = {
+  HR: "HR Operations",
+  PAYROLL: "Payroll",
+  RECRUITMENT: "Recruitment",
+  VA: "My Console",
+};
+
+function vaRoleLabel(role: string): string {
+  if (role === "SENIOR_VA") return "Senior VA";
+  if (role === "VA") return "Virtual Assistant";
+  return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Applies the persisted sidebar-collapsed preference before paint (no flash).
+const COLLAPSE_INIT = `(function(){try{if(localStorage.getItem('sidebarCollapsed')==='1'){document.documentElement.dataset.sidebarCollapsed='1';}}catch(e){}})();`;
 
 // Authenticated console shell. Everything under (app)/ requires a Google
 // login session; public routes (e.g. /track) live outside this group.
@@ -65,35 +82,63 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
 
+  const userName = user.name ?? user.email;
+  const adminBar = user.isAdmin ? (
+    <AdminBar
+      currentView={view}
+      vas={adminVas}
+      currentVaId={impersonatedVaId}
+      showBetaToggle={isFounder(user.email)}
+      betaOn={betaOn}
+    />
+  ) : null;
+
+  // VA console: lightweight glass top-nav shell (no sidebar), centered content.
+  if (view === "VA") {
+    return (
+      <>
+        <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
+        <div style={{ minHeight: "100vh", background: "var(--color-bg-secondary)" }}>
+          {adminBar}
+          <VaTopNav
+            name={userName}
+            roleLabel={vaRoleLabel(user.role)}
+            canDelegate={canDelegate}
+            showMeetingActions={showMeetingActions}
+            meetingActionsCount={meetingActionsCount}
+            showRecordings={showRecordings}
+            notifications={notifications}
+            unreadCount={unread}
+          />
+          <div className="topnav-content">{children}</div>
+        </div>
+        <CommandPalette />
+        <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
+      </>
+    );
+  }
+
+  // HR / Payroll / Recruitment: collapsible navy sidebar + glass top bar.
   return (
     <>
+      <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
       {/* Mobile nav: hamburger toggles the sidebar drawer (CSS-only). */}
       <input type="checkbox" id="nav-toggle" className="nav-toggle-cb" aria-hidden="true" defaultChecked={false} />
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
       <div className="app-shell">
         <label htmlFor="nav-toggle" className="nav-backdrop" aria-hidden="true" />
-        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} showRecordings={showRecordings} canDelegate={canDelegate} showMeetingActions={showMeetingActions} meetingActionsCount={meetingActionsCount} />
+        <Sidebar
+          view={view}
+          role={user.role}
+          name={userName}
+          isAdmin={user.isAdmin}
+          showRecordings={showRecordings}
+          showMeetingActions={showMeetingActions}
+          meetingActionsCount={meetingActionsCount}
+        />
         <main className="content" style={{ padding: 0 }}>
-          {user.isAdmin && (
-            <AdminBar
-              currentView={view}
-              vas={adminVas}
-              currentVaId={impersonatedVaId}
-              showBetaToggle={isFounder(user.email)}
-              betaOn={betaOn}
-            />
-          )}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              gap: 12,
-              padding: "8px 24px 0",
-            }}
-          >
-            <NotificationBell notifications={notifications} unreadCount={unread} />
-          </div>
+          {adminBar}
+          <Topbar eyebrow={EYEBROW[view] ?? "Console"} notifications={notifications} unreadCount={unread} />
           <div className="content-pad">{children}</div>
         </main>
       </div>

@@ -17,13 +17,14 @@ import {
   r2Configured,
   r2Delete,
 } from "@/lib/r2";
-import { canSeeRecording } from "@/lib/actions/recording-access";
+import { canSeeRecording, canClientSeeRecording } from "@/lib/actions/recording-access";
+import { getClientMembership } from "@/lib/auth/client";
 
 // Re-exported so existing importers (routes, reads) keep their import path.
 export { canSeeRecording } from "@/lib/actions/recording-access";
 export type { ViewerUser, VisibilityRec } from "@/lib/actions/recording-access";
 
-const VISIBILITIES: RecordingVisibility[] = ["private", "internal", "link"];
+const VISIBILITIES: RecordingVisibility[] = ["private", "internal", "link", "client"];
 
 function isOwnerOrAdmin(user: CurrentUser, rec: { uploaderUserId: string | null }): boolean {
   return user.isAdmin || (!!rec.uploaderUserId && rec.uploaderUserId === user.id);
@@ -130,6 +131,7 @@ export async function updateRecording(
     project?: string;
     task?: string;
     visibility?: string;
+    clientOrganizationId?: string;
   },
 ): Promise<{ id: string }> {
   const rec = await db.recording.findUnique({
@@ -144,6 +146,18 @@ export async function updateRecording(
       ? (input.visibility as RecordingVisibility)
       : undefined;
 
+  // Sharing to a client requires an org; switching to any other visibility clears it.
+  let clientOrganizationId: string | null | undefined = undefined;
+  if (visibility === "client") {
+    const orgId = input.clientOrganizationId?.trim();
+    if (!orgId) throw new Error("Pick a client to share this recording with.");
+    const org = await db.clientOrganization.findUnique({ where: { id: orgId }, select: { id: true } });
+    if (!org) throw new Error("That client organization no longer exists.");
+    clientOrganizationId = orgId;
+  } else if (visibility) {
+    clientOrganizationId = null;
+  }
+
   await db.recording.update({
     where: { id: rec.id },
     data: {
@@ -152,6 +166,7 @@ export async function updateRecording(
       project: input.project !== undefined ? input.project.trim() || null : undefined,
       task: input.task !== undefined ? input.task.trim() || null : undefined,
       visibility,
+      clientOrganizationId,
     },
   });
   return { id: rec.id };
@@ -195,12 +210,26 @@ export async function addComment(
 ): Promise<{ id: string }> {
   const rec = await db.recording.findUnique({
     where: { id: input.recordingId },
-    select: { id: true, uploaderUserId: true, vaId: true, visibility: true, va: { select: { supervisorVaId: true } } },
+    select: {
+      id: true,
+      uploaderUserId: true,
+      vaId: true,
+      visibility: true,
+      clientOrganizationId: true,
+      va: { select: { supervisorVaId: true } },
+    },
   });
   if (!rec) throw new Error("Recording not found.");
-  if (!canSeeRecording(user, { ...rec, ownerSupervisorVaId: rec.va?.supervisorVaId ?? null })) {
-    throw new Error("Not authorized.");
+  let allowed = canSeeRecording(user, { ...rec, ownerSupervisorVaId: rec.va?.supervisorVaId ?? null });
+  if (!allowed && (user.role === "CLIENT_ADMIN" || user.role === "CLIENT_MEMBER")) {
+    // A client may comment only on a video shared with their own org.
+    const membership = await getClientMembership(user.id);
+    allowed = canClientSeeRecording(membership?.clientOrganizationId, {
+      visibility: rec.visibility,
+      clientOrganizationId: rec.clientOrganizationId,
+    });
   }
+  if (!allowed) throw new Error("Not authorized.");
 
   const body = input.body?.trim() || null;
   const reaction = input.reaction?.trim() || null;

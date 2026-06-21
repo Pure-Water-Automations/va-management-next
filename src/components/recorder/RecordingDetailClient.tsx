@@ -44,10 +44,12 @@ export function RecordingDetailClient({
   detail,
   streamUrl,
   canReview,
+  clientOrgs = [],
 }: {
   detail: RecordingDetail;
   streamUrl: string;
   canReview: boolean;
+  clientOrgs?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -65,6 +67,7 @@ export function RecordingDetailClient({
   const [title, setTitle] = useState(detail.title);
   const [description, setDescription] = useState(detail.description ?? "");
   const [visibility, setVisibility] = useState(detail.visibility);
+  const [clientOrgId, setClientOrgId] = useState(detail.clientOrganizationId ?? "");
 
   const ready = detail.status === "ready";
 
@@ -131,11 +134,16 @@ export function RecordingDetailClient({
   }
 
   async function saveEdits() {
+    if (visibility === "client" && !clientOrgId) {
+      window.alert("Pick a client to share this recording with.");
+      return;
+    }
     const ok = await run("edit", "/api/recordings/update", {
       recordingId: detail.id,
       title: title.trim() || undefined,
       description,
       visibility,
+      clientOrganizationId: visibility === "client" ? clientOrgId : undefined,
     });
     if (ok) {
       setEditing(false);
@@ -237,9 +245,24 @@ export function RecordingDetailClient({
                   <select style={input} value={visibility} onChange={(e) => setVisibility(e.target.value)}>
                     <option value="private">Private (you + admins)</option>
                     <option value="internal">Internal (team)</option>
+                    <option value="client">Client (share to a client portal)</option>
                     <option value="link">Link (deferred — no public page yet)</option>
                   </select>
                 </div>
+                {visibility === "client" && (
+                  <div>
+                    <div style={label}>Share with client</div>
+                    <select style={input} value={clientOrgId} onChange={(e) => setClientOrgId(e.target.value)}>
+                      <option value="">Select a client…</option>
+                      {clientOrgs.map((o) => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                    </select>
+                    <div className="small" style={{ color: "var(--color-text-tertiary)", marginTop: 6 }}>
+                      Only this client&apos;s portal users will see it, under Video updates.
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Button loading={busy === "edit"} onClick={saveEdits}>
                     Save

@@ -1,50 +1,81 @@
+import type { ReactNode } from "react";
 import type { Role } from "@prisma/client";
 import type { ConsoleView } from "@/lib/auth/roles";
 import { NavItemLink } from "./NavItemLink";
+import { Avatar } from "./Avatar";
+import {
+  IconDashboard,
+  IconAward,
+  IconClipboardCheck,
+  IconAlertTriangle,
+  IconUsers,
+  IconWallet,
+  IconCalendarCheck,
+  IconFileText,
+  IconMail,
+  IconFolder,
+  IconListChecks,
+  IconInbox,
+  IconSend,
+  IconBarChart,
+  IconTemplate,
+  IconUserPlus,
+  IconGraduationCap,
+  IconShieldCheck,
+  IconBuilding,
+  IconMessageSquare,
+  IconHandshake,
+  IconBriefcase,
+  IconVideo,
+  IconFilm,
+  IconDollar,
+  IconArchive,
+  IconLogOut,
+} from "./icons";
 
-type NavItem = { href: string; label: string };
+type NavItem = { href: string; label: string; icon: ReactNode };
 
 const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
   HR: [
     {
       label: "Daily",
       items: [
-        { href: "/hr", label: "Dashboard" },
-        { href: "/hr/reviews", label: "Tier Reviews" },
-        { href: "/hr/evaluations", label: "Evaluations" },
-        { href: "/hr/capacity", label: "Capacity Alerts" },
+        { href: "/hr", label: "Dashboard", icon: <IconDashboard /> },
+        { href: "/hr/reviews", label: "Tier Reviews", icon: <IconAward /> },
+        { href: "/hr/evaluations", label: "Evaluations", icon: <IconClipboardCheck /> },
+        { href: "/hr/capacity", label: "Capacity Alerts", icon: <IconAlertTriangle /> },
       ],
     },
     {
       label: "Manage",
       items: [
-        { href: "/hr/registry", label: "VA Registry" },
-        { href: "/hr/roles", label: "Compensation Roles" },
-        { href: "/hr/checkins", label: "Forms & Check-ins" },
-        { href: "/admin/contract", label: "Contract template" },
-        { href: "/admin/client-agreement", label: "Client agreement" },
-        { href: "/admin/email", label: "Email sender" },
+        { href: "/hr/registry", label: "VA Registry", icon: <IconUsers /> },
+        { href: "/hr/roles", label: "Compensation Roles", icon: <IconWallet /> },
+        { href: "/hr/checkins", label: "Forms & Check-ins", icon: <IconCalendarCheck /> },
+        { href: "/admin/contract", label: "Contract template", icon: <IconFileText /> },
+        { href: "/admin/client-agreement", label: "Client agreement", icon: <IconFileText /> },
+        { href: "/admin/email", label: "Email sender", icon: <IconMail /> },
       ],
     },
     {
       label: "Projects",
       items: [
-        { href: "/hr/projects", label: "Projects" },
-        { href: "/hr/tasks", label: "All Tasks" },
-        { href: "/hr/tasks/available", label: "Available" },
-        { href: "/hr/tasks/new", label: "Delegate" },
-        { href: "/hr/workload", label: "Workload" },
-        { href: "/hr/templates", label: "Templates" },
+        { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
+        { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
+        { href: "/hr/tasks/available", label: "Available", icon: <IconInbox /> },
+        { href: "/hr/tasks/new", label: "Delegate", icon: <IconSend /> },
+        { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },
+        { href: "/hr/templates", label: "Templates", icon: <IconTemplate /> },
       ],
     },
     {
       label: "Recruitment",
       items: [
-        { href: "/recruitment", label: "Pipeline" },
-        { href: "/recruitment/training", label: "Training Log" },
-        { href: "/recruitment/gate", label: "Gate Review" },
-        { href: "/recruitment/tasks", label: "Training Module" },
-        { href: "/recruitment/onboarding", label: "Onboarding" },
+        { href: "/recruitment", label: "Pipeline", icon: <IconUserPlus /> },
+        { href: "/recruitment/training", label: "Training Log", icon: <IconGraduationCap /> },
+        { href: "/recruitment/gate", label: "Gate Review", icon: <IconShieldCheck /> },
+        { href: "/recruitment/tasks", label: "Training Module", icon: <IconListChecks /> },
+        { href: "/recruitment/onboarding", label: "Onboarding", icon: <IconClipboardCheck /> },
       ],
     },
   ],
@@ -52,8 +83,8 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
     {
       label: "Payroll",
       items: [
-        { href: "/payroll", label: "Active Period" },
-        { href: "/payroll/archive", label: "Archive" },
+        { href: "/payroll", label: "Active Period", icon: <IconDollar /> },
+        { href: "/payroll/archive", label: "Archive", icon: <IconArchive /> },
       ],
     },
   ],
@@ -61,24 +92,18 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
     {
       label: "Recruitment",
       items: [
-        { href: "/recruitment", label: "Pipeline" },
-        { href: "/recruitment/training", label: "Training Log" },
+        { href: "/recruitment", label: "Pipeline", icon: <IconUserPlus /> },
+        { href: "/recruitment/training", label: "Training Log", icon: <IconGraduationCap /> },
       ],
     },
   ],
-  VA: [
-    {
-      label: "My Console",
-      items: [
-        { href: "/va", label: "Overview" },
-        { href: "/va/tier", label: "Tier Progress" },
-        { href: "/va/evaluation", label: "Evaluation" },
-        { href: "/va/checkin", label: "Monthly Check-in" },
-        { href: "/va/tasks", label: "My Tasks" },
-        { href: "/hr/tasks/available", label: "Available Tasks" },
-      ],
-    },
-  ],
+};
+
+const SUBTITLE: Record<string, string> = {
+  HR: "HR Operations",
+  PAYROLL: "Payroll",
+  RECRUITMENT: "Recruitment",
+  VA: "My Console",
 };
 
 export function Sidebar({
@@ -87,7 +112,6 @@ export function Sidebar({
   name,
   isAdmin = false,
   showRecordings = false,
-  canDelegate = false,
   showMeetingActions = false,
   meetingActionsCount = 0,
 }: {
@@ -96,75 +120,78 @@ export function Sidebar({
   name: string;
   isAdmin?: boolean;
   showRecordings?: boolean;
-  canDelegate?: boolean;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
 }) {
-  const sections = NAV[view] ?? NAV.VA;
+  const sections = NAV[view] ?? NAV.HR;
   return (
     <aside className="sidebar">
       <div className="brand">
-        PWA<span className="dot">.</span>
-        <span style={{ fontSize: "var(--text-sm)", fontWeight: 400, opacity: 0.7 }}>VA Ops</span>
+        <span className="logo-mark">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/pwa-logo.png" alt="Pure Water Automations" />
+        </span>
+        <span className="brand-text">
+          <span className="brand-name">Pure Water</span>
+          <span className="brand-sub">{SUBTITLE[view] ?? "Console"}</span>
+        </span>
       </div>
-      {sections.map((section) => (
-        <div key={section.label}>
-          <div className="nav-label">{section.label}</div>
-          {section.items.map((item) => (
-            <NavItemLink key={item.href} href={item.href} label={item.label} />
-          ))}
-        </div>
-      ))}
-      {/* HR managers and people ops can manage clients and client requests */}
-      {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
-        <div>
-          <div className="nav-label">Clients</div>
-          <NavItemLink href="/hr/sales" label="Sales Pipeline" />
-          <NavItemLink href="/hr/client-onboarding" label="Onboarding" />
-          <NavItemLink href="/hr/clients" label="Organizations" />
-          <NavItemLink href="/hr/requests" label="Client Requests" />
-        </div>
-      )}
-      {/* VA-console users with delegation authority (a Senior VA, or any tier flagged
-          "Can delegate" on the Compensation Roles screen) get the delegation entry points. */}
-      {view === "VA" && canDelegate && (
-        <div>
-          <div className="nav-label">Delegation</div>
-          <NavItemLink href="/hr/tasks" label="All Tasks" />
-          <NavItemLink href="/hr/tasks/new" label="Delegate" />
-          <NavItemLink href="/hr/projects" label="Projects" />
-        </div>
-      )}
-      {/* Meeting Actions — Zoom transcript → tasks queue. Shown to task
-          reviewers (HR Manager / Team Lead / Senior VA) across either view. */}
-      {showMeetingActions && (
-        <div>
-          <div className="nav-label">Meetings</div>
-          <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} />
-        </div>
-      )}
-      {isAdmin && (
-        <div>
-          <div className="nav-label">Admin</div>
-          <NavItemLink href="/admin/users" label="Users" />
-        </div>
-      )}
-      {/* Recordings (Loom-style recorder + library) — open to admins so trusted
-          staff can record / review / test, not just founders. */}
-      {showRecordings && (
-        <div>
-          <div className="nav-label">Recordings</div>
-          <NavItemLink href="/record" label="Record" />
-          <NavItemLink href="/recordings" label="Recordings" />
-        </div>
-      )}
+
+      <nav>
+        {sections.map((section) => (
+          <div key={section.label}>
+            <div className="nav-label">{section.label}</div>
+            {section.items.map((item) => (
+              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+            ))}
+          </div>
+        ))}
+
+        {/* HR managers and people ops can manage clients and client requests */}
+        {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
+          <div>
+            <div className="nav-label">Clients</div>
+            <NavItemLink href="/hr/sales" label="Sales Pipeline" icon={<IconBriefcase />} />
+            <NavItemLink href="/hr/client-onboarding" label="Onboarding" icon={<IconHandshake />} />
+            <NavItemLink href="/hr/clients" label="Organizations" icon={<IconBuilding />} />
+            <NavItemLink href="/hr/requests" label="Client Requests" icon={<IconMessageSquare />} />
+          </div>
+        )}
+
+        {/* Meeting Actions — Zoom transcript → tasks queue. Shown to task
+            reviewers (HR Manager / Team Lead / Senior VA). */}
+        {showMeetingActions && (
+          <div>
+            <div className="nav-label">Meetings</div>
+            <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} />
+          </div>
+        )}
+
+        {isAdmin && (
+          <div>
+            <div className="nav-label">Admin</div>
+            <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
+          </div>
+        )}
+
+        {/* Recordings (Loom-style recorder + library) — open to admins. */}
+        {showRecordings && (
+          <div>
+            <div className="nav-label">Recordings</div>
+            <NavItemLink href="/record" label="Record" icon={<IconVideo />} />
+            <NavItemLink href="/recordings" label="Recordings" icon={<IconFilm />} />
+          </div>
+        )}
+      </nav>
+
       <div className="foot">
-        {name}
-        <br />
-        {role.replace(/_/g, " ")}
-        <br />
-        <a href="/api/logout" style={{ color: "var(--color-sky-300)" }}>
-          Sign out
+        <Avatar name={name} size={34} />
+        <div className="foot-meta">
+          <div className="foot-name">{name}</div>
+          <div className="foot-role">{role.replace(/_/g, " ")}</div>
+        </div>
+        <a href="/api/logout" title="Sign out" aria-label="Sign out" style={{ display: "flex", flex: "none", color: "rgba(255,255,255,.6)" }}>
+          <IconLogOut size={16} />
         </a>
       </div>
     </aside>

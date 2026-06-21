@@ -611,6 +611,7 @@ enum RecordingVisibility {
   private // owner + admins only
   internal // owner + supervisor chain + HR/PeopleOps/TeamLead
   link // anyone with the share token (public page — deferred)
+  client // shared to a specific client org — visible in that org's portal
 }
 
 model Recording {
@@ -622,6 +623,11 @@ model Recording {
   candidate      Candidate? @relation(fields: [candidateId], references: [candidateId])
   uploaderUserId String? // User.id when a signed-in user records; null for candidate captures
   uploaderEmail  String? // denormalized for display / audit
+
+  // Client sharing — set when visibility = client. Scopes the recording to one
+  // client org's portal (the only place clients ever see internal recordings).
+  clientOrganizationId String?
+  clientOrganization   ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
 
   title       String              @default("Untitled recording")
   description String?
@@ -669,6 +675,7 @@ model Recording {
   @@index([candidateId])
   @@index([status])
   @@index([uploaderUserId])
+  @@index([clientOrganizationId])
 }
 
 model RecordingComment {
@@ -1030,6 +1037,7 @@ model ClientOrganization {
   taskRequests ClientTaskRequest[]
   onboarding   ClientOnboarding?
   deal         Deal?
+  recordings   Recording[]
 
   @@index([slug])
   @@index([active])

@@ -36,3 +36,15 @@ export function canSeeRecording(user: ViewerUser, rec: VisibilityRec): boolean {
     return true;
   return false;
 }
+
+/**
+ * Whether a client-portal user (scoped to one client org) may view a recording.
+ * Clients ONLY ever see recordings explicitly shared to their org
+ * (visibility = client AND clientOrganizationId = their org) — never internal ones.
+ */
+export function canClientSeeRecording(
+  orgId: string | null | undefined,
+  rec: { visibility: RecordingVisibility; clientOrganizationId: string | null },
+): boolean {
+  return !!orgId && rec.visibility === "client" && rec.clientOrganizationId === orgId;
+}
