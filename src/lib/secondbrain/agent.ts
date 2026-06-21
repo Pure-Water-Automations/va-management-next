@@ -10,7 +10,7 @@ const MAX_TOOL_RESULT_CHARS = 3200; // cap each search result fed back to the mo
 // transcript content (the better SEARCHER); Claude Haiku writes a tighter, better-
 // grounded brief from that gathered context (the better WRITER). Each is overridable.
 const SEARCH_MODEL = () => process.env.OPENROUTER_ENHANCE_SEARCH_MODEL || process.env.OPENROUTER_MATRIX_MODEL || "deepseek/deepseek-chat-v3.1";
-const BRIEF_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-3.5-haiku";
+const BRIEF_MODEL = () => process.env.OPENROUTER_ENHANCE_MODEL || "anthropic/claude-haiku-4.5";
 
 export type EnhanceTask = { title: string; instructions?: string; priority: "Low" | "Medium" | "High" };
 export type EnhanceSource = { title: string; link?: string; kind?: string };
