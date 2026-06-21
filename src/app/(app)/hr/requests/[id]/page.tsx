@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Request = {
   id: string;
@@ -71,7 +72,7 @@ export default function RequestDetailPage() {
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/requests">Client Requests</a> / {request.title}
+            <Link href="/hr/requests">Client Requests</Link> / {request.title}
           </div>
           <h1>{request.title}</h1>
         </div>

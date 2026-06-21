@@ -2,6 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -166,9 +167,9 @@ export function RecordingDetailClient({
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/recordings" style={{ color: "inherit" }}>
+            <Link href="/recordings" style={{ color: "inherit" }}>
               Recordings
-            </a>
+            </Link>
           </div>
           <h1 style={{ marginBottom: 6 }}>{detail.title}</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type SearchProject = { id: string; name: string };
 type SearchTask = { id: string; title: string };
@@ -30,6 +31,7 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
 
   const close = useCallback(() => {
     setOpen(false);
@@ -42,9 +44,10 @@ export function CommandPalette() {
   const navigate = useCallback(
     (href: string) => {
       close();
-      window.location.href = href;
+      // Client-side nav keeps the persistent shell (and its scroll) mounted.
+      router.push(href);
     },
-    [close],
+    [close, router],
   );
 
   // Global keyboard listener: open on Cmd/Ctrl+K, close on Esc.

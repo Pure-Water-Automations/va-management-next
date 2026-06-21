@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
@@ -44,7 +45,12 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/tasks">All Tasks</a> / {task.title}
+            {task.project ? (
+              <Link href={`/hr/projects/${task.project.id}`}>{task.project.name}</Link>
+            ) : (
+              <Link href="/hr/tasks">All Tasks</Link>
+            )}{" "}
+            / {task.title}
           </div>
           <h1>{task.title}</h1>
         </div>

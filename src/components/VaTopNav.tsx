@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "./Avatar";
 import { NotificationBell } from "./NotificationBell";
@@ -11,7 +12,6 @@ import {
   IconCalendarCheck,
   IconListChecks,
   IconInbox,
-  IconSend,
   IconFolder,
   IconMessageSquare,
   IconVideo,
@@ -56,9 +56,10 @@ export function VaTopNav({
     { href: "/va/checkin", label: "Check-in", icon: <IconCalendarCheck /> },
   ];
   if (canDelegate) {
+    // Delegating VAs get All Tasks + Projects; "Delegate" itself is reachable via
+    // the + Delegate Task button on those pages, so no separate nav item.
     items.push(
       { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
-      { href: "/hr/tasks/new", label: "Delegate", icon: <IconSend /> },
       { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
     );
   }
@@ -75,7 +76,7 @@ export function VaTopNav({
   return (
     <header className="topnav">
       <div className="topnav-inner">
-        <a href="/va" className="brand">
+        <Link href="/va" className="brand">
           <span className="logo-mark">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/pwa-logo.png" alt="Pure Water Automations" />
@@ -83,10 +84,10 @@ export function VaTopNav({
           <span className="brand-name">
             Pure Water <span className="dot">·</span> VA
           </span>
-        </a>
+        </Link>
         <nav className="topnav-links">
           {items.map((item) => (
-            <a
+            <Link
               key={item.href}
               href={item.href}
               className={`topnav-item${isActivePath(pathname, item.href) ? " active" : ""}`}
@@ -94,7 +95,7 @@ export function VaTopNav({
               <span className="nav-icon">{item.icon}</span>
               {item.label}
               {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="topnav-end">

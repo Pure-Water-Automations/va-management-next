@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
@@ -34,9 +35,7 @@ export default async function DelegateTaskPage() {
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/tasks" style={{ textDecoration: "none", color: "inherit" }}>
-              All Tasks
-            </a>
+            <Link href="/hr/tasks">All Tasks</Link> / Delegate
           </div>
           <h1>Delegate a Task</h1>
         </div>
