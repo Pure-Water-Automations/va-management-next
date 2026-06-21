@@ -8,6 +8,7 @@ import { deliverSignedContract } from "@/lib/contract/store";
 import { markContractSigned } from "@/lib/actions/recruitment";
 import { logActivity } from "@/lib/activity";
 import { runWithActor } from "@/lib/request-context";
+import { getAgreementSignState, signClientAgreement } from "@/lib/sales/agreement";
 
 type Signable = { currentStage: string; contractDeadline: Date | null; signedAt: Date | null };
 
@@ -28,7 +29,12 @@ async function templateHtml(settings: Map<string, string>): Promise<string> {
 /** Public read for the sign page. Returns the rendered contract + display state. */
 export async function getSignState(token: string) {
   const candidate = await db.candidate.findUnique({ where: { contractSignToken: token } });
-  if (!candidate) return { ok: false as const, error: "This signing link is not valid." };
+  if (!candidate) {
+    // Fall through to a client service agreement using the same signing UI.
+    const agreement = await getAgreementSignState(token);
+    if (agreement) return agreement;
+    return { ok: false as const, error: "This signing link is not valid." };
+  }
 
   const alreadySigned = candidate.currentStage !== "contract_sent" || !!candidate.signedAt;
   const expired = !!candidate.contractDeadline && candidate.contractDeadline.getTime() < Date.now();
@@ -61,7 +67,10 @@ export async function signContract(
   if (!input.signerName?.trim()) throw new Error("Please type your full legal name.");
 
   const candidate = await db.candidate.findUnique({ where: { contractSignToken: token } });
-  if (!candidate) throw new Error("This signing link is not valid.");
+  if (!candidate) {
+    // Not a candidate token — dispatch to the client agreement signer.
+    return signClientAgreement(token, input, meta);
+  }
   assertSignable(candidate);
 
   const now = new Date();
@@ -80,7 +89,8 @@ export async function signContract(
       signerIp: meta.ip,
       userAgent: meta.userAgent,
       templateHash,
-      candidateId: candidate.candidateId,
+      subjectId: candidate.candidateId,
+      subjectLabel: "candidate",
     },
   });
 

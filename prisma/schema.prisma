@@ -69,6 +69,7 @@ enum ClientOrgStatus {
   active
   paused
   churned
+  onboarding
 }
 
 enum ClientTaskRequestStatus {
@@ -96,17 +97,17 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projectsOwned    Project[]        @relation("ProjectOwner")
-  projectsCreated  Project[]        @relation("ProjectCreator")
-  tasksAssigned    Task[]           @relation("TaskAssignee")
-  tasksCreated     Task[]           @relation("TaskCreator")
-  taskClaimRequests Task[]          @relation("TaskClaimRequester")
-  taskComments     TaskComment[]    @relation("TaskCommentAuthor")
-  projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
-  savedViews       SavedView[]
-  notifications    Notification[]
-  clientMemberships    ClientMembership[]
-  clientTaskRequests   ClientTaskRequest[] @relation("ClientTaskRequestSubmitter")
+  projectsOwned      Project[]           @relation("ProjectOwner")
+  projectsCreated    Project[]           @relation("ProjectCreator")
+  tasksAssigned      Task[]              @relation("TaskAssignee")
+  tasksCreated       Task[]              @relation("TaskCreator")
+  taskClaimRequests  Task[]              @relation("TaskClaimRequester")
+  taskComments       TaskComment[]       @relation("TaskCommentAuthor")
+  projectComments    ProjectComment[]    @relation("ProjectCommentAuthor")
+  savedViews         SavedView[]
+  notifications      Notification[]
+  clientMemberships  ClientMembership[]
+  clientTaskRequests ClientTaskRequest[] @relation("ClientTaskRequestSubmitter")
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────
@@ -126,26 +127,26 @@ enum VaStatus {
 }
 
 model Va {
-  vaId               String    @id
-  name               String
-  email              String    @unique
-  compensationRole   CompRole  @default(TRAINEE)
-  status             VaStatus  @default(training)
-  targetHoursWeekly  Float?
-  baselineHours      Float     @default(0) // cumulative hours carried over from the old tool at cutover
-  supervisorVaId     String?
-  supervisor         Va?       @relation("Supervision", fields: [supervisorVaId], references: [vaId])
-  reports            Va[]      @relation("Supervision")
-  desklogUserId      String?
-  skillSpecs         String?
-  availabilityNotes  String?
-  lastCheckinDate    DateTime?
-  notionProfileUrl   String?
-  roleStartedDate    DateTime?
-  notionDisplayTier  String?
-  tierMismatchFlag   String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  vaId              String    @id
+  name              String
+  email             String    @unique
+  compensationRole  CompRole  @default(TRAINEE)
+  status            VaStatus  @default(training)
+  targetHoursWeekly Float?
+  baselineHours     Float     @default(0) // cumulative hours carried over from the old tool at cutover
+  supervisorVaId    String?
+  supervisor        Va?       @relation("Supervision", fields: [supervisorVaId], references: [vaId])
+  reports           Va[]      @relation("Supervision")
+  desklogUserId     String?
+  skillSpecs        String?
+  availabilityNotes String?
+  lastCheckinDate   DateTime?
+  notionProfileUrl  String?
+  roleStartedDate   DateTime?
+  notionDisplayTier String?
+  tierMismatchFlag  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   users          User[]
   hoursRaw       DeskLogHours[]
@@ -164,74 +165,74 @@ enum CompensationType {
 }
 
 model CompensationRole {
-  roleId                  CompRole         @id
-  roleName                String
-  compensationType        CompensationType @default(hourly)
-  hourlyRate              Float?
-  salaryPerPeriod         Float?
-  onAdvancementTrack      Boolean          @default(true)
+  roleId                   CompRole         @id
+  roleName                 String
+  compensationType         CompensationType @default(hourly)
+  hourlyRate               Float?
+  salaryPerPeriod          Float?
+  onAdvancementTrack       Boolean          @default(true)
   minTotalHoursToReachNext Float?
-  nextRoleId              CompRole?
-  additionalRequirements  String?
-  notes                   String?
-  canDelegateTasks        Boolean          @default(false)
-  canDelegateProjects     Boolean          @default(false)
-  updatedAt               DateTime         @updatedAt
+  nextRoleId               CompRole?
+  additionalRequirements   String?
+  notes                    String?
+  canDelegateTasks         Boolean          @default(false)
+  canDelegateProjects      Boolean          @default(false)
+  updatedAt                DateTime         @updatedAt
 }
 
 model DeskLogHours {
-  id           String   @id @default(cuid())
-  date         DateTime @db.Date
-  vaId         String
-  va           Va       @relation(fields: [vaId], references: [vaId])
-  desklogUserId String?
-  project      String?
-  task         String?
-  billable     Boolean?
-  timeAtWorkHrs Float?
-  focusTimeHrs Float?
-  idleTimeHrs  Float?
-  taskSpentHrs Float    @default(0)
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  vaId            String
+  va              Va       @relation(fields: [vaId], references: [vaId])
+  desklogUserId   String?
+  project         String?
+  task            String?
+  billable        Boolean?
+  timeAtWorkHrs   Float?
+  focusTimeHrs    Float?
+  idleTimeHrs     Float?
+  taskSpentHrs    Float    @default(0)
   taskAssignedHrs Float?
-  payRule      String?
-  needsReview  Boolean  @default(false)
-  reviewReason String?
-  createdAt    DateTime @default(now())
+  payRule         String?
+  needsReview     Boolean  @default(false)
+  reviewReason    String?
+  createdAt       DateTime @default(now())
 
   @@index([vaId])
   @@index([date, vaId])
 }
 
 model DeskLogEfficiency {
-  id                 String   @id @default(cuid())
-  date               DateTime @db.Date
-  vaId               String
-  va                 Va       @relation(fields: [vaId], references: [vaId])
-  desklogUserId      String?
-  activityPct        Float?
-  efficiencyPct      Float?
-  productiveTimeHrs  Float?
-  focusTimeHrs       Float?
-  idleTimeHrs        Float?
+  id                   String   @id @default(cuid())
+  date                 DateTime @db.Date
+  vaId                 String
+  va                   Va       @relation(fields: [vaId], references: [vaId])
+  desklogUserId        String?
+  activityPct          Float?
+  efficiencyPct        Float?
+  productiveTimeHrs    Float?
+  focusTimeHrs         Float?
+  idleTimeHrs          Float?
   nonProductiveTimeHrs Float?
-  createdAt          DateTime @default(now())
+  createdAt            DateTime @default(now())
 
   @@index([vaId])
   @@index([date, vaId])
 }
 
 model CapacityFlagEvent {
-  id          String   @id @default(cuid())
-  timestamp   DateTime @default(now())
-  vaId        String
-  va          Va       @relation(fields: [vaId], references: [vaId])
-  vaName      String?
-  flagType    String // overburdened | underutilized | manual_review
-  transition  String // flagged | cleared | reviewed
-  severity    String // red | yellow | green
+  id             String    @id @default(cuid())
+  timestamp      DateTime  @default(now())
+  vaId           String
+  va             Va        @relation(fields: [vaId], references: [vaId])
+  vaName         String?
+  flagType       String // overburdened | underutilized | manual_review
+  transition     String // flagged | cleared | reviewed
+  severity       String // red | yellow | green
   supervisorVaId String?
-  notifiedAt  DateTime?
-  notes       String?
+  notifiedAt     DateTime?
+  notes          String?
 
   @@index([vaId])
 }
@@ -245,33 +246,33 @@ enum PeriodStatus {
 }
 
 model PayrollPeriod {
-  periodStart        DateTime     @id @db.Date
-  periodEnd          DateTime     @db.Date
-  closeDate          DateTime     @db.Date
-  status             PeriodStatus @default(open)
-  periodTotalHours   Float?
-  periodTotalPayroll Float?
-  reminder3dSentAt   DateTime?
-  reminder1dSentAt   DateTime?
+  periodStart           DateTime             @id @db.Date
+  periodEnd             DateTime             @db.Date
+  closeDate             DateTime             @db.Date
+  status                PeriodStatus         @default(open)
+  periodTotalHours      Float?
+  periodTotalPayroll    Float?
+  reminder3dSentAt      DateTime?
+  reminder1dSentAt      DateTime?
   bookkeeperEmailSentAt DateTime?
-  calculations       PayrollCalculation[]
+  calculations          PayrollCalculation[]
 }
 
 model PayrollCalculation {
-  id               String        @id @default(cuid())
-  periodStart      DateTime      @db.Date
-  period           PayrollPeriod @relation(fields: [periodStart], references: [periodStart])
-  periodEnd        DateTime      @db.Date
+  id               String           @id @default(cuid())
+  periodStart      DateTime         @db.Date
+  period           PayrollPeriod    @relation(fields: [periodStart], references: [periodStart])
+  periodEnd        DateTime         @db.Date
   vaId             String
-  va               Va            @relation(fields: [vaId], references: [vaId])
+  va               Va               @relation(fields: [vaId], references: [vaId])
   name             String
   compensationRole CompRole
   compensationType CompensationType
-  hoursInPeriod    Float         @default(0)
+  hoursInPeriod    Float            @default(0)
   hourlyRate       Float?
   salaryPerPeriod  Float?
-  grossPay         Float         @default(0)
-  createdAt        DateTime      @default(now())
+  grossPay         Float            @default(0)
+  createdAt        DateTime         @default(now())
 
   @@unique([periodStart, vaId])
   @@index([vaId])
@@ -286,19 +287,19 @@ enum TierReviewStatus {
 }
 
 model TierReview {
-  id                     String           @id @default(cuid())
-  timestamp              DateTime         @default(now())
-  vaId                   String
-  va                     Va               @relation(fields: [vaId], references: [vaId])
-  vaName                 String?
-  currentRole            CompRole?
-  targetRole             CompRole?
+  id                       String           @id @default(cuid())
+  timestamp                DateTime         @default(now())
+  vaId                     String
+  va                       Va               @relation(fields: [vaId], references: [vaId])
+  vaName                   String?
+  currentRole              CompRole?
+  targetRole               CompRole?
   cumulativeHoursAtTrigger Float?
-  status                 TierReviewStatus @default(hours_triggered)
-  skillAttestationFormUrl String?
-  hrDecisionDate         DateTime?
-  hrNotes                String?
-  evaluation             Evaluation?
+  status                   TierReviewStatus @default(hours_triggered)
+  skillAttestationFormUrl  String?
+  hrDecisionDate           DateTime?
+  hrNotes                  String?
+  evaluation               Evaluation?
 
   @@index([vaId])
 }
@@ -322,15 +323,15 @@ enum EvalStatus {
 }
 
 model Evaluation {
-  evaluationId  String     @id @default(cuid())
-  tierReviewId  String     @unique
-  tierReview    TierReview @relation(fields: [tierReviewId], references: [id])
-  vaId          String
-  va            Va         @relation(fields: [vaId], references: [vaId])
-  vaName        String?
-  rubric        EvalRubric @default(TRAINEE)
-  stage         String? // e.g. "40h", "final", "tier_1_2" — display label
-  status        EvalStatus @default(forms_sent)
+  evaluationId String     @id @default(cuid())
+  tierReviewId String     @unique
+  tierReview   TierReview @relation(fields: [tierReviewId], references: [id])
+  vaId         String
+  va           Va         @relation(fields: [vaId], references: [vaId])
+  vaName       String?
+  rubric       EvalRubric @default(TRAINEE)
+  stage        String? // e.g. "40h", "final", "tier_1_2" — display label
+  status       EvalStatus @default(forms_sent)
 
   supervisorVaId String?
 
@@ -405,25 +406,25 @@ enum ContractStatus {
 }
 
 model Candidate {
-  candidateId   String         @id @default(cuid())
-  createdAt     DateTime       @default(now())
-  lastUpdated   DateTime       @updatedAt
-  source        String?
-  name          String?
-  email         String         @unique
-  country       String?
-  resumeUrl     String?
+  candidateId    String         @id @default(cuid())
+  createdAt      DateTime       @default(now())
+  lastUpdated    DateTime       @updatedAt
+  source         String?
+  name           String?
+  email          String         @unique
+  country        String?
+  resumeUrl      String?
   skillsRoleTags String?
-  currentStage  CandidateStage @default(applied)
+  currentStage   CandidateStage @default(applied)
 
-  aiSkillScore   Float?
-  commScore        Float?
-  reliabilityScore Float?
-  ownershipScore   Float?
-  skillFitScore    Float?
-  interviewerEmail String?
-  interviewDate    DateTime?
-  interviewNotes   String?
+  aiSkillScore            Float?
+  commScore               Float?
+  reliabilityScore        Float?
+  ownershipScore          Float?
+  skillFitScore           Float?
+  interviewerEmail        String?
+  interviewDate           DateTime?
+  interviewNotes          String?
   recruiterRecommendation RecruiterRecommendation?
 
   finalDecision FinalDecision?
@@ -439,35 +440,35 @@ model Candidate {
   tenhrGateResult      GateResult?
   gateReviewedBy       String?
 
-  contractSentAt   DateTime?
-  contractStatus   ContractStatus?
-  contractDeadline DateTime?
-  signedAt         DateTime?
+  contractSentAt    DateTime?
+  contractStatus    ContractStatus?
+  contractDeadline  DateTime?
+  signedAt          DateTime?
   bunnydocRequestId String?
-  contractSignToken String? @unique
+  contractSignToken String?         @unique
 
-  vaId          String?
-  notionPageId  String?
-  followUpNotes String?
+  vaId            String?
+  notionPageId    String?
+  followUpNotes   String?
   applicationJson Json? // full native-application answers (Typeform-style intake)
 
   // AI first-pass screening of the application (serious candidate? real answers?)
-  screenVerdict String?   // serious | review | spam
-  screenScore   Int?      // 0-100 overall quality/seriousness
-  screenSummary String?   // recruiter-facing summary
-  screenFlags   Json?     // string[] of concerns / failed checks
+  screenVerdict String? // serious | review | spam
+  screenScore   Int? // 0-100 overall quality/seriousness
+  screenSummary String? // recruiter-facing summary
+  screenFlags   Json? // string[] of concerns / failed checks
   screenedAt    DateTime?
 
   // training tracker rollups + magic-link token
-  trainingAccessToken   String?  @unique
-  trainingTotalMinutes  Int      @default(0)
-  trainingSessionCount  Int      @default(0)
-  trainingLastSessionAt DateTime?
-  trainingReadyForReview Boolean @default(false)
+  trainingAccessToken    String?   @unique
+  trainingTotalMinutes   Int       @default(0)
+  trainingSessionCount   Int       @default(0)
+  trainingLastSessionAt  DateTime?
+  trainingReadyForReview Boolean   @default(false)
 
-  sessions     TrainingSession[]
-  taskProgress TrainingTaskProgress[]
-  recordings   Recording[]
+  sessions         TrainingSession[]
+  taskProgress     TrainingTaskProgress[]
+  recordings       Recording[]
   // In-app screen recording used for the 10-hr walkthrough (augments tenhrLoomUrl).
   // Wiring is deferred; the column exists now so no later migration is needed.
   tenhrRecordingId String?
@@ -506,40 +507,40 @@ enum ReviewStatus {
 }
 
 model TrainingSession {
-  sessionId      String        @id @default(cuid())
-  candidateId    String
-  candidate      Candidate     @relation(fields: [candidateId], references: [candidateId])
-  candidateEmail String?
-  candidateName  String?
-  assignmentId   String? // which checklist task this session timed
+  sessionId       String        @id @default(cuid())
+  candidateId     String
+  candidate       Candidate     @relation(fields: [candidateId], references: [candidateId])
+  candidateEmail  String?
+  candidateName   String?
+  assignmentId    String? // which checklist task this session timed
   assignmentTitle String?
-  assignmentLink String?
-  startTime      DateTime?
-  endTime        DateTime?
+  assignmentLink  String?
+  startTime       DateTime?
+  endTime         DateTime?
   durationMinutes Int?
-  status         SessionStatus @default(active)
-  workNotes      String?
-  reviewStatus   ReviewStatus  @default(needs_review)
-  reviewNotes    String?
-  reviewedBy     String?
-  reviewedAt     DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  status          SessionStatus @default(active)
+  workNotes       String?
+  reviewStatus    ReviewStatus  @default(needs_review)
+  reviewNotes     String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([candidateId])
 }
 
 // Catalog of the 10-hour training module items (the editable checklist).
 model TrainingAssignment {
-  id               String  @id @default(cuid())
-  kind             String  @default("task") // read | video | quiz | task | submit
+  id               String   @id @default(cuid())
+  kind             String   @default("task") // read | video | quiz | task | submit
   task             String
   instructions     String?
   instructionsLink String?
   skill            String? // e.g. Communication, Research, Marketing, Data, Design
   estMinutes       Int?
-  sortOrder        Int     @default(0)
-  active           Boolean @default(true)
+  sortOrder        Int      @default(0)
+  active           Boolean  @default(true)
   createdAt        DateTime @default(now())
 
   progress TrainingTaskProgress[]
@@ -571,26 +572,26 @@ enum OnboardingStatus {
 }
 
 model Onboarding {
-  onboardingId   String           @id @default(cuid())
-  vaId           String           @unique
-  va             Va               @relation(fields: [vaId], references: [vaId])
-  vaName         String?
-  signedAt       DateTime?
-  status         OnboardingStatus @default(pending)
-  gmailCreated    Boolean @default(false)
-  desklogCreated  Boolean @default(false)
-  whatsappAdded   Boolean @default(false)
-  contractUploaded Boolean @default(false)
-  ndaUploaded     Boolean @default(false)
-  taxFormType     String?
-  taxFormDone     Boolean @default(false)
-  paymentMethod   String?
-  paymentFormDone Boolean @default(false)
-  headshotUploaded Boolean @default(false)
-  handbookAck     Boolean @default(false)
+  onboardingId           String           @id @default(cuid())
+  vaId                   String           @unique
+  va                     Va               @relation(fields: [vaId], references: [vaId])
+  vaName                 String?
+  signedAt               DateTime?
+  status                 OnboardingStatus @default(pending)
+  gmailCreated           Boolean          @default(false)
+  desklogCreated         Boolean          @default(false)
+  whatsappAdded          Boolean          @default(false)
+  contractUploaded       Boolean          @default(false)
+  ndaUploaded            Boolean          @default(false)
+  taxFormType            String?
+  taxFormDone            Boolean          @default(false)
+  paymentMethod          String?
+  paymentFormDone        Boolean          @default(false)
+  headshotUploaded       Boolean          @default(false)
+  handbookAck            Boolean          @default(false)
   notionOnboardingPageId String?
-  notes          String?
-  updatedAt      DateTime @updatedAt
+  notes                  String?
+  updatedAt              DateTime         @updatedAt
 }
 
 // ── Recordings (in-app Loom-style screen/webcam recordings) ────────────────
@@ -613,12 +614,12 @@ enum RecordingVisibility {
 }
 
 model Recording {
-  id             String              @id @default(cuid())
+  id             String     @id @default(cuid())
   // Ownership — typically exactly one of vaId / candidateId is set.
   vaId           String?
-  va             Va?                 @relation(fields: [vaId], references: [vaId])
+  va             Va?        @relation(fields: [vaId], references: [vaId])
   candidateId    String?
-  candidate      Candidate?          @relation(fields: [candidateId], references: [candidateId])
+  candidate      Candidate? @relation(fields: [candidateId], references: [candidateId])
   uploaderUserId String? // User.id when a signed-in user records; null for candidate captures
   uploaderEmail  String? // denormalized for display / audit
 
@@ -684,32 +685,32 @@ model RecordingComment {
 // ── System / config / audit ───────────────────────────────────────────────
 
 model Setting {
-  key      String  @id
-  value    String?
-  isSecret Boolean @default(false)
+  key       String   @id
+  value     String?
+  isSecret  Boolean  @default(false)
   updatedAt DateTime @updatedAt
 }
 
 model Policy {
-  key          String  @id
-  value        String?
-  status       String?
-  owner        String?
-  source       String?
-  notes        String?
+  key           String   @id
+  value         String?
+  status        String?
+  owner         String?
+  source        String?
+  notes         String?
   lastUpdatedAt DateTime @updatedAt
 }
 
 model NotionRef {
-  refId        String  @id
-  refType      String?
-  name         String?
+  refId         String    @id
+  refType       String?
+  name          String?
   relatedRoleId String?
-  relatedVaId  String?
-  notionUrl    String?
-  status       String?
-  notes        String?
-  lastSyncedAt DateTime?
+  relatedVaId   String?
+  notionUrl     String?
+  status        String?
+  notes         String?
+  lastSyncedAt  DateTime?
 }
 
 model ActivityLog {
@@ -742,26 +743,26 @@ enum RunStatus {
 }
 
 model SyncRun {
-  id            String    @id @default(cuid())
-  worker        String
-  startedAt     DateTime  @default(now())
-  finishedAt    DateTime?
-  status        RunStatus @default(FAILED)
+  id             String    @id @default(cuid())
+  worker         String
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  status         RunStatus @default(FAILED)
   firstErrorLine String?
-  detailsJson   Json?
+  detailsJson    Json?
 
   @@index([worker])
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  timestamp DateTime @default(now())
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
   actorEmail String?
-  action    String
-  target    String?
-  ip        String?
-  ok        Boolean  @default(true)
-  details   Json?
+  action     String
+  target     String?
+  ip         String?
+  ok         Boolean  @default(true)
+  details    Json?
 
   @@index([timestamp])
 }
@@ -769,23 +770,23 @@ model AuditLog {
 // ── Projects & Task Management ────────────────────────────────────────────
 
 model Project {
-  id          String        @id @default(cuid())
-  name        String
-  description String?
-  status      ProjectStatus @default(Planning)
-  type        ProjectType   @default(Project)
-  priority    Priority      @default(Medium)
-  client      String?
-  ownerId     String
-  createdById String
-  dueDate     DateTime?
-  links       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  name                 String
+  description          String?
+  status               ProjectStatus @default(Planning)
+  type                 ProjectType   @default(Project)
+  priority             Priority      @default(Medium)
+  client               String?
+  ownerId              String
+  createdById          String
+  dueDate              DateTime?
+  links                String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
   clientOrganizationId String?
 
-  owner              User               @relation("ProjectOwner", fields: [ownerId], references: [id])
-  createdBy          User               @relation("ProjectCreator", fields: [createdById], references: [id])
+  owner              User                @relation("ProjectOwner", fields: [ownerId], references: [id])
+  createdBy          User                @relation("ProjectCreator", fields: [createdById], references: [id])
   tasks              Task[]
   comments           ProjectComment[]
   clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
@@ -797,41 +798,41 @@ model Project {
 }
 
 model Task {
-  id               String       @id @default(cuid())
-  title            String
-  instructions     String?
-  strategy         TaskStrategy @default(Create)
-  status           TaskStatus   @default(NotStarted)
-  priority         Priority     @default(Medium)
-  client           String?
-  projectId        String?
-  assignedToId     String
-  assignedById     String
-  dueDate          DateTime?
-  links            String?
-  emailSent        Boolean      @default(false)
-  relatedSops      Json?
-  relatedTrainings Json?
-  suggestedTools   Json?
+  id                   String       @id @default(cuid())
+  title                String
+  instructions         String?
+  strategy             TaskStrategy @default(Create)
+  status               TaskStatus   @default(NotStarted)
+  priority             Priority     @default(Medium)
+  client               String?
+  projectId            String?
+  assignedToId         String
+  assignedById         String
+  dueDate              DateTime?
+  links                String?
+  emailSent            Boolean      @default(false)
+  relatedSops          Json?
+  relatedTrainings     Json?
+  suggestedTools       Json?
   // Open/claimable pool: a non-urgent task anyone can claim, with a manager confirming
   // the claim. While claimable it is "held" by its creator (assignedToId) but surfaced
   // in the Available Tasks pool, not as a normal assignment.
-  claimable          Boolean   @default(false)
-  claimRequestedById String?
+  claimable            Boolean      @default(false)
+  claimRequestedById   String?
   clientOrganizationId String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
-  project              Project?      @relation(fields: [projectId], references: [id])
-  assignedTo           User          @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  assignedBy           User          @relation("TaskCreator", fields: [assignedById], references: [id])
-  claimRequestedBy     User?         @relation("TaskClaimRequester", fields: [claimRequestedById], references: [id])
-  comments             TaskComment[]
-  checklist            ChecklistItem[]
-  dependencies         TaskDependency[] @relation("DependentTask")
-  dependents           TaskDependency[] @relation("DependencyTask")
-  clientOrganization   ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
-  clientTaskRequest    ClientTaskRequest?  @relation("ClientTaskRequestTask")
+  project            Project?            @relation(fields: [projectId], references: [id])
+  assignedTo         User                @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedBy         User                @relation("TaskCreator", fields: [assignedById], references: [id])
+  claimRequestedBy   User?               @relation("TaskClaimRequester", fields: [claimRequestedById], references: [id])
+  comments           TaskComment[]
+  checklist          ChecklistItem[]
+  dependencies       TaskDependency[]    @relation("DependentTask")
+  dependents         TaskDependency[]    @relation("DependencyTask")
+  clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
+  clientTaskRequest  ClientTaskRequest?  @relation("ClientTaskRequestTask")
 
   @@index([assignedToId])
   @@index([projectId])
@@ -997,12 +998,12 @@ model Notification {
 }
 
 model Client {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  notionId  String?  @unique
-  status    String?
-  active    Boolean  @default(true)
-  syncedAt  DateTime @default(now())
+  id       String   @id @default(cuid())
+  name     String   @unique
+  notionId String?  @unique
+  status   String?
+  active   Boolean  @default(true)
+  syncedAt DateTime @default(now())
 
   @@index([active])
 }
@@ -1010,19 +1011,21 @@ model Client {
 // ── Client Portal ─────────────────────────────────────────────────────────
 
 model ClientOrganization {
-  id           String          @id @default(cuid())
+  id           String              @id @default(cuid())
   name         String
-  slug         String          @unique
+  slug         String              @unique
   notionId     String?
-  status       ClientOrgStatus @default(active)
-  active       Boolean         @default(true)
+  status       ClientOrgStatus     @default(active)
+  active       Boolean             @default(true)
   logoUrl      String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   memberships  ClientMembership[]
   projects     Project[]
   tasks        Task[]
   taskRequests ClientTaskRequest[]
+  onboarding   ClientOnboarding?
+  deal         Deal?
 
   @@index([slug])
   @@index([active])
@@ -1055,11 +1058,133 @@ model ClientTaskRequest {
   declineReason        String?
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
-  submittedBy          User               @relation("ClientTaskRequestSubmitter", fields: [submittedById], references: [id])
-  clientOrganization   ClientOrganization @relation(fields: [clientOrganizationId], references: [id])
-  assignedTask         Task?              @relation("ClientTaskRequestTask", fields: [assignedTaskId], references: [id])
+  submittedBy          User                    @relation("ClientTaskRequestSubmitter", fields: [submittedById], references: [id])
+  clientOrganization   ClientOrganization      @relation(fields: [clientOrganizationId], references: [id])
+  assignedTask         Task?                   @relation("ClientTaskRequestTask", fields: [assignedTaskId], references: [id])
 
   @@index([clientOrganizationId])
   @@index([status])
   @@index([submittedById])
+}
+
+// ── Client sales & onboarding ──────────────────────────────────────────────
+// The closing seam of the sales SOP, brought in-app: a Deal (mirror of the
+// Notion Pipeline) drives a client service agreement (in-app e-sign, reusing the
+// recruitment signer), payment (Stripe), client-org creation, and onboarding.
+// Top-of-funnel (lead capture, qualification, discovery) stays in Notion.
+
+enum DealStage {
+  new
+  discovery_scheduled
+  discovery_completed
+  proposal_needed
+  proposal_sent
+  negotiation
+  verbal_yes
+  won
+  lost
+  nurture
+  no_show
+}
+
+model Deal {
+  id                String              @id @default(cuid())
+  notionPageId      String?             @unique // link back to the Pipeline Tracking page
+  orgName           String
+  contactName       String?
+  contactEmail      String?
+  source            String?
+  accountOwnerEmail String?
+  stage             DealStage           @default(new)
+  packageName       String?
+  dealValue         Float?
+  billingType       String? // retainer | hourly | project
+  startDate         DateTime?
+  // Special-deal review (Team Lead gate from the sales SOP)
+  reviewNeeded      Boolean             @default(false)
+  reviewApproved    Boolean             @default(false)
+  reviewNotes       String?
+  // Sales-to-onboarding handoff summary (the SOP block), captured as structured JSON
+  handoffSummary    Json?
+  lostReason        String?
+  nextFollowUpAt    DateTime?
+  lastContactAt     DateTime?
+  clientOrgId       String?             @unique // set when Won → client org created
+  clientOrg         ClientOrganization? @relation(fields: [clientOrgId], references: [id])
+  agreement         ClientAgreement?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([stage])
+  @@index([nextFollowUpAt])
+}
+
+enum ClientAgreementStatus {
+  draft
+  sent
+  viewed
+  signed
+  paid
+  active
+  void
+}
+
+model ClientAgreement {
+  id                   String                @id @default(cuid())
+  dealId               String                @unique
+  deal                 Deal                  @relation(fields: [dealId], references: [id])
+  signToken            String?               @unique // single-use signing credential
+  status               ClientAgreementStatus @default(draft)
+  packageName          String?
+  priceLabel           String? // e.g. "$1,200/mo, billed in advance"
+  billingType          String? // retainer | hourly | project
+  deadline             DateTime?
+  // signature / audit (mirrors ContractSignature)
+  sentAt               DateTime?
+  signedAt             DateTime?
+  signerName           String?
+  signerEmail          String?
+  signerIp             String?
+  userAgent            String?
+  signatureImage       String?               @db.Text
+  termsHash            String?
+  pdfDriveFileId       String?
+  pdfWebViewLink       String?
+  // payment (Stripe)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripeInvoiceId      String?
+  paidAt               DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+}
+
+enum ClientOnboardingStatus {
+  pending
+  in_progress
+  completed
+}
+
+model ClientOnboarding {
+  id                   String                 @id @default(cuid())
+  clientOrganizationId String                 @unique
+  clientOrganization   ClientOrganization     @relation(fields: [clientOrganizationId], references: [id])
+  owner                String? // onboarding owner email
+  intakeToken          String?                @unique // public intake-form credential
+  intakeJson           Json? // submitted intake answers
+  intakeReceivedAt     DateTime?
+  status               ClientOnboardingStatus @default(pending)
+  // checklist (from the Onboarding SOP + sales handoff)
+  intakeReceived       Boolean                @default(false)
+  onboardingCallBooked Boolean                @default(false)
+  onboardingCallDone   Boolean                @default(false)
+  driveFolderCreated   Boolean                @default(false)
+  portalAccessGranted  Boolean                @default(false)
+  commsCadenceSet      Boolean                @default(false)
+  firstWeekPriorities  Boolean                @default(false)
+  vaAssigned           Boolean                @default(false)
+  kickoffRecapSent     Boolean                @default(false)
+  notes                String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 }

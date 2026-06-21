@@ -1,5 +1,6 @@
 import { loadEnvConfig } from "@next/env";
 import { DEFAULT_CONTRACT_TEMPLATE_HTML } from "../src/lib/contract/seed-template";
+import { DEFAULT_CLIENT_AGREEMENT_TEMPLATE_HTML } from "../src/lib/sales/client-template";
 
 loadEnvConfig(process.cwd());
 
@@ -135,6 +136,12 @@ async function main(): Promise<void> {
     // Signed-contract archive: Drive folder /PWA-VA Files/VA- Contracts.
     // The service account must be shared as Editor or archiving best-effort no-ops.
     ["signed_contracts_folder_id", "1oqdrz3HDu8WBGiCw9Y8eL_Lr6jUHY49S"],
+    // Client sales & onboarding.
+    ["client_agreement_template_html", DEFAULT_CLIENT_AGREEMENT_TEMPLATE_HTML],
+    ["client_agreement_deadline_days", "14"],
+    ["stripe_currency", "usd"],
+    // Optional Drive folder for signed client agreements (best-effort archive).
+    ["signed_client_contracts_folder_id", ""],
   ];
   for (const [key, value] of settingDefaults) {
     await db.setting.upsert({ where: { key }, update: {}, create: { key, value } });
