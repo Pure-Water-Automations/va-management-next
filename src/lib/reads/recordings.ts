@@ -43,6 +43,8 @@ export type RecordingDetail = {
   status: string;
   visibility: string;
   durationSec: number | null;
+  trimStartSec: number | null;
+  trimEndSec: number | null;
   mimeType: string;
   project: string | null;
   task: string | null;
@@ -163,6 +165,8 @@ export async function getRecordingDetail(
     status: rec.status,
     visibility: rec.visibility,
     durationSec: rec.durationSec,
+    trimStartSec: rec.trimStartSec,
+    trimEndSec: rec.trimEndSec,
     mimeType: rec.mimeType,
     project: rec.project,
     task: rec.task,

@@ -7,6 +7,8 @@ export const POST = action(
       recordingId: str(body, "recordingId"),
       sizeBytes: optNum(body, "sizeBytes"),
       durationSec: optNum(body, "durationSec"),
+      trimStartSec: optNum(body, "trimStartSec"),
+      trimEndSec: optNum(body, "trimEndSec"),
     }),
   { allow: () => false },
 );

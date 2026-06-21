@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const MAX_RECORDING_SEC = 30 * 60; // hard stop
 export const SOFT_WARN_SEC = 15 * 60; // soft warning
+export const METER_BARS = 26; // mic-level meter resolution (matches the design)
 
-export type RecorderStatus = "idle" | "recording" | "paused" | "recorded" | "error";
+export type RecorderStatus = "idle" | "ready" | "recording" | "paused" | "recorded" | "error";
+export type CaptureSource = "screen" | "window" | "tab";
 
 export type RecordedClip = {
   blob: Blob;
@@ -24,6 +26,12 @@ const MIME_CANDIDATES = [
   "video/mp4",
 ];
 
+const SURFACE: Record<CaptureSource, "monitor" | "window" | "browser"> = {
+  screen: "monitor",
+  window: "window",
+  tab: "browser",
+};
+
 function pickMime(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m));
@@ -39,24 +47,35 @@ export function recorderSupported(): boolean {
 
 function humanError(err: unknown): string {
   const name = (err as { name?: string })?.name;
-  if (name === "NotAllowedError") return "Permission denied — allow screen and microphone access to record.";
-  if (name === "NotFoundError") return "No microphone/camera found.";
+  if (name === "NotAllowedError") return "Permission denied — allow screen sharing (and mic) to record.";
+  if (name === "NotFoundError") return "No microphone or camera found.";
+  if (name === "NotReadableError") return "Your camera or mic is in use by another app.";
   return err instanceof Error ? err.message : "Couldn't start recording.";
 }
 
+const ZERO_LEVELS = Array.from({ length: METER_BARS }, () => 0);
+
 /**
- * Screen + mic (+ optional webcam bubble) capture, composited through a visible
- * canvas and recorded with MediaRecorder. The canvas IS the live preview, so the
- * bubble you drag is exactly what gets recorded. Returns handlers + a recorded clip.
+ * Screen + mic (+ optional webcam bubble) capture for the Loom-style recorder.
+ *
+ * Flow: startPreview (acquire mic + optional camera so the setup screen can show a
+ * live camera preview and a real mic-level meter) → prepare (acquire the screen via
+ * getDisplayMedia, build the compositing canvas) → beginRecording (start
+ * MediaRecorder; the canvas IS the recorded video, so the draggable bubble is
+ * exactly what's captured). Mic level comes from a Web Audio analyser on the mic
+ * track; muting toggles the track's `enabled` (kept in the mix, silenced).
  */
 export function useScreenRecorder() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null); // live composite = recorded source
+  const camPreviewRef = useRef<HTMLVideoElement | null>(null); // setup-screen camera preview
 
   const [status, setStatus] = useState<RecorderStatus>("idle");
   const [elapsedSec, setElapsedSec] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [recorded, setRecorded] = useState<RecordedClip | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [micOn, setMicOn] = useState(true);
+  const [levels, setLevels] = useState<number[]>(ZERO_LEVELS);
 
   const screenStreamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -72,12 +91,139 @@ export function useScreenRecorder() {
   const bubbleRef = useRef<Bubble>({ x: 0, y: 0, r: 0 });
   const draggingRef = useRef(false);
 
+  // Web Audio mic-level meter
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const meterRafRef = useRef<number>(0);
+  const micOnRef = useRef(true);
+  // False once unmounted — guards async stream acquisitions so a stream that
+  // resolves AFTER teardown is stopped immediately (no lingering camera/screen light).
+  const mountedRef = useRef(true);
+
   // timer
   const timerRef = useRef<number | null>(null);
   const lastTickRef = useRef(0);
   const elapsedMsRef = useRef(0);
   const pausedRef = useRef(false);
 
+  // ── Mic level meter ──────────────────────────────────────────────────────
+  const runMeter = useCallback(() => {
+    const analyser = analyserRef.current;
+    if (!analyser) return;
+    const bins = new Uint8Array(analyser.frequencyBinCount);
+    const smooth = new Array(METER_BARS).fill(0);
+    const tick = () => {
+      analyser.getByteFrequencyData(bins);
+      const per = Math.floor(bins.length / METER_BARS) || 1;
+      const next = new Array(METER_BARS);
+      for (let b = 0; b < METER_BARS; b++) {
+        let sum = 0;
+        for (let i = 0; i < per; i++) sum += bins[b * per + i] ?? 0;
+        const raw = micOnRef.current ? Math.min(1, sum / per / 200) : 0;
+        // ease toward the target so bars don't jitter harshly
+        smooth[b] = smooth[b] * 0.6 + raw * 0.4;
+        next[b] = Math.max(micOnRef.current ? 0.04 : 0, smooth[b]);
+      }
+      setLevels(next);
+      meterRafRef.current = requestAnimationFrame(tick);
+    };
+    meterRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const attachMeter = useCallback(
+    (mic: MediaStream) => {
+      try {
+        const Ctx =
+          window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return;
+        if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+        const ctx = audioCtxRef.current;
+        const src = ctx.createMediaStreamSource(mic);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.7;
+        src.connect(analyser);
+        analyserRef.current = analyser;
+        cancelAnimationFrame(meterRafRef.current);
+        runMeter();
+      } catch {
+        /* meter is best-effort */
+      }
+    },
+    [runMeter],
+  );
+
+  // ── Camera preview stream (setup screen) ─────────────────────────────────
+  const acquireCamera = useCallback(async () => {
+    if (camStreamRef.current) return;
+    const cam = await navigator.mediaDevices
+      .getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false })
+      .catch(() => null);
+    if (cam && !mountedRef.current) {
+      cam.getTracks().forEach((t) => t.stop()); // unmounted mid-prompt — don't leave the camera on
+      return;
+    }
+    if (cam) {
+      camStreamRef.current = cam;
+      const v = camPreviewRef.current;
+      if (v) {
+        v.srcObject = cam;
+        v.muted = true;
+        v.playsInline = true;
+        await v.play().catch(() => undefined);
+      }
+    }
+  }, []);
+
+  const releaseCamera = useCallback(() => {
+    camStreamRef.current?.getTracks().forEach((t) => t.stop());
+    camStreamRef.current = null;
+    if (camPreviewRef.current) camPreviewRef.current.srcObject = null;
+  }, []);
+
+  /** Acquire mic (for the meter) + optional camera so setup can preview them. */
+  const startPreview = useCallback(
+    async (opts: { camera: boolean; mic: boolean }) => {
+      setCameraOn(opts.camera);
+      setMicOn(opts.mic);
+      micOnRef.current = opts.mic;
+      if (!recorderSupported()) return;
+      try {
+        if (!micStreamRef.current) {
+          const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (!mountedRef.current) {
+            mic.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          micStreamRef.current = mic;
+          attachMeter(mic);
+        }
+        micStreamRef.current.getAudioTracks().forEach((t) => (t.enabled = opts.mic));
+        if (opts.camera) await acquireCamera();
+        else releaseCamera();
+      } catch {
+        // Preview is best-effort; the real permission gate is at prepare().
+      }
+    },
+    [attachMeter, acquireCamera, releaseCamera],
+  );
+
+  const setPreviewCamera = useCallback(
+    (on: boolean) => {
+      setCameraOn(on);
+      if (on) void acquireCamera();
+      else releaseCamera();
+    },
+    [acquireCamera, releaseCamera],
+  );
+
+  const setPreviewMic = useCallback((on: boolean) => {
+    setMicOn(on);
+    micOnRef.current = on;
+    micStreamRef.current?.getAudioTracks().forEach((t) => (t.enabled = on));
+  }, []);
+
+  // ── Compositing draw loop ────────────────────────────────────────────────
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -119,6 +265,14 @@ export function useScreenRecorder() {
     camEnabledRef.current = false;
   }, []);
 
+  const teardownMeter = useCallback(() => {
+    cancelAnimationFrame(meterRafRef.current);
+    analyserRef.current = null;
+    audioCtxRef.current?.close().catch(() => undefined);
+    audioCtxRef.current = null;
+    setLevels(ZERO_LEVELS);
+  }, []);
+
   const stopTimer = useCallback(() => {
     if (timerRef.current != null) window.clearInterval(timerRef.current);
     timerRef.current = null;
@@ -126,9 +280,7 @@ export function useScreenRecorder() {
 
   const stop = useCallback(() => {
     const rec = recorderRef.current;
-    if (rec && rec.state !== "inactive") {
-      rec.stop(); // onstop builds the clip + tears down
-    }
+    if (rec && rec.state !== "inactive") rec.stop(); // onstop builds the clip + tears down
   }, []);
 
   const startTimer = useCallback(() => {
@@ -147,31 +299,43 @@ export function useScreenRecorder() {
     }, 250);
   }, [stop]);
 
-  const start = useCallback(
-    async (opts: { camera: boolean }) => {
+  /** Acquire the screen + build the canvas. Mic/cam are reused from the preview. */
+  const prepare = useCallback(
+    async (opts: { source: CaptureSource }) => {
       setError(null);
       setRecorded(null);
       if (!recorderSupported()) {
-        setError("Screen recording isn't supported here. Use desktop Chrome or Edge.");
+        setError("Screen recording isn't supported here. Use desktop Chrome, Edge, or Firefox.");
         setStatus("error");
-        return;
+        return false;
       }
       try {
         const screen = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: 30 },
+          video: { frameRate: 30, displaySurface: SURFACE[opts.source] } as MediaTrackConstraints,
           audio: false,
         });
+        if (!mountedRef.current) {
+          screen.getTracks().forEach((t) => t.stop()); // unmounted while the picker was open
+          return false;
+        }
         screenStreamRef.current = screen;
 
-        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-        micStreamRef.current = mic;
-
-        if (opts.camera) {
-          const cam = await navigator.mediaDevices
-            .getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false })
-            .catch(() => null);
-          if (cam) camStreamRef.current = cam;
+        // Mic (reuse preview, else acquire) so we can mix it into the recording.
+        // Best-effort: a denied/absent mic still yields a (silent) recording
+        // rather than failing the whole capture.
+        if (!micStreamRef.current) {
+          const mic = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+          if (mic && !mountedRef.current) {
+            mic.getTracks().forEach((t) => t.stop());
+            stopTracks();
+            return false;
+          }
+          if (mic) {
+            micStreamRef.current = mic;
+            attachMeter(mic);
+          }
         }
+        micStreamRef.current?.getAudioTracks().forEach((t) => (t.enabled = micOnRef.current));
 
         const sv = document.createElement("video");
         sv.muted = true;
@@ -192,7 +356,7 @@ export function useScreenRecorder() {
         const r = Math.round(Math.min(w, h) * 0.13);
         bubbleRef.current = { x: w - r - 28, y: h - r - 28, r };
 
-        if (camStreamRef.current) {
+        if (cameraOn && camStreamRef.current) {
           const cv = document.createElement("video");
           cv.muted = true;
           cv.playsInline = true;
@@ -200,57 +364,79 @@ export function useScreenRecorder() {
           await cv.play();
           camVideoRef.current = cv;
           camEnabledRef.current = true;
-          setCameraOn(true);
         } else {
-          setCameraOn(false);
+          camEnabledRef.current = false;
+        }
+
+        if (!mountedRef.current) {
+          stopTracks();
+          return false;
         }
 
         // The browser's own "Stop sharing" control ends the screen track.
         track.addEventListener("ended", () => stop());
 
+        cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(draw);
-
-        const canvasStream = canvas.captureStream(30);
-        const mixed = new MediaStream();
-        canvasStream.getVideoTracks().forEach((t) => mixed.addTrack(t));
-        mic.getAudioTracks().forEach((t) => mixed.addTrack(t));
-
-        const mimeType = pickMime();
-        const rec = new MediaRecorder(mixed, mimeType ? { mimeType } : undefined);
-        mimeTypeRef.current = rec.mimeType || mimeType || "video/webm";
-        chunksRef.current = [];
-        rec.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-        };
-        rec.onstop = () => {
-          const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
-          const url = URL.createObjectURL(blob);
-          const durationSec = Math.round(elapsedMsRef.current / 1000);
-          const finish = (thumbnailBlob: Blob | null) => {
-            setRecorded({ blob, url, mimeType: mimeTypeRef.current, durationSec, thumbnailBlob });
-            setStatus("recorded");
-          };
-          const c = canvasRef.current;
-          stopTimer();
-          cancelAnimationFrame(rafRef.current);
-          if (c) c.toBlob((tb) => finish(tb), "image/jpeg", 0.7);
-          else finish(null);
-          stopTracks();
-        };
-        rec.start(1000);
-        recorderRef.current = rec;
-
-        startTimer();
-        setStatus("recording");
+        setStatus("ready");
+        return true;
       } catch (err) {
         setError(humanError(err));
         setStatus("error");
         cancelAnimationFrame(rafRef.current);
         stopTracks();
+        return false;
       }
     },
-    [draw, startTimer, stop, stopTimer, stopTracks],
+    [attachMeter, cameraOn, draw, stop, stopTracks],
   );
+
+  /** Start MediaRecorder once the screen is prepared (after the countdown). */
+  const beginRecording = useCallback(() => {
+    const canvas = canvasRef.current;
+    const mic = micStreamRef.current;
+    // Don't start against a stale/ended screen (e.g. user hit "Stop sharing"
+    // during the countdown, or the component is tearing down).
+    const vtrack = screenStreamRef.current?.getVideoTracks()[0];
+    if (!canvas || !vtrack || vtrack.readyState !== "live") return;
+    try {
+      const canvasStream = canvas.captureStream(30);
+      const mixed = new MediaStream();
+      canvasStream.getVideoTracks().forEach((t) => mixed.addTrack(t));
+      if (mic) mic.getAudioTracks().forEach((t) => mixed.addTrack(t));
+
+      const mimeType = pickMime();
+      const rec = new MediaRecorder(mixed, mimeType ? { mimeType } : undefined);
+      mimeTypeRef.current = rec.mimeType || mimeType || "video/webm";
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
+        const url = URL.createObjectURL(blob);
+        const durationSec = Math.round(elapsedMsRef.current / 1000);
+        const finish = (thumbnailBlob: Blob | null) => {
+          setRecorded({ blob, url, mimeType: mimeTypeRef.current, durationSec, thumbnailBlob });
+          setStatus("recorded");
+        };
+        const c = canvasRef.current;
+        stopTimer();
+        cancelAnimationFrame(rafRef.current);
+        if (c) c.toBlob((tb) => finish(tb), "image/jpeg", 0.7);
+        else finish(null);
+        stopTracks();
+        teardownMeter(); // release the AudioContext + meter rAF once recording ends
+      };
+      rec.start(1000);
+      recorderRef.current = rec;
+      startTimer();
+      setStatus("recording");
+    } catch (err) {
+      setError(humanError(err));
+      setStatus("error");
+    }
+  }, [startTimer, stopTimer, stopTracks, teardownMeter]);
 
   const pause = useCallback(() => {
     const rec = recorderRef.current;
@@ -271,13 +457,49 @@ export function useScreenRecorder() {
     }
   }, []);
 
+  /** Mute / unmute the mic mid-recording (track stays in the mix, silenced). */
+  const toggleMic = useCallback(() => {
+    setMicOn((on) => {
+      const next = !on;
+      micOnRef.current = next;
+      micStreamRef.current?.getAudioTracks().forEach((t) => (t.enabled = next));
+      return next;
+    });
+  }, []);
+
+  /** Turn the webcam bubble on/off mid-recording. */
+  const toggleCamera = useCallback(() => {
+    setCameraOn((on) => {
+      const next = !on;
+      if (next && camStreamRef.current) {
+        const cv = camVideoRef.current ?? document.createElement("video");
+        cv.muted = true;
+        cv.playsInline = true;
+        cv.srcObject = camStreamRef.current;
+        void cv.play().catch(() => undefined);
+        camVideoRef.current = cv;
+        camEnabledRef.current = true;
+      } else {
+        camEnabledRef.current = false;
+      }
+      return next;
+    });
+  }, []);
+
   const reset = useCallback(() => {
     if (recorded?.url) URL.revokeObjectURL(recorded.url);
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+    recorderRef.current = null;
+    cancelAnimationFrame(rafRef.current);
+    stopTimer();
+    stopTracks();
+    teardownMeter();
     setRecorded(null);
     setElapsedSec(0);
     setError(null);
     setStatus("idle");
-  }, [recorded]);
+  }, [recorded, stopTimer, stopTracks, teardownMeter]);
 
   // Drag the webcam bubble on the canvas (canvas-space coords via the bounding rect).
   const toCanvasPoint = useCallback((clientX: number, clientY: number) => {
@@ -325,42 +547,43 @@ export function useScreenRecorder() {
     }
   }, []);
 
-  const setBubbleScale = useCallback((scale: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const b = bubbleRef.current;
-    const r = Math.round(Math.min(canvas.width, canvas.height) * scale);
-    b.r = r;
-    b.x = Math.min(canvas.width - r, Math.max(r, b.x));
-    b.y = Math.min(canvas.height - r, Math.max(r, b.y));
-  }, []);
-
   // Tear everything down on unmount.
   useEffect(() => {
     return () => {
+      mountedRef.current = false;
       if (timerRef.current != null) window.clearInterval(timerRef.current);
       cancelAnimationFrame(rafRef.current);
+      cancelAnimationFrame(meterRafRef.current);
       const rec = recorderRef.current;
       if (rec && rec.state !== "inactive") rec.stop();
       for (const ref of [screenStreamRef, micStreamRef, camStreamRef]) {
         ref.current?.getTracks().forEach((t) => t.stop());
       }
+      audioCtxRef.current?.close().catch(() => undefined);
     };
   }, []);
 
   return {
     canvasRef,
+    camPreviewRef,
     status,
     elapsedSec,
     error,
     recorded,
     cameraOn,
-    start,
+    micOn,
+    levels,
+    startPreview,
+    setPreviewCamera,
+    setPreviewMic,
+    prepare,
+    beginRecording,
     pause,
     resume,
     stop,
     reset,
-    setBubbleScale,
+    toggleMic,
+    toggleCamera,
     onCanvasPointerDown,
     onCanvasPointerMove,
     onCanvasPointerUp,

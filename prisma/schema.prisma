@@ -634,6 +634,10 @@ model Recording {
   mimeType      String  @default("video/webm")
   sizeBytes     Int? // bytes (length-capped client-side, well under Int max)
   durationSec   Float?
+  // Review-trim in/out points (seconds) chosen on save. Playback clamps to this
+  // range and the displayed duration reflects it; the raw file is kept intact.
+  trimStartSec  Float?
+  trimEndSec    Float?
   thumbnailKey  String? // recordings/<id>/thumb.jpg
   transcriptKey String? // recordings/<id>/transcript.json (raw segments)
 

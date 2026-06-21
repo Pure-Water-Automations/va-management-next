@@ -75,7 +75,13 @@ export async function createRecording(
 /** Mark the upload complete → playable, and queue AI processing (non-blocking). */
 export async function finalizeRecording(
   user: CurrentUser,
-  input: { recordingId: string; sizeBytes?: number; durationSec?: number },
+  input: {
+    recordingId: string;
+    sizeBytes?: number;
+    durationSec?: number;
+    trimStartSec?: number;
+    trimEndSec?: number;
+  },
 ): Promise<{ id: string }> {
   const rec = await db.recording.findUnique({
     where: { id: input.recordingId },
@@ -83,6 +89,12 @@ export async function finalizeRecording(
   });
   if (!rec) throw new Error("Recording not found.");
   if (!isOwnerOrAdmin(user, rec)) throw new Error("Not authorized.");
+
+  // Only persist a trim range when it's a valid, non-trivial sub-range (a real
+  // in/out the reviewer set). Otherwise leave null = play the whole clip.
+  const start = Number.isFinite(input.trimStartSec) ? Math.max(0, input.trimStartSec!) : null;
+  const end = Number.isFinite(input.trimEndSec) ? input.trimEndSec! : null;
+  const hasTrim = start !== null && end !== null && end > start;
 
   const now = new Date();
   await db.recording.update({
@@ -93,6 +105,8 @@ export async function finalizeRecording(
       readyAt: now,
       sizeBytes: Number.isFinite(input.sizeBytes) ? Math.round(input.sizeBytes!) : undefined,
       durationSec: Number.isFinite(input.durationSec) ? input.durationSec : undefined,
+      trimStartSec: hasTrim ? start : undefined,
+      trimEndSec: hasTrim ? end : undefined,
       aiStatus: "pending", // worker/recordings-process.ts picks this up
     },
   });

@@ -75,6 +75,25 @@ export function RecordingDetailClient({
     void v.play();
   }
 
+  // Honor the saved trim in/out points (metadata trim — the raw file is intact).
+  const trimStartSec = detail.trimStartSec;
+  const trimEndSec = detail.trimEndSec;
+  const hasTrim = trimStartSec != null && trimEndSec != null && trimEndSec > trimStartSec;
+  function clampToTrimStart() {
+    const v = videoRef.current;
+    if (v && hasTrim && (v.currentTime < trimStartSec! || v.currentTime >= trimEndSec!)) {
+      v.currentTime = trimStartSec!;
+    }
+  }
+  function clampToTrimEnd() {
+    const v = videoRef.current;
+    if (v && hasTrim && v.currentTime >= trimEndSec!) {
+      v.pause();
+      v.currentTime = trimStartSec!;
+    }
+  }
+  const shownDuration = hasTrim ? trimEndSec! - trimStartSec! : detail.durationSec;
+
   async function run(key: string, path: string, body: Record<string, unknown>, confirmMsg?: string) {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
     setBusy(key);
@@ -149,7 +168,7 @@ export function RecordingDetailClient({
               {detail.status}
             </Badge>
             <Badge variant="default">{detail.visibility}</Badge>
-            {detail.durationSec != null && <Badge variant="info">{fmt(detail.durationSec)}</Badge>}
+            {shownDuration != null && <Badge variant="info">{fmt(shownDuration)}</Badge>}
             {detail.project && <Badge variant="primary">{detail.project}</Badge>}
             {detail.task && <Badge variant="sky">{detail.task}</Badge>}
             {detail.reviewStatus && (
@@ -185,6 +204,8 @@ export function RecordingDetailClient({
               src={streamUrl}
               poster={detail.thumbnailUrl ?? undefined}
               controls
+              onLoadedMetadata={hasTrim ? clampToTrimStart : undefined}
+              onTimeUpdate={hasTrim ? clampToTrimEnd : undefined}
               style={{ width: "100%", borderRadius: "var(--radius-card)", background: "#000" }}
             />
           ) : (
