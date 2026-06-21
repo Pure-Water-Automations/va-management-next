@@ -39,7 +39,7 @@ function leadAssignee(items: MeetingItem[]): string | null {
   return best;
 }
 
-export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[]; assignees: Assignee[] }) {
+export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: MeetingCard[]; assignees: Assignee[]; canConfirm: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +160,11 @@ export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[
           <p className="small" style={{ marginTop: 4 }}>
             AI-extracted tasks from recent meeting transcripts — review and confirm.
           </p>
+          {!canConfirm && (
+            <p className="small" style={{ marginTop: 4, color: "var(--color-text-tertiary)" }}>
+              You can review and skip items here. Confirming an item into a task requires delegation permission — ask a team lead or admin.
+            </p>
+          )}
         </div>
         <span style={{ color: "var(--color-text-tertiary)", fontSize: 13, alignSelf: "flex-end" }}>
           {cards.length} meeting{cards.length === 1 ? "" : "s"} pending · {totalItems} item{totalItems === 1 ? "" : "s"}
@@ -187,14 +192,16 @@ export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Button
-                    variant="secondary"
-                    size="xs"
-                    onClick={() => confirmAll(card)}
-                    disabled={busy !== null}
-                  >
-                    Confirm all ({card.items.length})
-                  </Button>
+                  {canConfirm && (
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => confirmAll(card)}
+                      disabled={busy !== null}
+                    >
+                      Confirm all ({card.items.length})
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="xs"
@@ -248,14 +255,16 @@ export function MeetingActionsClient({ cards, assignees }: { cards: MeetingCard[
                         onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], dueDate: e.target.value } }))}
                         style={inputStyle}
                       />
-                      <button
-                        aria-label={`Add task: ${it.title}`}
-                        onClick={() => confirmItem(card.id, it)}
-                        disabled={busy !== null}
-                        style={{ color: "var(--color-success)", background: "none", fontSize: 12, cursor: busy !== null ? "not-allowed" : "pointer", padding: "3px 8px", border: "1px solid var(--color-success)", borderRadius: "var(--radius-xs)", opacity: busy !== null ? 0.5 : 1 }}
-                      >
-                        ✓ Add
-                      </button>
+                      {canConfirm && (
+                        <button
+                          aria-label={`Add task: ${it.title}`}
+                          onClick={() => confirmItem(card.id, it)}
+                          disabled={busy !== null}
+                          style={{ color: "var(--color-success)", background: "none", fontSize: 12, cursor: busy !== null ? "not-allowed" : "pointer", padding: "3px 8px", border: "1px solid var(--color-success)", borderRadius: "var(--radius-xs)", opacity: busy !== null ? 0.5 : 1 }}
+                        >
+                          ✓ Add
+                        </button>
+                      )}
                       <button
                         aria-label={`Skip: ${it.title}`}
                         onClick={() => skipItem(card.id, it.id)}

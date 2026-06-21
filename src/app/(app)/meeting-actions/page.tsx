@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canReviewMeetingActions } from "@/lib/auth/roles";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { matchAssignee } from "@/lib/services/meeting-actions";
 import { MeetingActionsClient, type MeetingCard } from "@/components/MeetingActionsClient";
@@ -10,6 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function MeetingActionsPage() {
   const user = await getCurrentUser();
   if (!user.isAdmin && !canReviewMeetingActions(user.role)) redirect("/");
+
+  // Mirror the exact check createTask uses — shows ✓ Add iff the server will accept it.
+  const canConfirm = await canUserDelegateTasks(user.id, user.role);
 
   // Pending meetings (at least one pending item), newest first.
   const meetings = await db.meetingAction.findMany({
@@ -55,5 +59,5 @@ export default async function MeetingActionsPage() {
     })),
   }));
 
-  return <MeetingActionsClient cards={cards} assignees={assignees} />;
+  return <MeetingActionsClient cards={cards} assignees={assignees} canConfirm={canConfirm} />;
 }

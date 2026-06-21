@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/access";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
+import { canReviewMeetingActions, AuthorizationError } from "@/lib/auth/roles";
 import { runWithActor } from "@/lib/request-context";
 import { confirmMeetingActionItem } from "@/lib/actions/meeting-actions";
 
@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     );
     return Response.json({ ok: true, result });
   } catch (err) {
-    return Response.json({ ok: false, error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+    const status = err instanceof AuthorizationError ? 403 : 400;
+    return Response.json({ ok: false, error: err instanceof Error ? err.message : "Failed" }, { status });
   }
 }
