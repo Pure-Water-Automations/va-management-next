@@ -42,6 +42,7 @@ export type RecordingDetail = {
   description: string | null;
   status: string;
   visibility: string;
+  clientOrganizationId: string | null;
   durationSec: number | null;
   trimStartSec: number | null;
   trimEndSec: number | null;
@@ -164,6 +165,7 @@ export async function getRecordingDetail(
     description: rec.description,
     status: rec.status,
     visibility: rec.visibility,
+    clientOrganizationId: rec.clientOrganizationId,
     durationSec: rec.durationSec,
     trimStartSec: rec.trimStartSec,
     trimEndSec: rec.trimEndSec,

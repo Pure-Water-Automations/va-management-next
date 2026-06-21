@@ -1,9 +1,30 @@
 import { getCurrentUser } from "@/lib/auth/access";
 import { isGateReviewer } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
-import { Card } from "@/components/ui/Card";
 
 export const dynamic = "force-dynamic";
+
+function relAge(d: Date): string {
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
+function priorityChip(p: string) {
+  const map: Record<string, { bg: string; fg: string }> = {
+    High: { bg: "var(--color-error-light)", fg: "var(--color-error-dark)" },
+    Medium: { bg: "var(--color-warning-light)", fg: "var(--color-warning-dark)" },
+    Low: { bg: "var(--color-neutral-100)", fg: "var(--color-text-secondary)" },
+  };
+  const c = map[p] ?? map.Medium;
+  return (
+    <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: c.fg, background: c.bg, padding: "2px 8px", borderRadius: 999 }}>
+      {p}
+    </span>
+  );
+}
 
 export default async function HrRequestsPage() {
   const user = await getCurrentUser();
@@ -16,6 +37,7 @@ export default async function HrRequestsPage() {
     select: {
       id: true,
       title: true,
+      description: true,
       priorityPreference: true,
       dueDatePreference: true,
       createdAt: true,
@@ -26,93 +48,48 @@ export default async function HrRequestsPage() {
   });
 
   return (
-    <>
+    <div className="dash-stage">
       <div className="page-head">
         <div>
           <div className="crumb">HR Operations</div>
-          <h1>Client Request Triage</h1>
+          <h1>Client requests</h1>
         </div>
+        <span className="small" style={{ color: "var(--color-text-tertiary)" }}>{requests.length} to triage</span>
       </div>
 
-      <div style={{ marginTop: 24 }}>
-        {requests.length === 0 ? (
-          <Card padding={24}>
-            <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic", margin: 0 }}>
-              No pending requests.
-            </p>
-          </Card>
-        ) : (
-          <Card padding={0} style={{ overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "var(--color-bg-secondary)", borderBottom: "1px solid var(--color-border)" }}>
-                  <th style={th}>Client Org</th>
-                  <th style={th}>Submitter</th>
-                  <th style={th}>Title</th>
-                  <th style={th}>Priority</th>
-                  <th style={th}>Due Pref.</th>
-                  <th style={th}>Received</th>
-                  <th style={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((r, i) => (
-                  <tr
-                    key={r.id}
-                    style={{
-                      borderBottom: i < requests.length - 1 ? "1px solid var(--color-border-subtle)" : undefined,
-                    }}
-                  >
-                    <td style={td}>{r.clientOrganization.name}</td>
-                    <td style={td}>
-                      <span className="small">{r.submittedBy.name ?? r.submittedBy.email}</span>
-                    </td>
-                    <td style={{ ...td, fontWeight: 500 }}>{r.title}</td>
-                    <td style={td}>
-                      <span style={priorityStyle(r.priorityPreference)}>{r.priorityPreference}</span>
-                    </td>
-                    <td style={td} className="small">
-                      {r.dueDatePreference ? r.dueDatePreference.toLocaleDateString() : "—"}
-                    </td>
-                    <td style={td} className="small">
-                      {r.createdAt.toLocaleDateString()}
-                    </td>
-                    <td style={td}>
-                      <a href={`/hr/requests/${r.id}`} className="btn btn-sm">
-                        Review →
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
-      </div>
-    </>
+      <p style={{ margin: "0 0 20px", fontSize: "var(--text-base)", color: "var(--color-text-secondary)" }}>
+        Incoming asks from clients. Triage each one and assign it to the right VA.
+      </p>
+
+      {requests.length === 0 ? (
+        <div className="surface" style={{ padding: "44px 24px", textAlign: "center", color: "var(--color-text-tertiary)", fontSize: "var(--text-sm)" }}>
+          No incoming requests — inbox zero.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {requests.map((r) => (
+            <div key={r.id} className="surface" style={{ padding: "18px 20px", borderRadius: "var(--radius-lg)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
+                    <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--color-sky-700)" }}>{r.clientOrganization.name}</span>
+                    {priorityChip(r.priorityPreference)}
+                  </div>
+                  <div style={{ fontSize: "var(--text-base)", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 4 }}>{r.title}</div>
+                  {r.description && (
+                    <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", lineHeight: 1.5, maxWidth: "64ch" }}>{r.description}</p>
+                  )}
+                  <div style={{ fontSize: "var(--text-2xs)", color: "var(--color-text-tertiary)", marginTop: 8 }}>
+                    From {r.submittedBy.name ?? r.submittedBy.email} · submitted {relAge(r.createdAt)}
+                    {r.dueDatePreference ? ` · needed by ${r.dueDatePreference.toLocaleDateString()}` : ""}
+                  </div>
+                </div>
+                <a href={`/hr/requests/${r.id}`} className="btn btn-primary" style={{ flex: "none", height: 38 }}>Triage</a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
-}
-
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "12px 16px",
-  fontSize: "var(--text-sm)",
-  fontWeight: 600,
-  color: "var(--color-text-secondary)",
-};
-
-const td: React.CSSProperties = {
-  padding: "14px 16px",
-  fontSize: "var(--text-sm)",
-  verticalAlign: "middle",
-};
-
-function priorityStyle(p: string): React.CSSProperties {
-  const color =
-    p === "High"
-      ? "var(--color-error)"
-      : p === "Low"
-        ? "var(--color-text-tertiary)"
-        : "var(--color-warning)";
-  return { color, fontWeight: 500, fontSize: "var(--text-sm)" };
 }

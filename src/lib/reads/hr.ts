@@ -27,22 +27,39 @@ export async function getHrDashboard() {
   const redT = num(settings, "efficiency_red_threshold", 15);
   const yellowT = num(settings, "efficiency_yellow_threshold", 25);
 
-  const [vas, pendingReviews, recentActivity, last14d, effRows] = await Promise.all([
-    db.va.findMany({
-      where: { status: { in: ["active", "training"] } },
-      orderBy: { name: "asc" },
-    }),
-    db.tierReview.findMany({
-      where: { status: { in: ["hours_triggered", "form_sent", "under_review"] } },
-      orderBy: { timestamp: "asc" },
-    }),
-    db.activityLog.findMany({ orderBy: { timestamp: "desc" }, take: 20 }),
-    hoursByVa(14),
-    db.deskLogEfficiency.findMany({
-      where: { date: { gte: new Date(Date.now() - effWindow * DAY) } },
-      select: { vaId: true, activityPct: true },
-    }),
-  ]);
+  const [vas, pendingReviews, recentActivity, last14d, effRows, openEvaluations, incomingRequests] =
+    await Promise.all([
+      db.va.findMany({
+        where: { status: { in: ["active", "training"] } },
+        orderBy: { name: "asc" },
+      }),
+      db.tierReview.findMany({
+        where: { status: { in: ["hours_triggered", "form_sent", "under_review"] } },
+        orderBy: { timestamp: "asc" },
+      }),
+      db.activityLog.findMany({ orderBy: { timestamp: "desc" }, take: 20 }),
+      hoursByVa(14),
+      db.deskLogEfficiency.findMany({
+        where: { date: { gte: new Date(Date.now() - effWindow * DAY) } },
+        select: { vaId: true, activityPct: true },
+      }),
+      db.evaluation.findMany({
+        where: { status: { in: ["self_submitted", "supervisor_submitted", "ready_for_review"] } },
+        orderBy: { createdAt: "asc" },
+        select: { evaluationId: true, vaId: true, status: true, createdAt: true, va: { select: { name: true } } },
+      }),
+      db.clientTaskRequest.findMany({
+        where: { status: { in: ["RECEIVED", "TRIAGE_NEEDED", "READY_TO_ASSIGN"] } },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          priorityPreference: true,
+          clientOrganization: { select: { name: true } },
+        },
+      }),
+    ]);
 
   // Capacity flags from utilization vs target.
   const capacityFlags = vas
@@ -84,15 +101,50 @@ export async function getHrDashboard() {
     (v) => v.lastCheckinDate && v.lastCheckinDate >= monthStart,
   ).length;
 
+  // Per-VA workload (utilization) for the dashboard glance + team-health rollup.
+  const workload = vas
+    .map((va) => {
+      const last = last14d.get(va.vaId) ?? 0;
+      const target = va.targetHoursWeekly ?? 0;
+      const { utilizationPct } = computeUtilization(target, last);
+      const f = computeFlags(target, last);
+      return {
+        vaId: va.vaId,
+        name: va.name,
+        role: va.compensationRole,
+        target,
+        last14dHours: last,
+        utilizationPct,
+        overburdened: f.overburdened,
+        underutilized: f.underutilized,
+      };
+    })
+    .sort((a, b) => b.utilizationPct - a.utilizationPct);
+
+  const health = {
+    healthy: workload.filter((w) => !w.overburdened && !w.underutilized).length,
+    overloaded: workload.filter((w) => w.overburdened).length,
+    underused: workload.filter((w) => w.underutilized).length,
+  };
+
+  const pending = pendingReviews.map((r) => ({
+    ...r,
+    daysWaiting: Math.floor((Date.now() - r.timestamp.getTime()) / DAY),
+  }));
+
   return {
     totalActive: vas.length,
-    pendingReviews: pendingReviews.map((r) => ({
-      ...r,
-      daysWaiting: Math.floor((Date.now() - r.timestamp.getTime()) / DAY),
-    })),
+    pendingReviews: pending,
     capacityFlags,
     efficiencyAlerts,
     checkinsThisMonth,
     recentActivity,
+    workload,
+    health,
+    openEvaluations,
+    incomingRequests,
+    // Aggregate count of things that genuinely need an HR decision today.
+    decisionCount:
+      pending.length + capacityFlags.length + openEvaluations.length + incomingRequests.length,
   };
 }

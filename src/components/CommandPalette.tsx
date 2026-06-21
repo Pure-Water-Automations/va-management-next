@@ -61,8 +61,15 @@ export function CommandPalette() {
         close();
       }
     }
+    function onOpenEvent() {
+      setOpen(true);
+    }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("open-command-palette", onOpenEvent);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("open-command-palette", onOpenEvent);
+    };
   }, [open, close]);
 
   // Autofocus the input when the palette opens.

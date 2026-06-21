@@ -7,6 +7,8 @@
 import { getCurrentUser } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { canSeeRecording } from "@/lib/actions/recordings";
+import { canClientSeeRecording } from "@/lib/actions/recording-access";
+import { getClientMembership } from "@/lib/auth/client";
 import { presignDownload, r2Configured } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
@@ -33,17 +35,25 @@ export async function GET(
       uploaderUserId: true,
       vaId: true,
       visibility: true,
+      clientOrganizationId: true,
       va: { select: { supervisorVaId: true } },
     },
   });
   if (!rec) return new Response("Not found", { status: 404 });
 
-  const visible = canSeeRecording(user, {
+  let visible = canSeeRecording(user, {
     uploaderUserId: rec.uploaderUserId,
     vaId: rec.vaId,
     visibility: rec.visibility,
     ownerSupervisorVaId: rec.va?.supervisorVaId ?? null,
   });
+  if (!visible && (user.role === "CLIENT_ADMIN" || user.role === "CLIENT_MEMBER")) {
+    const membership = await getClientMembership(user.id);
+    visible = canClientSeeRecording(membership?.clientOrganizationId, {
+      visibility: rec.visibility,
+      clientOrganizationId: rec.clientOrganizationId,
+    });
+  }
   if (!visible) return new Response("Not found", { status: 404 });
   if (rec.status !== "ready" || !r2Configured()) {
     return new Response("Recording not available", { status: 409 });

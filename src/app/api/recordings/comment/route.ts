@@ -9,5 +9,7 @@ export const POST = action(
       reaction: optStr(body, "reaction"),
       timestampSec: optNum(body, "timestampSec"),
     }),
-  { allow: () => false },
+  // Admins bypass; client-portal users are let through so they can comment on
+  // videos shared with their org. addComment() does the per-recording check.
+  { allow: (role) => role === "CLIENT_ADMIN" || role === "CLIENT_MEMBER" },
 );

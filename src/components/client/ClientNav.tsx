@@ -2,32 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { IconDashboard, IconFolder, IconMessageSquare, IconFilm } from "@/components/icons";
 
 const LINKS = [
-  { href: "/client", label: "Dashboard", exact: true },
-  { href: "/client/projects", label: "Projects" },
-  { href: "/client/requests", label: "Requests" },
+  { href: "/client", label: "Dashboard", exact: true, icon: <IconDashboard /> },
+  { href: "/client/projects", label: "Projects", icon: <IconFolder /> },
+  { href: "/client/requests", label: "Requests", icon: <IconMessageSquare /> },
+  { href: "/client/recordings", label: "Videos", icon: <IconFilm /> },
 ];
 
 export function ClientNav() {
   const pathname = usePathname();
   return (
-    <nav style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
+    <nav className="topnav-links">
       {LINKS.map((l) => {
         const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
         return (
-          <Link
-            key={l.href}
-            href={l.href}
-            style={{
-              fontSize: "var(--text-sm)",
-              fontWeight: active ? "var(--weight-semibold)" : "var(--weight-medium)",
-              color: active ? "var(--color-text-brand)" : "var(--color-text-secondary)",
-              background: active ? "var(--color-sky-50)" : "transparent",
-              padding: "var(--space-1-5) var(--space-3)",
-              borderRadius: "var(--radius-nav)",
-            }}
-          >
+          <Link key={l.href} href={l.href} className={`topnav-item${active ? " active" : ""}`}>
+            <span className="nav-icon">{l.icon}</span>
             {l.label}
           </Link>
         );
