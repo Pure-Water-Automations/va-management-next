@@ -330,7 +330,15 @@ export function TasksWorkspace({
               </th>
               {columns.map((col) => (
                 <th key={col.key} style={thStyle}>
-                  <a href={sortHref(col.key)} style={sortLinkStyle}>
+                  <a
+                    href={sortHref(col.key)}
+                    style={sortLinkStyle}
+                    onClick={(e) => {
+                      // Client-side sort nav keeps the page (and scroll) put.
+                      e.preventDefault();
+                      router.push(sortHref(col.key));
+                    }}
+                  >
                     {col.label}
                     {sortArrow(col.key)}
                   </a>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type View = "HR" | "PAYROLL" | "RECRUITMENT" | "VA";
@@ -79,7 +80,7 @@ export function AdminBar({
           <span style={betaDot(betaOn)} /> Beta {betaOn ? "On" : "Off"}
         </button>
       )}
-      <a href="/admin/email" style={{ marginLeft: showBetaToggle ? 0 : "auto", color: "rgba(255,255,255,.75)", fontSize: "var(--text-xs)", textDecoration: "none" }}>⚙ Email sender</a>
+      <Link href="/admin/email" style={{ marginLeft: showBetaToggle ? 0 : "auto", color: "rgba(255,255,255,.75)", fontSize: "var(--text-xs)", textDecoration: "none" }}>⚙ Email sender</Link>
     </div>
   );
 }

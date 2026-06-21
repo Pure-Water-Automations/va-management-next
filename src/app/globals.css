@@ -367,6 +367,19 @@ html[data-sidebar-collapsed="1"] .sidebar .foot {
   margin-bottom: 6px;
   font-weight: 700;
 }
+/* When the eyebrow crumb contains links it's a breadcrumb — make the back
+   link an obvious, clickable affordance (a "‹ Parent" back button). */
+.page-head .crumb a {
+  color: var(--color-sky-600);
+  text-decoration: none;
+}
+.page-head .crumb a:hover {
+  text-decoration: underline;
+}
+.page-head .crumb a:first-of-type::before {
+  content: "‹ ";
+  font-weight: 800;
+}
 
 /* section heading used inside pages */
 .sec-head {

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/access";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
@@ -55,7 +56,7 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/va/tasks">My Tasks</a> / {task.title}
+            <Link href="/va/tasks">My Tasks</Link> / {task.title}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <h1 style={{ margin: 0 }}>{task.title}</h1>

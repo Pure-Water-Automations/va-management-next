@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 
 type Variant = "primary" | "secondary" | "ghost" | "outline" | "danger" | "text";
 type Size = "xs" | "sm" | "md" | "lg";
@@ -100,6 +101,16 @@ export function Button({
   );
 
   if (href) {
+    // Internal app routes use next/link (client-side nav preserves the
+    // persistent shell + its scroll); external/API/anchor links stay <a>.
+    const isInternal = href.startsWith("/") && !href.startsWith("/api/");
+    if (isInternal) {
+      return (
+        <Link href={href} style={base}>
+          {content}
+        </Link>
+      );
+    }
     return (
       <a href={href} style={base}>
         {content}

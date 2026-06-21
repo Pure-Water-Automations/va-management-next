@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 
 export default async function HrClientOrgPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -36,7 +37,7 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
 
   return (
     <div style={{ maxWidth: 800, padding: 24 }}>
-      <a href="/hr/clients" style={{ fontSize: 13, color: "var(--text-secondary)" }}>← Clients</a>
+      <Link href="/hr/clients" style={{ fontSize: 13, color: "var(--text-secondary)" }}>← Clients</Link>
       <h1 style={{ fontSize: 22, fontWeight: 600, margin: "12px 0 4px" }}>{org.name}</h1>
       <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 24 }}>
         Status: {org.status} · Slug: {org.slug}

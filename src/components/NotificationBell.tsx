@@ -67,12 +67,12 @@ export function NotificationBell({
 
   async function openNotification(n: NotificationItem) {
     await postAction("/api/notifications/read", { id: n.id });
+    setOpen(false);
     if (n.link) {
-      window.location.href = n.link;
-    } else {
-      setOpen(false);
-      router.refresh();
+      // Client-side nav keeps the persistent header (and shell scroll) mounted.
+      router.push(n.link);
     }
+    router.refresh();
   }
 
   async function markAll() {

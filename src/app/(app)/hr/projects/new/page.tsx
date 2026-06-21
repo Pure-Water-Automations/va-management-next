@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageProjects } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ export default async function NewProjectPage() {
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/projects">Projects</a> / New
+            <Link href="/hr/projects">Projects</Link> / New
           </div>
           <h1>New Project</h1>
         </div>

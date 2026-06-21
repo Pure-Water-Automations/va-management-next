@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageProjects } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
@@ -35,7 +36,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/projects">Projects</a> / Edit
+            <Link href="/hr/projects">Projects</Link> / Edit
           </div>
           <h1>Project not found</h1>
         </div>
@@ -55,7 +56,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/projects">Projects</a> / <a href={`/hr/projects/${project.id}`}>{project.name}</a> / Edit
+            <Link href="/hr/projects">Projects</Link> / <Link href={`/hr/projects/${project.id}`}>{project.name}</Link> / Edit
           </div>
           <h1>Edit Project</h1>
         </div>

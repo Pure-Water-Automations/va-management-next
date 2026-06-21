@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
@@ -40,7 +41,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       <div className="page-head">
         <div>
           <div className="crumb">
-            <a href="/hr/projects">Projects</a> / {project.name}
+            <Link href="/hr/projects">Projects</Link> / {project.name}
           </div>
           <h1>{project.name}</h1>
           {project.client && (

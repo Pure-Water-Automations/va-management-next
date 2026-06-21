@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
 import { postAction } from "@/components/ActionButton";
 import {
   useScreenRecorder,
@@ -705,7 +706,7 @@ export function Recorder() {
                   </div>
                   <div style={{ display: "flex", gap: 16, alignItems: "center", paddingTop: 14 }}>
                     <button onClick={backToSetup} style={{ appearance: "none", cursor: "pointer", font: "inherit", fontWeight: 600, fontSize: "var(--text-sm)", color: "var(--color-text-accent)", background: "transparent", border: "none", padding: 0 }}>Record another →</button>
-                    <a href={`/recordings/${savedId}`} className="small" style={{ color: "var(--color-sky-600)", textDecoration: "none" }}>View recording</a>
+                    <Link href={`/recordings/${savedId}`} className="small" style={{ color: "var(--color-sky-600)", textDecoration: "none" }}>View recording</Link>
                   </div>
                 </div>
               )}

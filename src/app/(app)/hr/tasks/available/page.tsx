@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAvailableTasks } from "@/lib/reads/tasks";
@@ -16,7 +17,7 @@ export default async function AvailableTasksPage() {
     <>
       <div className="page-head">
         <div>
-          <div className="crumb">Projects / Available</div>
+          <div className="crumb"><Link href="/hr/tasks">All Tasks</Link> / Available</div>
           <h1>Available tasks</h1>
         </div>
       </div>

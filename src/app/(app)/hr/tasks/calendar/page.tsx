@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
@@ -105,7 +106,7 @@ export default async function TaskCalendarPage({
     <>
       <div className="page-head">
         <div>
-          <div className="crumb">Projects</div>
+          <div className="crumb"><Link href="/hr/tasks">All Tasks</Link> / Calendar</div>
           <h1>
             Task Calendar — {MONTH_NAMES[month0]} {year}
           </h1>

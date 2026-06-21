@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/access";
 import { getClientMembership, assertClientRole } from "@/lib/auth/client";
 import { getClientRecording } from "@/lib/reads/client-recordings";
@@ -27,10 +28,10 @@ export default async function ClientRecordingPlayer({ params }: { params: Promis
 
   return (
     <div className="dash-stage" style={{ maxWidth: 820, margin: "0 auto" }}>
-      <a href="/client/recordings" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-sky-600)", marginBottom: 14, transform: "scaleX(-1)" }}>
+      <Link href="/client/recordings" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-sky-600)", marginBottom: 14, transform: "scaleX(-1)" }}>
         <IconChevronRight size={14} />
         <span style={{ transform: "scaleX(-1)" }}>All videos</span>
-      </a>
+      </Link>
 
       <div className="surface" style={{ overflow: "hidden", borderRadius: "var(--radius-card)" }}>
         <div style={{ position: "relative", aspectRatio: "16/9", background: "#0b1220" }}>
