@@ -87,6 +87,8 @@ export function Sidebar({
   isAdmin = false,
   showBeta = false,
   canDelegate = false,
+  showMeetingActions = false,
+  meetingActionsCount = 0,
 }: {
   view: ConsoleView;
   role: Role;
@@ -94,6 +96,8 @@ export function Sidebar({
   isAdmin?: boolean;
   showBeta?: boolean;
   canDelegate?: boolean;
+  showMeetingActions?: boolean;
+  meetingActionsCount?: number;
 }) {
   const sections = NAV[view] ?? NAV.VA;
   return (
@@ -126,6 +130,21 @@ export function Sidebar({
           <NavItemLink href="/hr/tasks" label="All Tasks" />
           <NavItemLink href="/hr/tasks/new" label="Delegate" />
           <NavItemLink href="/hr/projects" label="Projects" />
+        </div>
+      )}
+      {/* Meeting Actions — Zoom transcript → tasks queue. Shown to task
+          reviewers (HR Manager / Team Lead / Senior VA) across either view. */}
+      {showMeetingActions && (
+        <div>
+          <div className="nav-label">Meetings</div>
+          <a href="/meeting-actions" className="nav-item" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span>Meeting Actions</span>
+            {meetingActionsCount > 0 && (
+              <span style={{ background: "#f59e0b", color: "#000", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 10 }}>
+                {meetingActionsCount}
+              </span>
+            )}
+          </a>
         </div>
       )}
       {isAdmin && (

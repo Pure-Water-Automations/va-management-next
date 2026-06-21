@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isBetaVisible } from "@/lib/auth/access";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
@@ -58,6 +59,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
+  const showMeetingActions = user.isAdmin || canReviewMeetingActions(user.role);
+  const meetingActionsCount = showMeetingActions
+    ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
+    : 0;
 
   return (
     <>
@@ -66,7 +71,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
       <div className="app-shell">
         <label htmlFor="nav-toggle" className="nav-backdrop" aria-hidden="true" />
-        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} showBeta={betaVisible} canDelegate={canDelegate} />
+        <Sidebar view={view} role={user.role} name={user.name ?? user.email} isAdmin={user.isAdmin} showBeta={betaVisible} canDelegate={canDelegate} showMeetingActions={showMeetingActions} meetingActionsCount={meetingActionsCount} />
         <main className="content" style={{ padding: 0 }}>
           {user.isAdmin && (
             <AdminBar
