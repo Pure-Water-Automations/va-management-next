@@ -37,7 +37,8 @@ const envSchema = z.object({
   // to google/gemini-2.5-flash-lite in the worker when unset.
   OPENROUTER_TRANSCRIPT_MODEL: optionalEnvString(z.string()),
   // Model for the "Enhance with Second Brain" agent (brief synthesis). Defaults to
-  // anthropic/claude-3.5-haiku in code — better grounded synthesis than DeepSeek.
+  // anthropic/claude-haiku-4.5 in code — better grounded synthesis than DeepSeek.
+  // (claude-3.5-haiku was retired by OpenRouter/Bedrock 2026-06-20 → HTTP 404.)
   OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
   OPENROUTER_ENHANCE_SEARCH_MODEL: optionalEnvString(z.string()),
   // MCP endpoint: shared bearer token + the service identity it acts as. The
@@ -53,6 +54,10 @@ const envSchema = z.object({
   // Stripe (client sales payments). All optional so the app boots without Stripe
   // configured; payment kickoff no-ops and falls back to manual "mark paid" until
   // the secret key is set. The webhook route is disabled unless the secret is set.
+  // Payment mode: "mock" (default when unset) simulates an instant successful
+  // payment on sign so the sign → paid → won → convert → onboard flow is testable
+  // without Stripe; set "live" (+ STRIPE_SECRET_KEY) to send real invoices.
+  STRIPE_MODE: optionalEnvString(z.string()),
   STRIPE_SECRET_KEY: optionalEnvString(z.string()),
   STRIPE_WEBHOOK_SECRET: optionalEnvString(z.string()),
   // Cheap multimodal model used to transcribe + summarize recording audio (via

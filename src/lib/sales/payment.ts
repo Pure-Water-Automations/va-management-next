@@ -10,6 +10,12 @@ function stripeKey(): string | null {
   return env.STRIPE_SECRET_KEY ?? null;
 }
 
+/** Real Stripe billing runs ONLY when explicitly enabled AND a key is present.
+ *  Otherwise we're in mock mode (simulated payment) — see onAgreementSigned. */
+function stripeLive(): boolean {
+  return env.STRIPE_MODE === "live" && !!env.STRIPE_SECRET_KEY?.trim();
+}
+
 /** Minimal form-encoded Stripe REST call (dependency-free). Throws on non-2xx. */
 async function stripe(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
   const key = stripeKey();
@@ -42,12 +48,11 @@ export async function onAgreementSigned(dealId: string): Promise<void> {
   const settings = await loadSettings();
   const currency = (settings.get("stripe_currency")?.trim() || "usd").toLowerCase();
 
-  if (!stripeKey()) {
-    await logActivity({
-      source: "sales",
-      eventType: "payment_pending_manual",
-      summary: `${deal.orgName} signed — Stripe unconfigured; awaiting manual payment confirmation`,
-    });
+  if (!stripeLive()) {
+    // MOCK payment (demo): simulate an instant successful charge so the
+    // sign → paid → won → convert → onboard pipeline works end-to-end without
+    // Stripe. Enable real billing by setting STRIPE_MODE=live + STRIPE_SECRET_KEY.
+    await markAgreementPaid(dealId, { via: "mock payment (demo)" });
     return;
   }
 
