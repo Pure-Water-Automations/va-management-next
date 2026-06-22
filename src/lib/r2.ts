@@ -107,3 +107,6 @@ export function thumbnailKey(id: string): string {
 export function transcriptKey(id: string): string {
   return `recordings/${id}/transcript.json`;
 }
+export function enhancedKey(id: string): string {
+  return `recordings/${id}/enhanced.mp4`;
+}

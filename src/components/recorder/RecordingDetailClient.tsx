@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { postAction } from "@/components/ActionButton";
@@ -162,6 +162,25 @@ export function RecordingDetailClient({
     if (ok) router.push("/recordings");
   }
 
+  async function enhance() {
+    const ok = await run("enhance", "/api/recordings/enhance", { recordingId: detail.id });
+    if (ok) router.refresh();
+  }
+
+  // While an enhance is processing in the background, poll the server component
+  // for completion (the detail is server-rendered, so a refresh re-fetches it).
+  useEffect(() => {
+    if (detail.enhanceStatus !== "processing") return;
+    const t = setInterval(() => router.refresh(), 5000);
+    return () => clearInterval(t);
+  }, [detail.enhanceStatus, router]);
+
+  const eStats = detail.enhanceStats as { cutMs?: number; sourceMs?: number } | null;
+  const enhanceSavings =
+    eStats && eStats.cutMs && eStats.sourceMs
+      ? `cut ${fmt(eStats.cutMs / 1000)} (${Math.round((eStats.cutMs / eStats.sourceMs) * 100)}%)`
+      : null;
+
   return (
     <>
       <div className="page-head">
@@ -194,6 +213,16 @@ export function RecordingDetailClient({
                 Download
               </Button>
             )}
+            {ready && detail.enhanceStatus !== "processing" && (
+              <Button variant="secondary" size="sm" loading={busy === "enhance"} onClick={enhance}>
+                {detail.enhanceStatus === "done" ? "Re-enhance" : "Auto enhance"}
+              </Button>
+            )}
+            {detail.enhanceStatus === "processing" && (
+              <Button variant="secondary" size="sm" loading disabled>
+                Enhancing…
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
               {editing ? "Cancel" : "Edit"}
             </Button>
@@ -222,6 +251,52 @@ export function RecordingDetailClient({
               <p className="small">
                 This recording isn&apos;t ready to play yet (status: {detail.status}).
               </p>
+            </Card>
+          )}
+
+          {detail.enhanceStatus && (
+            <Card style={{ marginTop: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <h3 style={{ margin: 0 }}>✨ Auto-enhanced (tightened)</h3>
+                {detail.enhanceStatus === "done" && <Badge variant="success">done</Badge>}
+                {detail.enhanceStatus === "processing" && (
+                  <Badge variant="warning" dot>
+                    processing
+                  </Badge>
+                )}
+                {detail.enhanceStatus === "failed" && <Badge variant="danger">failed</Badge>}
+              </div>
+              {detail.enhanceStatus === "processing" && (
+                <p className="small" style={{ color: "var(--color-text-tertiary)" }}>
+                  Removing filler words and dead air via Video Core — this can take a few minutes.
+                  The page refreshes automatically.
+                </p>
+              )}
+              {detail.enhanceStatus === "failed" && (
+                <p className="small" style={{ color: "var(--color-red-600, #b91c1c)" }}>
+                  {detail.enhanceError || "Enhancement failed."}
+                </p>
+              )}
+              {detail.enhanceStatus === "done" && detail.enhancedUrl && (
+                <>
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <video
+                    src={detail.enhancedUrl}
+                    poster={detail.thumbnailUrl ?? undefined}
+                    controls
+                    style={{ width: "100%", borderRadius: "var(--radius-card)", background: "#000" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                    {detail.enhancedDurationSec != null && (
+                      <Badge variant="info">{fmt(detail.enhancedDurationSec)} tightened</Badge>
+                    )}
+                    {enhanceSavings && <Badge variant="primary">{enhanceSavings}</Badge>}
+                    <Button href={detail.enhancedUrl} variant="ghost" size="sm">
+                      Download enhanced
+                    </Button>
+                  </div>
+                </>
+              )}
             </Card>
           )}
 

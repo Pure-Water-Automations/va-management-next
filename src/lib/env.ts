@@ -81,6 +81,12 @@ const envSchema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().default("whisper-1"),
   ),
+  // Video Core — shared AI video-editing backend, loopback-only on this VPS
+  // (127.0.0.1:3101). Powers the recording "Auto enhance" (tighten) feature. All
+  // optional so the app boots without it; enhance no-ops until set.
+  VIDEO_CORE_BASE_URL: optionalEnvString(z.string().url()),
+  VIDEO_CORE_API_KEY: optionalEnvString(z.string()),
+  VIDEO_CORE_WORKSPACE_ID: optionalEnvString(z.string()),
 });
 
 export const env = envSchema.parse(process.env);

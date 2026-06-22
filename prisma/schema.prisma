@@ -658,6 +658,14 @@ model Recording {
   aiSummary      String? @db.Text
   aiStatus       String? // pending | running | done | failed | skipped
 
+  // Auto-enhance (tighten via Video Core — remove fillers + dead-air). Manual button.
+  enhanceStatus       String? // processing | done | failed
+  enhancedKey         String? // recordings/<id>/enhanced.mp4
+  enhancedDurationSec Float?
+  enhanceStats        Json? // { cutMs, outputMs, sourceMs, byType }
+  enhanceError        String? @db.Text
+  enhancedAt          DateTime?
+
   // Review workflow (supervisor / HR)
   reviewStatus String? // needs_review | reviewed | flagged
   reviewedBy   String?

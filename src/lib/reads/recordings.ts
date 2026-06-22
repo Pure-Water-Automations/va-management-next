@@ -62,6 +62,11 @@ export type RecordingDetail = {
   createdAt: Date;
   thumbnailUrl: string | null;
   downloadUrl: string | null;
+  enhanceStatus: string | null;
+  enhanceError: string | null;
+  enhancedDurationSec: number | null;
+  enhanceStats: Record<string, unknown> | null;
+  enhancedUrl: string | null;
   canManage: boolean;
   comments: RecordingComment[];
 };
@@ -187,6 +192,14 @@ export async function getRecordingDetail(
     downloadUrl:
       ready && r2Configured()
         ? await presignDownload(rec.objectKey, 3600, `${rec.title || "recording"}.webm`).catch(() => null)
+        : null,
+    enhanceStatus: rec.enhanceStatus,
+    enhanceError: rec.enhanceError,
+    enhancedDurationSec: rec.enhancedDurationSec,
+    enhanceStats: (rec.enhanceStats as Record<string, unknown> | null) ?? null,
+    enhancedUrl:
+      rec.enhanceStatus === "done" && rec.enhancedKey && r2Configured()
+        ? await presignDownload(rec.enhancedKey, 3600, `${rec.title || "recording"}-enhanced.mp4`).catch(() => null)
         : null,
     canManage,
     comments: rec.comments.map((c) => ({

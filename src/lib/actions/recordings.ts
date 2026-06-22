@@ -11,12 +11,17 @@ import { isGateReviewer } from "@/lib/auth/roles";
 import { logActivity } from "@/lib/activity";
 import {
   presignUpload,
+  presignDownload,
   recordingKey,
   thumbnailKey,
   transcriptKey,
+  enhancedKey,
   r2Configured,
   r2Delete,
+  r2Put,
 } from "@/lib/r2";
+import { Prisma } from "@prisma/client";
+import { tightenVideo, videoCoreConfigured } from "@/lib/video-core";
 import { canSeeRecording, canClientSeeRecording } from "@/lib/actions/recording-access";
 import { getClientMembership } from "@/lib/auth/client";
 
@@ -120,6 +125,78 @@ export async function finalizeRecording(
   });
 
   return { id: rec.id };
+}
+
+/**
+ * Kick off an "Auto enhance" (tighten) pass via Video Core: mark the recording
+ * `processing` and run the enhance in the background — the analyze+render takes
+ * minutes, too long to hold the request. The detail view polls enhanceStatus.
+ */
+export async function startEnhanceRecording(
+  user: CurrentUser,
+  input: { recordingId: string },
+): Promise<{ id: string; status: string }> {
+  if (!videoCoreConfigured()) throw new Error("Video enhancement isn't configured yet (set VIDEO_CORE_* env vars).");
+  if (!r2Configured()) throw new Error("Recording storage isn't configured.");
+  const rec = await db.recording.findUnique({
+    where: { id: input.recordingId },
+    select: { id: true, uploaderUserId: true, status: true, enhanceStatus: true },
+  });
+  if (!rec) throw new Error("Recording not found.");
+  if (!isOwnerOrAdmin(user, rec)) throw new Error("Not authorized.");
+  if (rec.status !== "ready") throw new Error("Recording isn't ready yet.");
+  if (rec.enhanceStatus === "processing") return { id: rec.id, status: "processing" };
+
+  await db.recording.update({
+    where: { id: rec.id },
+    data: { enhanceStatus: "processing", enhanceError: null },
+  });
+  // Detached: continues on the persistent node server after the response. Errors
+  // are captured onto the row — never thrown out of the background task.
+  void runEnhance(rec.id, `enh-${rec.id}-${Date.now()}`);
+
+  await logActivity({
+    source: "recordings",
+    eventType: "recording_enhance_started",
+    summary: `${user.name ?? user.email} started auto-enhance on a recording`,
+    vaId: user.vaId ?? null,
+  });
+  return { id: rec.id, status: "processing" };
+}
+
+/** Background body for one enhance: presign source → Video Core tighten → store enhanced. */
+async function runEnhance(recordingId: string, idempotencyKey: string): Promise<void> {
+  try {
+    const rec = await db.recording.findUnique({
+      where: { id: recordingId },
+      select: { id: true, objectKey: true, mimeType: true },
+    });
+    if (!rec) throw new Error("Recording vanished");
+    // Short-lived presigned GET so Video Core (and AssemblyAI) can fetch the source.
+    const sourceUrl = await presignDownload(rec.objectKey, 3600);
+    const result = await tightenVideo(sourceUrl, {
+      idempotencyKey,
+      contentType: rec.mimeType || "video/webm",
+    });
+    const key = enhancedKey(rec.id);
+    await r2Put(key, result.bytes, "video/mp4");
+    await db.recording.update({
+      where: { id: rec.id },
+      data: {
+        enhanceStatus: "done",
+        enhancedKey: key,
+        enhancedDurationSec: result.durationMs != null ? result.durationMs / 1000 : null,
+        enhanceStats: result.stats ? (result.stats as Prisma.InputJsonValue) : undefined,
+        enhanceError: null,
+        enhancedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await db.recording
+      .update({ where: { id: recordingId }, data: { enhanceStatus: "failed", enhanceError: message } })
+      .catch(() => undefined);
+  }
 }
 
 export async function updateRecording(
