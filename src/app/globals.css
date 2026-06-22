@@ -140,6 +140,65 @@ html[data-sidebar-collapsed="1"] .app-shell {
   white-space: nowrap;
 }
 
+/* Collapsible nav group (toggle a section open/closed). */
+.nav-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  padding: 14px 9px 6px;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.nav-group-head:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+.nav-group-head .chev {
+  display: flex;
+  flex: none;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+.nav-group.collapsed .nav-group-head .chev {
+  transform: rotate(-90deg);
+}
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.nav-group.collapsed .nav-group-items {
+  display: none;
+}
+/* Icon-only sidebar (desktop only): hide the label + chevron, always show the
+   items as icons. Scoped to desktop so it can never leak into the mobile drawer,
+   where the per-group collapse must keep working. */
+@media (min-width: 1025px) {
+  html[data-sidebar-collapsed="1"] .sidebar .nav-group-head {
+    justify-content: center;
+    padding: 10px 0 2px;
+    pointer-events: none;
+  }
+  html[data-sidebar-collapsed="1"] .sidebar .nav-group-head .nav-group-label,
+  html[data-sidebar-collapsed="1"] .sidebar .nav-group-head .chev {
+    display: none;
+  }
+  html[data-sidebar-collapsed="1"] .sidebar .nav-group.collapsed .nav-group-items {
+    display: flex;
+  }
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -401,6 +460,15 @@ h3.sec-title {
 .small {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
+}
+
+/* Click-to-edit affordance (inline-editable fields). */
+.editable {
+  transition: background var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+.editable:hover {
+  background: var(--color-sky-50);
+  box-shadow: 0 0 0 1px var(--color-sky-100);
 }
 
 /* ── Reusable surface + hero helpers ───────────────────────────────────── */
@@ -748,6 +816,8 @@ h3.sec-title {
   html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-badge,
   html[data-sidebar-collapsed="1"] .sidebar .foot .foot-meta { display: revert; }
   html[data-sidebar-collapsed="1"] .sidebar .nav-item { justify-content: flex-start; gap: 12px; }
+  /* The desktop icon-collapse group rules are scoped to min-width:1025px, so on
+     mobile the group header stays visible and the per-group collapse just works. */
   .nav-toggle-cb:checked ~ .app-shell .sidebar { transform: translateX(0); }
   .nav-toggle-cb:checked ~ .app-shell .nav-backdrop {
     display: block; position: fixed; inset: 0; z-index: 75; background: rgba(0, 0, 0, 0.45);

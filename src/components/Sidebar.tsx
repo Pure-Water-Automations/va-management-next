@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Role } from "@prisma/client";
 import type { ConsoleView } from "@/lib/auth/roles";
 import { NavItemLink } from "./NavItemLink";
+import { NavGroup } from "./NavGroup";
 import { Avatar } from "./Avatar";
 import {
   IconDashboard,
@@ -137,48 +138,43 @@ export function Sidebar({
 
       <nav>
         {sections.map((section) => (
-          <div key={section.label}>
-            <div className="nav-label">{section.label}</div>
+          <NavGroup key={section.label} label={section.label}>
             {section.items.map((item) => (
               <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
             ))}
-          </div>
+          </NavGroup>
         ))}
 
         {/* HR managers and people ops can manage clients and client requests */}
         {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
-          <div>
-            <div className="nav-label">Clients</div>
+          <NavGroup label="Clients">
             <NavItemLink href="/hr/sales" label="Sales Pipeline" icon={<IconBriefcase />} />
             <NavItemLink href="/hr/client-onboarding" label="Onboarding" icon={<IconHandshake />} />
             <NavItemLink href="/hr/clients" label="Organizations" icon={<IconBuilding />} />
             <NavItemLink href="/hr/requests" label="Client Requests" icon={<IconMessageSquare />} />
-          </div>
+          </NavGroup>
         )}
 
         {/* Meeting Actions — Zoom transcript → tasks queue. Shown to task
             reviewers (HR Manager / Team Lead / Senior VA). */}
         {showMeetingActions && (
-          <div>
-            <div className="nav-label">Meetings</div>
+          <NavGroup label="Meetings">
             <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} />
-          </div>
+          </NavGroup>
         )}
 
         {isAdmin && (
-          <div>
-            <div className="nav-label">Admin</div>
+          <NavGroup label="Admin">
             <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
-          </div>
+          </NavGroup>
         )}
 
         {/* Recordings (Loom-style recorder + library) — open to admins. */}
         {showRecordings && (
-          <div>
-            <div className="nav-label">Recordings</div>
+          <NavGroup label="Recordings">
             <NavItemLink href="/record" label="Record" icon={<IconVideo />} />
             <NavItemLink href="/recordings" label="Recordings" icon={<IconFilm />} />
-          </div>
+          </NavGroup>
         )}
       </nav>
 
