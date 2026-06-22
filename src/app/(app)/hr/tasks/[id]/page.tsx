@@ -5,12 +5,9 @@ import { canManageTasks } from "@/lib/auth/roles";
 import { getTaskDetail, getAllTasks } from "@/lib/reads/tasks";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getClients } from "@/lib/reads/clients";
-import { ReassignControl } from "@/components/ReassignControl";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { PriorityBadge, DueChip, LinkChips } from "@/components/ui/task-format";
-import { StatusDropdown, CommentForm } from "@/components/TaskActions";
-import { TaskEditForm } from "@/components/TaskEditForm";
+import { CommentForm } from "@/components/TaskActions";
+import { TaskInlineDetail } from "@/components/TaskInlineDetail";
 import { TaskChecklist } from "@/components/TaskChecklist";
 import { TaskDependencies } from "@/components/TaskDependencies";
 
@@ -42,7 +39,7 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
 
   return (
     <>
-      <div className="page-head">
+      <div className="page-head" style={{ marginBottom: 16 }}>
         <div>
           <div className="crumb">
             {task.project ? (
@@ -52,52 +49,33 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
             )}{" "}
             / {task.title}
           </div>
-          <h1>{task.title}</h1>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignSelf: "center", alignItems: "center" }}>
-          {blocked && <Badge variant="danger" dot>Blocked</Badge>}
-          <StatusDropdown taskId={task.id} current={task.status} />
-          <PriorityBadge value={task.priority} />
         </div>
       </div>
 
       <div className="dash-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Card padding={20}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Assigned to</span>
-                <ReassignControl
-                  taskId={task.id}
-                  currentAssigneeId={task.assignedToId}
-                  currentName={task.assignedTo.name ?? task.assignedTo.email}
-                  assignees={assignees}
-                />
-              </div>
-              <Row label="Assigned by" value={task.assignedBy.name ?? "—"} />
-              <Row label="Strategy" value={task.strategy} />
-              <Row label="Status" value={task.status} />
-              <div style={{ display: "flex", gap: 16 }}>
-                <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Due date</span>
-                {task.dueDate ? <DueChip date={task.dueDate} status={task.status} /> : <span>—</span>}
-              </div>
-              {task.client && <Row label="Client" value={task.client} />}
-              {task.project && <Row label="Project" value={task.project.name} />}
-              {task.links && (
-                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                  <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Links</span>
-                  <LinkChips links={task.links} />
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {task.instructions && (
-            <Card padding={20}>
-              <h3 style={{ marginTop: 0, marginBottom: 12 }}>Instructions</h3>
-              <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{task.instructions}</p>
-            </Card>
-          )}
+          {/* One inline-editable view of the task — click any field to edit it. */}
+          <TaskInlineDetail
+            task={{
+              id: task.id,
+              title: task.title,
+              instructions: task.instructions,
+              strategy: task.strategy,
+              priority: task.priority,
+              status: task.status,
+              client: task.client,
+              dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : null,
+              links: task.links,
+              assignedToId: task.assignedToId,
+              assignedToName: task.assignedTo.name ?? task.assignedTo.email,
+              assignedByName: task.assignedBy.name ?? "—",
+              projectId: task.project?.id ?? null,
+              projectName: task.project?.name ?? null,
+            }}
+            clients={clients}
+            assignees={assignees}
+            blocked={blocked}
+          />
 
           {(sops.length > 0 || trainings.length > 0 || tools.length > 0) && (
             <Card padding={20}>
@@ -122,26 +100,6 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
               canManage
             />
           </Card>
-
-          {(user.isAdmin || canManageTasks(user.role)) && (
-            <Card padding={20}>
-              <h3 style={{ marginTop: 0, marginBottom: 12 }}>Edit task</h3>
-              <TaskEditForm
-                task={{
-                  id: task.id,
-                  title: task.title,
-                  instructions: task.instructions,
-                  strategy: task.strategy,
-                  priority: task.priority,
-                  status: task.status,
-                  client: task.client,
-                  dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : null,
-                  links: task.links,
-                }}
-                clients={clients}
-              />
-            </Card>
-          )}
         </div>
 
         {/* Comments */}
@@ -192,15 +150,6 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
         </Card>
       </div>
     </>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", gap: 16 }}>
-      <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>{label}</span>
-      <span>{value}</span>
-    </div>
   );
 }
 

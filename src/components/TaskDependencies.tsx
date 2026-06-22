@@ -111,11 +111,11 @@ export function TaskDependencies({
       )}
 
       {canManage && options.length > 0 && (
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
-            style={{ ...inputStyle, flex: 1 }}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
           >
             <option value="">Add a blocking task…</option>
             {options.map((t) => (
