@@ -8,6 +8,7 @@ import {
   recorderSupported,
   type CaptureSource,
 } from "@/components/recorder/useScreenRecorder";
+import { RecordingVideo } from "@/components/recorder/RecordingVideo";
 
 /* ── small helpers ──────────────────────────────────────────────────────── */
 
@@ -643,7 +644,7 @@ export function Recorder() {
             <div>
               <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: "var(--radius-lg)", overflow: "hidden", background: "#000", boxShadow: "var(--shadow-md)" }}>
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <video ref={videoRef} src={r.recorded.url} onLoadedMetadata={onLoadedMeta} onTimeUpdate={onTimeUpdate} onEnded={() => setPlaying(false)} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                <RecordingVideo ref={videoRef} src={r.recorded.url} playsInline onLoadedMetadata={onLoadedMeta} onTimeUpdate={onTimeUpdate} onEnded={() => setPlaying(false)} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                   <button onClick={togglePlay} title={playing ? "Pause" : "Play"} style={{ pointerEvents: "auto", appearance: "none", border: "none", cursor: "pointer", width: playing ? 56 : 64, height: playing ? 56 : 64, borderRadius: "50%", background: playing ? "rgba(13,18,32,.55)" : "rgba(255,255,255,.92)", backdropFilter: playing ? "blur(8px)" : undefined, color: playing ? "#fff" : NAVY, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: playing ? undefined : "var(--shadow-lg)" }}>
                     {playing ? <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg> : <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7z" /></svg>}

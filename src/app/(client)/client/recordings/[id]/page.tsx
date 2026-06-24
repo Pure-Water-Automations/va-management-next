@@ -5,6 +5,7 @@ import { getClientMembership, assertClientRole } from "@/lib/auth/client";
 import { getClientRecording } from "@/lib/reads/client-recordings";
 import { Avatar } from "@/components/Avatar";
 import { ClientRecordingComment } from "@/components/client/ClientRecordingComment";
+import { RecordingVideo } from "@/components/recorder/RecordingVideo";
 import { IconChevronRight, IconSparkles } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function ClientRecordingPlayer({ params }: { params: Promis
       <div className="surface" style={{ overflow: "hidden", borderRadius: "var(--radius-card)" }}>
         <div style={{ position: "relative", aspectRatio: "16/9", background: "#0b1220" }}>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video src={`/api/recordings/stream/${rec.id}`} controls playsInline style={{ width: "100%", height: "100%", display: "block", background: "#0b1220" }} />
+          <RecordingVideo src={`/api/recordings/stream/${rec.id}`} controls playsInline style={{ width: "100%", height: "100%", display: "block", background: "#0b1220" }} />
         </div>
 
         <div style={{ padding: "22px 26px 26px" }}>

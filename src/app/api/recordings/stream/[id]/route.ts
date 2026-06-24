@@ -65,5 +65,16 @@ export async function GET(
     3600,
     download ? `${rec.title || "recording"}.webm` : undefined,
   );
-  return Response.redirect(signed, 302);
+  // For inline playback, let the browser cache this redirect for a while so each
+  // seek reuses the already-presigned R2 URL instead of re-running auth + DB lookup
+  // + presign on every Range request (the main cause of clunky scrubbing). The
+  // cache window stays comfortably inside the 1h presign lifetime. Downloads are
+  // one-off, so they aren't cached.
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: signed,
+      "Cache-Control": download ? "no-store" : "private, max-age=1800",
+    },
+  });
 }
