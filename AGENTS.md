@@ -124,6 +124,37 @@ size `TRANSCRIPT_BATCH` (default 8/run); recency floor `TRANSCRIPT_MAX_AGE_DAYS`
 (default 30 — meetings older than this are skipped, not backfilled). Each records
 a `SyncRun`.
 
+## Notion two-way sync (BETA)
+
+Lets a client who already runs projects/tasks in their **own** Notion workspace
+connect it: one `NotionConnection` per `ClientOrganization` (their internal
+integration token + a Projects and/or Tasks database). **Status** syncs both
+directions — flip it in Notion or in the console and the other side follows;
+everything else stays in Notion, reachable via a page link auto-added to the
+item's description. Linked items are tagged by `Project.notionPageId` /
+`Task.notionPageId` (`!= null` = "Notion item"); items can still be created
+console-only without Notion.
+
+- **Pure logic** (status fuzzy-mapping + the ping-pong-guarding reconcile
+  decision): `src/lib/notion-sync.ts` (unit-tested, `tests/notion-sync.test.ts`).
+  The `notionStatus` column = the last-synced Notion option name, the guard for
+  which side changed.
+- **Engine** (`src/lib/notion-engine.ts`): `connectNotion` (validates token +
+  DB schema, auto-builds the status maps), `linkProject`/`linkTask` (create a
+  linked Notion page), `pushProjectStatus`/`pushTaskStatus` (best-effort console→
+  Notion on status change — hooked into `updateTaskStatus`/`updateProject`), and
+  `syncConnection` (Notion→console poll: reconcile status + import new Notion
+  pages as tagged, claimable items).
+- **Notion client**: extends `src/lib/notion.ts` (2026 data-source API).
+- **API**: `POST /api/notion/{connect,disconnect,sync,link-project,link-task}` —
+  authz via `canManageNotionForOrg` (HR/team-lead/admin, or the org's CLIENT_ADMIN).
+- **UI**: staff section on `/hr/clients/[slug]` + a "Push to Notion" control on
+  the project page (both **founder-gated by `isBetaVisible`** while beta); client
+  self-serve at `/client/settings` (CLIENT_ADMIN).
+- **Worker/timer**: `worker/notion-sync.ts` (`npm run worker:notion`) via
+  `va-management-notion.timer` (every 20 min). No env needed — tokens live in the
+  DB (`NotionConnection.token`).
+
 ## MCP endpoint (create/manage projects & tasks from AI clients)
 
 `POST /api/mcp` — a dependency-free MCP (JSON-RPC over Streamable HTTP) server so

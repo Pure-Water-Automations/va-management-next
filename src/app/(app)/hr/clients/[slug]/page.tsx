@@ -1,7 +1,8 @@
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { NotionConnectForm } from "@/components/NotionConnectForm";
 
 export default async function HrClientOrgPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -30,10 +31,23 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
         orderBy: { createdAt: "desc" },
         take: 10,
       },
+      notionConnection: {
+        select: {
+          active: true,
+          projectsDatabaseId: true,
+          tasksDatabaseId: true,
+          statusProperty: true,
+          lastSyncedAt: true,
+          lastSyncSummary: true,
+        },
+      },
     },
   });
 
   if (!org) notFound();
+
+  const betaVisible = await isBetaVisible(user.email);
+  const conn = org.notionConnection;
 
   return (
     <div style={{ maxWidth: 800, padding: 24 }}>
@@ -66,7 +80,7 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
         ))}
       </section>
 
-      <section>
+      <section style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Projects</h2>
         {org.projects.map((p) => (
           <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
@@ -75,6 +89,34 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
           </div>
         ))}
       </section>
+
+      {betaVisible && (
+        <section style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600 }}>Notion sync</h2>
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#fff", background: "var(--accent, #0066cc)", padding: "2px 6px", borderRadius: 5 }}>
+              Beta
+            </span>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 14px", maxWidth: 560 }}>
+            Connect this client&apos;s own Notion Projects/Tasks database. Status syncs both ways; everything else stays
+            in Notion, reachable via the page link added to each item&apos;s description. Imported Notion pages are tagged
+            as Notion items.
+          </p>
+          <NotionConnectForm
+            orgId={org.id}
+            orgSlug={org.slug}
+            state={{
+              connected: !!conn?.active,
+              projectsDatabaseId: conn?.projectsDatabaseId ?? null,
+              tasksDatabaseId: conn?.tasksDatabaseId ?? null,
+              statusProperty: conn?.statusProperty ?? null,
+              lastSyncedAt: conn?.lastSyncedAt ? conn.lastSyncedAt.toISOString() : null,
+              lastSyncSummary: (conn?.lastSyncSummary as Record<string, number> | null) ?? null,
+            }}
+          />
+        </section>
+      )}
     </div>
   );
 }

@@ -13,6 +13,8 @@ import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
 import { EnhanceButton } from "@/components/EnhanceButton";
+import { NotionItemControls } from "@/components/NotionItemControls";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,22 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
   const betaVisible = await isBetaVisible(user.email);
+
+  // Notion sync (beta): linked-page info + whether this client has a projects connection.
+  const notionInfo = betaVisible
+    ? await db.project.findUnique({
+        where: { id },
+        select: {
+          notionUrl: true,
+          notionStatus: true,
+          clientOrganizationId: true,
+          clientOrganization: { select: { notionConnection: { select: { active: true, projectsDataSourceId: true } } } },
+        },
+      })
+    : null;
+  const notionConnected =
+    !!notionInfo?.clientOrganization?.notionConnection?.active &&
+    !!notionInfo.clientOrganization.notionConnection.projectsDataSourceId;
 
   return (
     <>
@@ -59,6 +77,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           />
           {betaVisible && (
             <EnhanceButton projectId={project.id} projectName={project.name} assignees={assignees} />
+          )}
+          {betaVisible && notionInfo?.clientOrganizationId && (
+            <NotionItemControls
+              kind="project"
+              id={project.id}
+              notionUrl={notionInfo.notionUrl}
+              notionStatus={notionInfo.notionStatus}
+              connected={notionConnected}
+            />
           )}
           {canEdit && (
             <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">

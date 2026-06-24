@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the PWA VA Management Notion sync every 20 minutes
+
+[Timer]
+OnBootSec=8min
+OnUnitActiveSec=20min
+Unit=va-management-notion.service
+
+[Install]
+WantedBy=timers.target

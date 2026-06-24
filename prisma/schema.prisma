@@ -803,6 +803,12 @@ model Project {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   clientOrganizationId String?
+  // Notion two-way sync (beta): a linked Notion page + last-synced status (the
+  // ping-pong guard — see lib/notion-sync). notionPageId != null = "Notion item".
+  notionPageId         String?       @unique
+  notionUrl            String?
+  notionStatus         String?
+  notionSyncedAt       DateTime?
 
   owner              User                @relation("ProjectOwner", fields: [ownerId], references: [id])
   createdBy          User                @relation("ProjectCreator", fields: [createdById], references: [id])
@@ -841,6 +847,12 @@ model Task {
   clientOrganizationId String?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
+  // Notion two-way sync (beta): linked Notion page + last-synced status (ping-pong
+  // guard). notionPageId != null = "Notion task".
+  notionPageId         String?      @unique
+  notionUrl            String?
+  notionStatus         String?
+  notionSyncedAt       DateTime?
 
   project            Project?            @relation(fields: [projectId], references: [id])
   assignedTo         User                @relation("TaskAssignee", fields: [assignedToId], references: [id])
@@ -1046,6 +1058,7 @@ model ClientOrganization {
   onboarding   ClientOnboarding?
   deal         Deal?
   recordings   Recording[]
+  notionConnection NotionConnection?
 
   @@index([slug])
   @@index([active])
@@ -1062,6 +1075,33 @@ model ClientMembership {
   @@unique([userId, clientOrganizationId])
   @@index([userId])
   @@index([clientOrganizationId])
+}
+
+// Notion two-way sync (beta). One connection per client org points at that
+// client's own Notion workspace (an internal integration token they share with
+// a Projects and/or Tasks database). Status syncs both directions; everything
+// else stays in Notion, reachable via the page link in the item description.
+model NotionConnection {
+  id                   String   @id @default(cuid())
+  clientOrganizationId String   @unique
+  token                String // Notion integration token (secret) — never returned to the client
+  projectsDatabaseId   String? // raw Notion database id the user connected
+  projectsDataSourceId String? // resolved data_source id used for queries/creates
+  tasksDatabaseId      String?
+  tasksDataSourceId    String?
+  statusProperty       String   @default("Status") // the Notion property name synced both ways
+  statusMap            Json? // { project: { Planning: "Not started", ... }, task: { NotStarted: "...", ... } }
+  active               Boolean  @default(true)
+  createdByEmail       String?
+  lastSyncedAt         DateTime?
+  lastEditedCursor     String? // ISO high-water mark of the newest Notion last_edited_time seen
+  lastSyncSummary      Json? // counts from the most recent poll (imported/updated/pushed/errors)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  clientOrganization ClientOrganization @relation(fields: [clientOrganizationId], references: [id], onDelete: Cascade)
+
+  @@index([active])
 }
 
 model ClientTaskRequest {

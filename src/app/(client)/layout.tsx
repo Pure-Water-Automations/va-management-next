@@ -29,7 +29,7 @@ export default async function ClientLayout({ children }: { children: ReactNode }
             </span>
             <span className="brand-name">{orgName}</span>
           </span>
-          <ClientNav />
+          <ClientNav showSettings={user.role === "CLIENT_ADMIN"} />
           <div className="topnav-end">
             <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-tertiary)" }}>{userName}</span>
             <Avatar name={userName} size={32} />

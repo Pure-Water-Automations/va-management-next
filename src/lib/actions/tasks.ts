@@ -6,6 +6,7 @@ import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
 import { canUserDelegateTasks, getActorTier } from "@/lib/auth/delegation";
 import { createNotification, supervisorUserId } from "@/lib/inbox";
 import { inheritTaskClient } from "@/lib/services/tasks";
+import { pushProjectStatusSafe, pushTaskStatusSafe } from "@/lib/notion-engine";
 import type { Role, TaskStatus, TaskStrategy, Priority } from "@prisma/client";
 
 export type CreateTaskInput = {
@@ -231,6 +232,9 @@ export async function updateTaskStatus(
     summary: `Task "${updated.title}" status changed to ${status}.`,
   });
 
+  // Notion two-way sync (beta): mirror the status to the linked Notion page.
+  pushTaskStatusSafe(updated.id);
+
   // Light automation (card #12): roll the parent project's status from its tasks.
   if (task.projectId) {
     const [siblings, proj] = await Promise.all([
@@ -245,6 +249,8 @@ export async function updateTaskStatus(
         await db.project.update({ where: { id: task.projectId }, data: { status: "Active" } });
       }
     }
+    // If the rollup moved the parent project's status, mirror that to Notion too (no-op if unlinked/unchanged).
+    pushProjectStatusSafe(task.projectId);
   }
 
   return updated;
