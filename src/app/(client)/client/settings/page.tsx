@@ -3,6 +3,7 @@ import { getClientMembership, assertClientRole } from "@/lib/auth/client";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { NotionConnectForm } from "@/components/NotionConnectForm";
+import { NotionHelp } from "@/components/NotionHelp";
 
 export const dynamic = "force-dynamic";
 
@@ -43,11 +44,14 @@ export default async function ClientSettingsPage() {
       </div>
 
       <div className="surface" style={{ padding: "20px 22px" }}>
-        <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", margin: "0 0 16px", lineHeight: 1.5 }}>
-          Already run your projects and tasks in Notion? Connect your own Notion database here. Your team&apos;s status
-          (e.g. <em>In progress</em>, <em>Done</em>) stays in sync both ways — change it in Notion or here and the other
-          side updates. Everything else stays in Notion; we add a link to the Notion page on each item.
+        <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", margin: "0 0 18px", lineHeight: 1.5 }}>
+          Already run your projects and tasks in Notion? Connect your own Notion database and your team&apos;s status
+          stays in sync both ways. Here&apos;s exactly how it works and how to set it up:
         </p>
+
+        <div style={{ marginBottom: 22 }}>
+          <NotionHelp audience="client" />
+        </div>
 
         {isAdmin ? (
           <NotionConnectForm

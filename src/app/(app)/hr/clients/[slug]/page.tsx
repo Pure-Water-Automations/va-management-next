@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { NotionConnectForm } from "@/components/NotionConnectForm";
+import { NotionHelp } from "@/components/NotionHelp";
 
 export default async function HrClientOrgPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -98,11 +99,19 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
               Beta
             </span>
           </div>
-          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 14px", maxWidth: 560 }}>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 12px", maxWidth: 560 }}>
             Connect this client&apos;s own Notion Projects/Tasks database. Status syncs both ways; everything else stays
             in Notion, reachable via the page link added to each item&apos;s description. Imported Notion pages are tagged
             as Notion items.
           </p>
+          <details style={{ marginBottom: 16, maxWidth: 620 }}>
+            <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--accent, #0066cc)" }}>
+              How it works / walk the client through setup
+            </summary>
+            <div style={{ marginTop: 12 }}>
+              <NotionHelp audience="staff" />
+            </div>
+          </details>
           <NotionConnectForm
             orgId={org.id}
             orgSlug={org.slug}

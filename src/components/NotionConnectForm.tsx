@@ -139,8 +139,11 @@ export function NotionConnectForm({
           autoComplete="off"
         />
         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>
-          In Notion: Settings → Connections → develop your own integration → copy the Internal Integration Secret, then
-          share your database(s) with it.
+          Get it at{" "}
+          <a href="https://www.notion.so/my-integrations" target="_blank" rel="noreferrer" style={{ color: "var(--color-sky-600, #1f7fc4)", fontWeight: 600 }}>
+            notion.so/my-integrations
+          </a>{" "}
+          → New integration → copy the Internal Integration Secret, then share your database(s) with it (see the steps above).
         </div>
       </div>
 
