@@ -164,6 +164,26 @@ console-only without Notion.
   OAuth env is unset). Both store the same `NotionConnection.token`; `connectNotion`
   reuses a stored token when none is passed.
 
+## WhatsApp notifications (BETA)
+
+Task-assignment notifications can go out on **WhatsApp** in addition to (or instead
+of) email. Per-VA: `Va.whatsappNumber` + `Va.notifyChannel` (enum `both`/`email`/
+`whatsapp`/`none`, default **both**), set in **Manage → VA Registry** (the *Notify*
+column) via `setVaNotifyPrefs` / `/api/hr/set-va-notify`.
+
+- **Send**: `src/lib/whatsapp.ts` — provider-agnostic, **Meta Cloud API** default
+  (`graph.facebook.com/<ver>/<phoneNumberId>/messages`). Best-effort + **mock-safe**:
+  unconfigured → logged no-op, so it silently falls back to email. Swapping to
+  Twilio/another BSP is a small change keyed off `whatsapp_provider`.
+- **Decision logic** (pure, tested — `src/lib/notify-channel.ts`, `tests/notify-channel.test.ts`):
+  `channelDecision(channel, hasNumber, configured)` → WhatsApp only fires when opted-in
+  AND a number's on file AND the API is configured. Hooked into `createTask`.
+- **Config** lives in `Setting` (`whatsapp_access_token` [secret], `whatsapp_phone_number_id`,
+  optional `whatsapp_template_name`/`_lang`, `whatsapp_api_version`) — set + test-send on the
+  admin page **`/admin/whatsapp`** (admin-only; nav: Manage → WhatsApp).
+- **Production caveat**: business-initiated messages outside the 24h window need an
+  **approved Meta template** — set its name/lang; otherwise plain text (fine for testing).
+
 ## MCP endpoint (create/manage projects & tasks from AI clients)
 
 `POST /api/mcp` — a dependency-free MCP (JSON-RPC over Streamable HTTP) server so

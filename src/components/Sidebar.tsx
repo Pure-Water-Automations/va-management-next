@@ -55,6 +55,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/admin/contract", label: "Contract template", icon: <IconFileText /> },
         { href: "/admin/client-agreement", label: "Client agreement", icon: <IconFileText /> },
         { href: "/admin/email", label: "Email sender", icon: <IconMail /> },
+        { href: "/admin/whatsapp", label: "WhatsApp", icon: <IconMessageSquare /> },
       ],
     },
     {

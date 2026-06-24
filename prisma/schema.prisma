@@ -134,6 +134,15 @@ enum VaStatus {
   departed
 }
 
+// How a VA receives task notifications (beta). Default both; WhatsApp only actually
+// sends when the VA has a number on file AND the WhatsApp Business API is configured.
+enum NotifyChannel {
+  both
+  email
+  whatsapp
+  none
+}
+
 model Va {
   vaId              String    @id
   name              String
@@ -149,6 +158,8 @@ model Va {
   skillSpecs        String?
   availabilityNotes String?
   lastCheckinDate   DateTime?
+  whatsappNumber    String? // E.164, e.g. +639171234567 — for WhatsApp notifications
+  notifyChannel     NotifyChannel @default(both)
   notionProfileUrl  String?
   roleStartedDate   DateTime?
   notionDisplayTier String?

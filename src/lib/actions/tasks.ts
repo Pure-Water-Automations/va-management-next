@@ -7,6 +7,8 @@ import { canUserDelegateTasks, getActorTier } from "@/lib/auth/delegation";
 import { createNotification, supervisorUserId } from "@/lib/inbox";
 import { inheritTaskClient } from "@/lib/services/tasks";
 import { pushProjectStatusSafe, pushTaskStatusSafe } from "@/lib/notion-engine";
+import { sendWhatsApp, whatsappConfigured } from "@/lib/whatsapp";
+import { channelDecision } from "@/lib/notify-channel";
 import type { Role, TaskStatus, TaskStrategy, Priority } from "@prisma/client";
 
 export type CreateTaskInput = {
@@ -140,31 +142,49 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
       suggestedTools: input.suggestedTools ?? undefined,
     },
     include: {
-      assignedTo: { select: { email: true, name: true } },
+      assignedTo: { select: { email: true, name: true, va: { select: { whatsappNumber: true, notifyChannel: true } } } },
       assignedBy: { select: { name: true } },
     },
   });
 
-  // Send assignment email (best-effort — task is always saved)
-  const settings = await loadSettings();
-  const from = settingStr(settings, "system_email_from");
+  // Notify the assignee (best-effort — task is always saved). Channels follow the
+  // VA's preference: email and/or WhatsApp (WhatsApp only when they have a number
+  // on file AND the WhatsApp Business API is configured; else it's email-only).
   let emailSent = false;
-  if (!claimable && from && task.assignedTo.email) {
-    emailSent = await sendTaskAssignmentEmail({
-      from,
-      toEmail: task.assignedTo.email,
-      toName: task.assignedTo.name,
-      taskId: task.id,
-      taskTitle: task.title,
-      strategy: task.strategy,
-      priority: task.priority,
-      dueDate: task.dueDate,
-      assignedByName: task.assignedBy.name,
-      instructions: task.instructions,
-      links: task.links,
-    });
-    if (emailSent) {
-      await db.task.update({ where: { id: task.id }, data: { emailSent: true } });
+  if (!claimable) {
+    const settings = await loadSettings();
+    const from = settingStr(settings, "system_email_from");
+    const waNumber = task.assignedTo.va?.whatsappNumber ?? null;
+    const ch = channelDecision(task.assignedTo.va?.notifyChannel, !!waNumber, await whatsappConfigured());
+
+    if (ch.email && from && task.assignedTo.email) {
+      emailSent = await sendTaskAssignmentEmail({
+        from,
+        toEmail: task.assignedTo.email,
+        toName: task.assignedTo.name,
+        taskId: task.id,
+        taskTitle: task.title,
+        strategy: task.strategy,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        assignedByName: task.assignedBy.name,
+        instructions: task.instructions,
+        links: task.links,
+      });
+      if (emailSent) {
+        await db.task.update({ where: { id: task.id }, data: { emailSent: true } });
+      }
+    }
+
+    if (ch.whatsapp && waNumber) {
+      const due = task.dueDate
+        ? task.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : null;
+      await sendWhatsApp({
+        to: waNumber,
+        text: `📋 New task: ${task.title}\nPriority: ${task.priority}${due ? ` · Due: ${due}` : ""}\nFrom: ${task.assignedBy.name ?? "Team"}\nhttps://team.pwasecondbrain.uk/va/tasks/${task.id}`,
+        templateParams: [task.title],
+      });
     }
   }
 

@@ -2,10 +2,13 @@
  * Team-structure mutations: who supervises whom (Va.supervisorVaId) and which
  * staff are assigned to which client (ClientAssignment). HR-gated.
  */
-import type { Role, ClientTeamRole } from "@prisma/client";
+import type { Role, ClientTeamRole, NotifyChannel } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { AuthorizationError } from "@/lib/auth/roles";
+import { normalizePhone } from "@/lib/notify-channel";
+
+const NOTIFY_CHANNELS: NotifyChannel[] = ["both", "email", "whatsapp", "none"];
 
 type Actor = { role: Role; isAdmin: boolean };
 
@@ -43,6 +46,37 @@ export async function setVaSupervisor(actor: Actor, vaId: string, supervisorVaId
     summary: sup ? `${va.name}'s supervisor set to ${supName}.` : `${va.name}'s supervisor cleared.`,
   });
   return { vaId: id, supervisorVaId: sup };
+}
+
+// ── Notification preferences (beta) ──────────────────────────────────────────
+
+export async function setVaNotifyPrefs(
+  actor: Actor,
+  vaId: string,
+  input: { notifyChannel?: string; whatsappNumber?: string | null },
+) {
+  assertCanManageTeam(actor);
+  const id = (vaId || "").trim();
+  if (!id) throw new Error("vaId is required");
+
+  const data: { notifyChannel?: NotifyChannel; whatsappNumber?: string | null } = {};
+  if (input.notifyChannel !== undefined) {
+    const ch = String(input.notifyChannel) as NotifyChannel;
+    if (!NOTIFY_CHANNELS.includes(ch)) throw new Error("Invalid notification channel");
+    data.notifyChannel = ch;
+  }
+  if (input.whatsappNumber !== undefined) {
+    const raw = (input.whatsappNumber ?? "").trim();
+    if (raw === "") data.whatsappNumber = null;
+    else {
+      const n = normalizePhone(raw);
+      if (!n) throw new Error("Enter a valid number with country code, e.g. +639171234567");
+      data.whatsappNumber = n;
+    }
+  }
+  const va = await db.va.update({ where: { vaId: id }, data, select: { name: true } });
+  await logActivity({ source: "hr_action", eventType: "notify_prefs", severity: "info", vaId: id, summary: `${va.name}'s notification settings updated.` });
+  return { ok: true };
 }
 
 // ── Client → team assignment ─────────────────────────────────────────────────

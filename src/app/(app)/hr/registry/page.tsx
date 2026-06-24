@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ActionButton } from "@/components/ActionButton";
 import { BaselineCell, BaselineCutover } from "@/components/BaselineEditor";
 import { SupervisorSelect } from "@/components/SupervisorSelect";
+import { NotifyPrefsCell } from "@/components/NotifyPrefsCell";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export default async function RegistryPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
             <thead>
               <tr>
-                {["VA", "Role", "Status", "Supervisor", "Target/wk", "Baseline (h)", "Cumulative", "Last check-in", "Eligible", ""].map((h, i) => (
+                {["VA", "Role", "Status", "Supervisor", "Target/wk", "Baseline (h)", "Cumulative", "Last check-in", "Eligible", "Notify", ""].map((h, i) => (
                   <th key={h || `c${i}`} style={th}>{h}</th>
                 ))}
               </tr>
@@ -93,6 +94,13 @@ export default async function RegistryPage() {
                     )}
                   </td>
                   <td style={td}>{eligibility.eligible ? <Badge variant="success" dot>Yes</Badge> : <span className="small">—</span>}</td>
+                  <td style={td}>
+                    {canEdit ? (
+                      <NotifyPrefsCell vaId={va.vaId} channel={va.notifyChannel} number={va.whatsappNumber} />
+                    ) : (
+                      <span className="small">{va.notifyChannel}</span>
+                    )}
+                  </td>
                   <td style={{ ...td, textAlign: "right" }}>
                     {canEdit && va.status !== "departed" && (
                       <ActionButton path="/api/hr/deactivate-va" body={{ vaId: va.vaId, notes: "Deactivated via console" }} confirm={`Deactivate ${va.name}? They’ll be marked departed.`} variant="ghost">
