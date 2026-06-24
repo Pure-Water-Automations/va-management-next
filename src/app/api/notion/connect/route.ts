@@ -1,4 +1,4 @@
-import { action, str, optStr } from "@/lib/api";
+import { action, optStr } from "@/lib/api";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { canManageNotionForOrg, resolveOrg } from "@/lib/auth/notion-access";
 import { connectNotion } from "@/lib/notion-engine";
@@ -11,7 +11,8 @@ export const POST = action(async ({ user, body }) => {
   if (!org) throw new Error("Unknown client organization");
   if (!(await canManageNotionForOrg(user, org.id))) throw new AuthorizationError("Not authorized for this client");
 
-  const token = str(body, "token");
+  // token may be omitted — connectNotion reuses the stored OAuth/prior token.
+  const token = optStr(body, "token");
   const projectsDatabase = optStr(body, "projectsDatabase");
   const tasksDatabase = optStr(body, "tasksDatabase");
   if (!projectsDatabase && !tasksDatabase) throw new Error("Provide a projects and/or tasks database link");

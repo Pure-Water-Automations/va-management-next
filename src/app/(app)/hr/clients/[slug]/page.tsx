@@ -4,6 +4,8 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { NotionConnectForm } from "@/components/NotionConnectForm";
 import { NotionHelp } from "@/components/NotionHelp";
+import { notionOauthConfigured } from "@/lib/notion-oauth";
+import { needsDatabasePick } from "@/lib/notion-engine";
 
 export default async function HrClientOrgPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -49,6 +51,9 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
 
   const betaVisible = await isBetaVisible(user.email);
   const conn = org.notionConnection;
+  const oauthConfigured = notionOauthConfigured();
+  const needsPick = betaVisible ? await needsDatabasePick(org.id) : false;
+  const fullyConnected = !!conn?.active && !!(conn.projectsDatabaseId || conn.tasksDatabaseId);
 
   return (
     <div style={{ maxWidth: 800, padding: 24 }}>
@@ -109,14 +114,17 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
               How it works / walk the client through setup
             </summary>
             <div style={{ marginTop: 12 }}>
-              <NotionHelp audience="staff" />
+              <NotionHelp audience="staff" oauth={oauthConfigured} />
             </div>
           </details>
           <NotionConnectForm
             orgId={org.id}
             orgSlug={org.slug}
+            returnPath={`/hr/clients/${org.slug}`}
+            oauthConfigured={oauthConfigured}
+            needsPick={needsPick}
             state={{
-              connected: !!conn?.active,
+              connected: fullyConnected,
               projectsDatabaseId: conn?.projectsDatabaseId ?? null,
               tasksDatabaseId: conn?.tasksDatabaseId ?? null,
               statusProperty: conn?.statusProperty ?? null,

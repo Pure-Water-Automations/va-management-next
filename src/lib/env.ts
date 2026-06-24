@@ -41,6 +41,13 @@ const envSchema = z.object({
   // (claude-3.5-haiku was retired by OpenRouter/Bedrock 2026-06-20 → HTTP 404.)
   OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
   OPENROUTER_ENHANCE_SEARCH_MODEL: optionalEnvString(z.string()),
+  // Notion two-way sync — public OAuth integration (one-click "Connect with
+  // Notion"). All optional: when unset, the connect UI falls back to the manual
+  // internal-integration-token flow. Redirect URI defaults to
+  // ${APP_BASE_URL}/api/notion/oauth/callback.
+  NOTION_OAUTH_CLIENT_ID: optionalEnvString(z.string()),
+  NOTION_OAUTH_CLIENT_SECRET: optionalEnvString(z.string()),
+  NOTION_OAUTH_REDIRECT_URI: optionalEnvString(z.string().url()),
   // MCP endpoint: shared bearer token + the service identity it acts as. The
   // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
   MCP_API_TOKEN: optionalEnvString(z.string()),
