@@ -182,6 +182,7 @@ export function Recorder() {
   // review trim (percent of full duration) + playback
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(100);
+  const [playheadPct, setPlayheadPct] = useState(0); // live playback position on the trim bar
   const [playing, setPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -257,17 +258,32 @@ export function Recorder() {
   const onLoadedMeta = useCallback(() => {
     const v = videoRef.current;
     if (v) v.currentTime = (trimStart / 100) * (v.duration || dur);
+    setPlayheadPct(trimStart);
   }, [trimStart, dur]);
   const onTimeUpdate = useCallback(() => {
     const v = videoRef.current;
     if (!v || !v.duration) return;
+    setPlayheadPct((v.currentTime / v.duration) * 100);
     const endSec = (trimEnd / 100) * v.duration;
     if (v.currentTime >= endSec) {
       v.pause();
       v.currentTime = (trimStart / 100) * v.duration;
+      setPlayheadPct(trimStart);
       setPlaying(false);
     }
   }, [trimStart, trimEnd]);
+  // Smoothly track the playhead while playing (timeupdate alone is ~4fps).
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const tick = () => {
+      const v = videoRef.current;
+      if (v && v.duration) setPlayheadPct((v.currentTime / v.duration) * 100);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v || !v.duration) return;
@@ -658,14 +674,20 @@ export function Recorder() {
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6, ...eyebrow }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" /></svg>Trim
                   </span>
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>Drag the handles to set start and end</span>
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+                    {fmt((playheadPct / 100) * dur)} / {fmt(dur)} · drag the handles to trim
+                  </span>
                 </div>
                 <div ref={trackRef} style={{ position: "relative", height: 44, borderRadius: "var(--radius-md)", background: "var(--color-bg-secondary)", border: "1px solid var(--color-border-subtle)", overflow: "hidden", touchAction: "none" }}>
                   <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: `${trimStart}%`, background: "rgba(13,18,32,.06)" }} />
                   <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: `${100 - trimEnd}%`, background: "rgba(13,18,32,.06)" }} />
                   <div style={{ position: "absolute", top: 0, bottom: 0, left: `${trimStart}%`, width: `${Math.max(0, trimEnd - trimStart)}%`, background: "rgba(77,196,232,.16)", borderTop: "2px solid var(--color-sky-400)", borderBottom: "2px solid var(--color-sky-400)" }} />
+                  {/* live playhead — where the video currently is, so you can see where to trim */}
+                  <div style={{ position: "absolute", top: 0, bottom: 0, left: `${playheadPct}%`, width: 2, transform: "translateX(-1px)", background: "var(--color-error, #e5484d)", boxShadow: "0 0 0 1px rgba(255,255,255,.55)", pointerEvents: "none", zIndex: 2 }}>
+                    <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "5px solid var(--color-error, #e5484d)" }} />
+                  </div>
                   {(["start", "end"] as const).map((h) => (
-                    <div key={h} onPointerDown={dragHandle(h)} style={{ position: "absolute", top: 0, bottom: 0, left: `${h === "start" ? trimStart : trimEnd}%`, width: 14, transform: "translateX(-50%)", cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none" }}>
+                    <div key={h} onPointerDown={dragHandle(h)} style={{ position: "absolute", top: 0, bottom: 0, left: `${h === "start" ? trimStart : trimEnd}%`, width: 14, transform: "translateX(-50%)", cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none", zIndex: 3 }}>
                       <div style={{ width: 6, height: "70%", borderRadius: 3, background: "var(--color-sky-500)", boxShadow: "var(--shadow-sm)" }} />
                     </div>
                   ))}
