@@ -1,13 +1,17 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { db } from "@/lib/db";
+import { computeUtilization } from "@/lib/services/capacity";
 import { Card } from "@/components/ui/Card";
 import { Stat } from "@/components/ui/Stat";
 import { Avatar, StatusBadge } from "@/components/ui/task-format";
 
 export const dynamic = "force-dynamic";
+
+const DAY = 24 * 60 * 60 * 1000;
+const clamp = (x: number) => Math.min(100, Math.max(6, x));
 
 type VaRow = {
   id: string;
@@ -18,24 +22,51 @@ type VaRow = {
   inProgress: number;
   done: number;
   total: number;
+  hasTarget: boolean;
+  last14dHours: number;
+  expected14d: number;
+  utilizationPct: number;
 };
 
 export default async function HrWorkloadPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  const actor = await getEffectiveActor(user);
+  if (!actor.isAdmin && !canManageTasks(actor.role)) {
     redirect("/hr/tasks");
   }
 
-  const [vas, tasks] = await Promise.all([
+  const [vas, tasks, vaRecords, hours] = await Promise.all([
     db.user.findMany({
       where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
     getAllTasks({}),
+    db.va.findMany({
+      where: { status: { in: ["active", "training"] } },
+      select: { vaId: true, email: true, targetHoursWeekly: true, daysOff: true },
+    }),
+    db.deskLogHours.groupBy({
+      by: ["vaId"],
+      where: { date: { gte: new Date(Date.now() - 14 * DAY) } },
+      _sum: { taskSpentHrs: true },
+    }),
   ]);
 
   const now = new Date();
+
+  // Capacity is keyed by the Va row, matched to each workload User by email
+  // (User.email === Va.email; User.vaId is unreliable). Sum the last 14d of
+  // logged task-hours per VA.
+  const hoursByVaId = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
+  const capByEmail = new Map(
+    vaRecords.map((va) => {
+      const last14dHours = hoursByVaId.get(va.vaId) ?? 0;
+      const target = va.targetHoursWeekly ?? 0;
+      const { expected14d, utilizationPct } = computeUtilization(target, last14dHours);
+      return [va.email.toLowerCase(), { hasTarget: target > 0, last14dHours, expected14d, utilizationPct }];
+    }),
+  );
 
   // Match tasks to VAs by the scalar assignedToId (most reliable key).
   const rows: VaRow[] = vas.map((va) => {
@@ -53,6 +84,7 @@ export default async function HrWorkloadPage() {
         if (t.dueDate && new Date(t.dueDate).getTime() < now.getTime()) overdue++;
       }
     }
+    const cap = capByEmail.get(va.email.toLowerCase()) ?? { hasTarget: false, last14dHours: 0, expected14d: 0, utilizationPct: 0 };
     return {
       id: va.id,
       name: va.name,
@@ -62,24 +94,21 @@ export default async function HrWorkloadPage() {
       inProgress,
       done,
       total: mine.length,
+      ...cap,
     };
   });
 
-  // Sort by open-count desc (then overdue, then name) so the busiest are on top.
+  // Sort by overdue desc, then utilization desc, then name.
   rows.sort(
     (a, b) =>
-      b.open - a.open ||
       b.overdue - a.overdue ||
+      b.utilizationPct - a.utilizationPct ||
       (a.name ?? a.email).localeCompare(b.name ?? b.email),
   );
 
-  const maxOpen = Math.max(1, ...rows.map((r) => r.open));
   const teamOpen = rows.reduce((s, r) => s + r.open, 0);
   const teamOverdue = rows.reduce((s, r) => s + r.overdue, 0);
   const vasWithWork = rows.filter((r) => r.open > 0).length;
-
-  // A VA is "overloaded" if they carry an above-average share of open work.
-  const avgOpen = teamOpen / Math.max(1, rows.length);
 
   return (
     <>
@@ -123,13 +152,23 @@ export default async function HrWorkloadPage() {
             <tbody>
               {rows.map((r) => {
                 const display = r.name?.trim() || r.email;
-                const pct = Math.round((r.open / maxOpen) * 100);
-                const overloaded = r.overdue > 0 || r.open > avgOpen * 1.5;
-                const barColor = overloaded
-                  ? "var(--color-error)"
-                  : r.open > avgOpen
-                    ? "var(--color-warning)"
-                    : "var(--color-sky-500)";
+                // Load = capacity utilization, NOT raw open count. A busy VA WITH
+                // capacity stays calm/healthy; red is reserved for genuine
+                // needs-attention (overdue work, or logging well over target).
+                const util = Math.round(r.utilizationPct);
+                const barColor =
+                  r.overdue > 0
+                    ? "var(--color-error)"
+                    : r.hasTarget && r.utilizationPct > 120
+                      ? "var(--color-error)"
+                      : r.hasTarget && r.utilizationPct >= 70
+                        ? "var(--color-success)"
+                        : "var(--color-sky-400)";
+                const pct = r.hasTarget
+                  ? clamp(util)
+                  : r.last14dHours > 0
+                    ? clamp(Math.round((r.last14dHours / 40) * 100))
+                    : 6;
                 return (
                   <tr key={r.id} style={{ borderTop: "1px solid var(--color-border)" }}>
                     <td style={{ padding: "12px 16px" }}>
@@ -179,9 +218,17 @@ export default async function HrWorkloadPage() {
                         </div>
                         {r.open === 0 ? (
                           <StatusBadge value="Done" />
+                        ) : r.hasTarget ? (
+                          <span
+                            className="small"
+                            style={{ color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}
+                            title="logged vs target, 14d"
+                          >
+                            {util}% · {Math.round(r.last14dHours)}/{Math.round(r.expected14d)}h
+                          </span>
                         ) : (
-                          <span className="small" style={{ color: "var(--color-text-secondary)" }}>
-                            {r.open} open
+                          <span className="small" style={{ color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
+                            {Math.round(r.last14dHours)}h · no target
                           </span>
                         )}
                       </div>

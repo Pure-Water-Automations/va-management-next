@@ -2,13 +2,14 @@ const HREFS: Record<string, string> = {
   list: "/hr/tasks",
   board: "/hr/tasks/board",
   calendar: "/hr/tasks/calendar",
+  timeline: "/hr/tasks/gantt",
 };
 
-/** List / Board / Calendar switcher shared across the task views. */
-export function TaskViewTabs({ current }: { current: "list" | "board" | "calendar" }) {
+/** List / Board / Calendar / Timeline switcher shared across the task views. */
+export function TaskViewTabs({ current }: { current: "list" | "board" | "calendar" | "timeline" }) {
   return (
     <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-      {(["list", "board", "calendar"] as const).map((key) => {
+      {(["list", "board", "calendar", "timeline"] as const).map((key) => {
         const active = key === current;
         return (
           <a

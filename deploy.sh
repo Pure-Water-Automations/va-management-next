@@ -5,8 +5,13 @@
 # VPS `shared/` dir and are NOT shipped from here.
 set -euo pipefail
 
+# Targets are overridable so the SAME script deploys staging (IONOS, default) and
+# the official production box (Hostinger). Prod mirrors the IONOS path layout, so
+# only VPS + PUBLIC_URL usually need to change, e.g.:
+#   VPS=root@2.24.121.26 PUBLIC_URL=https://team.purewaterautomations.com ./deploy.sh
 VPS="${VPS:-root@74.208.40.108}"
-BASE="/app/SecondBrain/va-management-console"
+BASE="${BASE:-/app/SecondBrain/va-management-console}"
+PUBLIC_URL="${PUBLIC_URL:-https://team.pwasecondbrain.uk}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> rsync source -> $VPS:$BASE/current"
@@ -31,4 +36,4 @@ ssh "$VPS" "cd $BASE/current && \
   curl -s http://127.0.0.1:8796/api/health"
 
 echo ""
-echo "==> done. https://team.pwasecondbrain.uk"
+echo "==> done. $PUBLIC_URL"

@@ -9,6 +9,7 @@ export type SubmitCheckInInput = {
   targetHoursWeekly?: unknown;
   availabilityNotes?: unknown;
   capacityFlag?: unknown;
+  daysOff?: unknown;
   notes?: unknown;
 };
 
@@ -21,6 +22,7 @@ export async function submitCheckIn(
   const availabilityNotes = optionalText(input.availabilityNotes) ?? "";
   const notes = optionalText(input.notes);
   const capacityFlag = optionalCapacityFlag(input.capacityFlag);
+  const daysOff = normalizeDaysOff(input.daysOff);
   const now = new Date();
 
   const va = await db.va.update({
@@ -28,6 +30,8 @@ export async function submitCheckIn(
     data: {
       targetHoursWeekly,
       availabilityNotes,
+      daysOff,
+      lastCheckinNotes: notes ?? null,
       lastCheckinDate: now,
     },
     select: {
@@ -160,6 +164,38 @@ export async function saveSkillNotes(
   return { ok: true, vaId };
 }
 
+const NOTIFY_TASKS = new Set(["each", "digest", "off"]);
+const NOTIFY_LABELS: Record<string, string> = {
+  each: "an email for each task",
+  digest: "a daily digest",
+  off: "in-app only",
+};
+
+export async function setNotifyPrefs(
+  vaIdInput: string | null | undefined,
+  notifyTasksInput: unknown,
+) {
+  const vaId = requireVaId(vaIdInput);
+  const notifyTasks = typeof notifyTasksInput === "string" ? notifyTasksInput.trim() : "";
+  if (!NOTIFY_TASKS.has(notifyTasks)) throw new Error("Invalid notification preference");
+
+  const va = await db.va.update({
+    where: { vaId },
+    data: { notifyTasks },
+    select: { vaId: true, name: true },
+  });
+
+  await logActivity({
+    source: "va_action",
+    eventType: "notify_prefs_saved",
+    vaId,
+    severity: "success",
+    summary: `${va.name} updated notification preferences to ${NOTIFY_LABELS[notifyTasks] ?? notifyTasks}.`,
+  });
+
+  return { ok: true, vaId, notifyTasks };
+}
+
 function requireVaId(vaId: string | null | undefined): string {
   if (!vaId) throw new Error("VA ID not found");
   return vaId;
@@ -179,6 +215,20 @@ function requiredNumber(value: unknown, field: string): number {
 
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+const DAY_CODES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/** Accepts a comma-string or array of day codes; returns a clean, deduped, ordered comma-string or null. */
+function normalizeDaysOff(value: unknown): string | null {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
+  const picked = new Set(raw.map((d) => String(d).trim()).filter(Boolean));
+  const clean = DAY_CODES.filter((d) => picked.has(d));
+  return clean.length ? clean.join(",") : null;
 }
 
 function textOrEmpty(value: unknown): string {

@@ -140,11 +140,14 @@ model Va {
   desklogUserId     String?
   skillSpecs        String?
   availabilityNotes String?
+  daysOff           String?   // comma-separated regular days off, e.g. "Mon,Sat"
+  lastCheckinNotes  String?   // latest free-text check-in notes
   lastCheckinDate   DateTime?
   notionProfileUrl  String?
   roleStartedDate   DateTime?
   notionDisplayTier String?
   tierMismatchFlag  String?
+  notifyTasks       String    @default("each") // task-email preference: "each" | "digest" | "off"
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

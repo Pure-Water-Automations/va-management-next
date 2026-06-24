@@ -1,0 +1,2 @@
+ALTER TABLE "Va" ADD COLUMN "daysOff" TEXT;
+ALTER TABLE "Va" ADD COLUMN "lastCheckinNotes" TEXT;

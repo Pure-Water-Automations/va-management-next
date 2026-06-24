@@ -1,10 +1,16 @@
 import type { Role } from "@prisma/client";
-import { getCurrentUser, type CurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor, type CurrentUser, type EffectiveActor } from "@/lib/auth/access";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { audit } from "@/lib/activity";
 import { runWithActor } from "@/lib/request-context";
+import { env } from "@/lib/env";
 
-type Handler = (ctx: { user: CurrentUser; body: Record<string, unknown> }) => Promise<unknown>;
+// `user` = the real logged-in principal (always; used for audit/accountability).
+// `actor` = the EFFECTIVE principal capability checks run against: identical to
+// `user`, EXCEPT when an admin is impersonating a VA ("View as → as VA"), where it
+// is the impersonated VA (isAdmin=false, their role). Capability-bearing writes
+// should use `actor`; activity/audit attribution stays on the real `user`.
+type Handler = (ctx: { user: CurrentUser; actor: EffectiveActor; body: Record<string, unknown> }) => Promise<unknown>;
 
 /**
  * Wrap a POST route handler: resolves the Cloudflare-Access identity, optionally
@@ -18,9 +24,14 @@ export function action(handler: Handler, opts?: { allow?: (role: Role) => boolea
     } catch {
       return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
     }
+    const actor = await getEffectiveActor(user);
 
-    // Admins bypass role guards so they can test every console's actions.
-    if (opts?.allow && !user.isAdmin && !opts.allow(user.role)) {
+    // Authorize against the EFFECTIVE actor. Admins normally bypass role guards so
+    // they can test every console's actions (actor === user, isAdmin true). But
+    // while impersonating a VA, actor.isAdmin is false and actor.role is that VA's,
+    // so an admin "as Hyunjin" is denied exactly what Hyunjin would be — including
+    // routes guarded by `allow: () => false` (Purii bypass, manager-only writes).
+    if (opts?.allow && !actor.isAdmin && !opts.allow(actor.role)) {
       await audit({ actorEmail: user.email, action: "denied", ok: false });
       return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
     }
@@ -34,7 +45,7 @@ export function action(handler: Handler, opts?: { allow?: (role: Role) => boolea
     }
 
     try {
-      const result = await runWithActor(user.email, () => handler({ user, body }));
+      const result = await runWithActor(user.email, () => handler({ user, actor, body }));
       await audit({ actorEmail: user.email, action: "action", ok: true });
       return Response.json({ ok: true, result: result ?? null });
     } catch (err) {
@@ -44,6 +55,22 @@ export function action(handler: Handler, opts?: { allow?: (role: Role) => boolea
       return Response.json({ ok: false, error: message }, { status });
     }
   };
+}
+
+/**
+ * Like `action()`, but for the staff screen-recorder write/management endpoints.
+ * When the deployment sets RECORDINGS_ENABLED=false (the production/official
+ * build), the recorder is excluded — these routes 404 for everyone, admins
+ * included (plain `action({ allow: () => false })` would still let admins
+ * through). The client "Video Updates" read/comment endpoints keep using plain
+ * `action()` so clients can still view + comment on recordings shared with them.
+ */
+export function recordingsAction(handler: Handler, opts?: { allow?: (role: Role) => boolean }) {
+  if (!env.RECORDINGS_ENABLED) {
+    return async (): Promise<Response> =>
+      Response.json({ ok: false, error: "Not found" }, { status: 404 });
+  }
+  return action(handler, opts);
 }
 
 export function str(body: Record<string, unknown>, key: string): string {

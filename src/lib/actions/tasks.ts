@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str as settingStr } from "@/lib/settings";
@@ -73,7 +74,7 @@ async function sendTaskAssignmentEmail(opts: {
     opts.instructions ? `Instructions:\n${opts.instructions}` : null,
     opts.links ? `\nLinks: ${opts.links}` : null,
     ``,
-    `View task: https://team.pwasecondbrain.uk/va/tasks/${opts.taskId}`,
+    `View task: ${env.APP_BASE_URL ?? "https://team.pwasecondbrain.uk"}/va/tasks/${opts.taskId}`,
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
@@ -108,9 +109,13 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
   // additionally any Tier-1+ VA may self-add a task onto a project.
   const canDelegate = await canUserDelegateTasks(actorId, actorRole);
   if (!canDelegate) {
+    const isSelfAssigned = !claimable && assignedToId === actorId;
     const tier = await getActorTier(actorId);
     const selfAddToProject = !!projectId && !!tier && tier !== "TRAINEE";
-    if (!selfAddToProject) throw new AuthorizationError("You don't have permission to create tasks");
+    // Any VA may create a task FOR THEMSELVES (supervisor is pinged below; no approval).
+    if (!isSelfAssigned && !selfAddToProject) {
+      throw new AuthorizationError("You can only create tasks for yourself");
+    }
   }
 
   // Resolve client: task-level client or inherit from project
@@ -144,11 +149,16 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
     },
   });
 
-  // Send assignment email (best-effort — task is always saved)
+  // Send assignment email (best-effort — task is always saved). Gated on the
+  // assignee VA's notification preference: only the immediate per-task email is
+  // suppressed for "digest"/"off" — the in-app bell + ActivityLog below always fire.
   const settings = await loadSettings();
   const from = settingStr(settings, "system_email_from");
+  const pref = task.assignedTo.email
+    ? await db.va.findUnique({ where: { email: task.assignedTo.email }, select: { notifyTasks: true } })
+    : null;
   let emailSent = false;
-  if (!claimable && from && task.assignedTo.email) {
+  if (!claimable && from && task.assignedTo.email && task.assignedToId !== actorId && (pref?.notifyTasks ?? "each") === "each") {
     emailSent = await sendTaskAssignmentEmail({
       from,
       toEmail: task.assignedTo.email,

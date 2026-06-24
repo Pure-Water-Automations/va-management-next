@@ -14,6 +14,7 @@ import {
   IconInbox,
   IconFolder,
   IconMessageSquare,
+  IconBell,
   IconVideo,
   IconFilm,
   IconLogOut,
@@ -54,6 +55,7 @@ export function VaTopNav({
     { href: "/va/tier", label: "Tier", icon: <IconAward /> },
     { href: "/va/evaluation", label: "Evaluation", icon: <IconClipboardCheck /> },
     { href: "/va/checkin", label: "Check-in", icon: <IconCalendarCheck /> },
+    { href: "/va/notifications", label: "Notifications", icon: <IconBell /> },
   ];
   if (canDelegate) {
     // Delegating VAs get All Tasks + Projects; "Delegate" itself is reachable via

@@ -1,5 +1,6 @@
-import { getCurrentUser } from "@/lib/auth/access";
-import { canReviewMeetingActions, AuthorizationError } from "@/lib/auth/roles";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
+import { AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { runWithActor } from "@/lib/request-context";
 import { confirmMeetingActionItem } from "@/lib/actions/meeting-actions";
 
@@ -12,7 +13,11 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
-  if (!user.isAdmin && !canReviewMeetingActions(user.role)) {
+  // Authorize + act as the effective actor (the impersonated VA when an admin is
+  // viewing-as). Meeting Actions is delegation-gated, so a non-delegator can't
+  // confirm and the created Task is the actor's.
+  const actor = await getEffectiveActor(user);
+  if (!(await canUserDelegateTasks(actor.id, actor.role))) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
 
@@ -29,7 +34,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await runWithActor(user.email, () =>
-      confirmMeetingActionItem(user, { itemId: body.itemId!, assigneeId: body.assigneeId!, dueDate: body.dueDate }),
+      confirmMeetingActionItem(actor, { itemId: body.itemId!, assigneeId: body.assigneeId!, dueDate: body.dueDate }),
     );
     return Response.json({ ok: true, result });
   } catch (err) {

@@ -3,11 +3,11 @@ import { instantiateProjectTemplate, instantiateTaskTemplate } from "@/lib/actio
 import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
-  async ({ user, body }) => {
+  async ({ actor, body }) => {
     const id = str(body, "id");
     if (body.kind === "project")
-      return instantiateProjectTemplate(user.id, user.role, id, { name: body.name });
-    if (body.kind === "task") return instantiateTaskTemplate(user.id, user.role, id);
+      return instantiateProjectTemplate(actor.id, actor.role, id, { name: body.name });
+    if (body.kind === "task") return instantiateTaskTemplate(actor.id, actor.role, id);
     throw new Error('Missing or invalid field: kind (expected "project" or "task")');
   },
   { allow: (r) => canManageTasks(r) },

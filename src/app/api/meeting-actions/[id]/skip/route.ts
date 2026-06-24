@@ -1,5 +1,5 @@
-import { getCurrentUser } from "@/lib/auth/access";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { runWithActor } from "@/lib/request-context";
 import { skipMeetingActionItems } from "@/lib/actions/meeting-actions";
 
@@ -12,7 +12,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch {
     return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
-  if (!user.isAdmin && !canReviewMeetingActions(user.role)) {
+  const actor = await getEffectiveActor(user);
+  if (!(await canUserDelegateTasks(actor.id, actor.role))) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
   const { id } = await params;
@@ -27,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const result = await runWithActor(user.email, () =>
-      skipMeetingActionItems(user, { meetingActionId: id, itemId: body.itemId, all: body.all }),
+      skipMeetingActionItems(actor, { meetingActionId: id, itemId: body.itemId, all: body.all }),
     );
     return Response.json({ ok: true, result });
   } catch (err) {

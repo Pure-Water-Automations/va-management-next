@@ -1,4 +1,5 @@
 import { getPayrollDashboard } from "@/lib/reads/payroll";
+import { titleCase } from "@/lib/labels";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -23,7 +24,7 @@ export default async function PayrollConsole() {
         {d.openPeriod && (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Badge variant={d.openPeriod.status === "open" ? "info" : "default"}>
-              {d.openPeriod.status}
+              {titleCase(d.openPeriod.status)}
             </Badge>
             <a
               href={`/api/payroll/export?period=${d.openPeriod.periodStart.toISOString().slice(0, 10)}`}

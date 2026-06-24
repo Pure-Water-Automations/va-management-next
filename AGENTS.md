@@ -25,7 +25,7 @@ system**.
 
 | | Path |
 |---|---|
-| Local source (canonical) | `~/Documents/va-management-next` (standalone repo) |
+| Local source (canonical) | `~/code/apps/va-management-next` (standalone repo) |
 | Git | repo `okamotomiak/va-management-next`, branch `main`; deploy `./deploy.sh` |
 | VPS deploy | `/app/SecondBrain/va-management-console/current` |
 | VPS env + secrets | `/app/SecondBrain/va-management-console/shared/.env.production`, `shared/secrets/service-account.json` |

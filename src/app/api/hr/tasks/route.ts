@@ -4,8 +4,8 @@ import { createTask } from "@/lib/actions/tasks";
 // No role gate here: createTask enforces tier-aware delegation authority itself
 // (managers + tier-flagged VAs delegate; any Tier-1+ VA may self-add to a project).
 export const POST = action(
-  async ({ user, body }) =>
-    createTask(user.id, user.role, {
+  async ({ actor, body }) =>
+    createTask(actor.id, actor.role, {
       title: body.title,
       instructions: body.instructions,
       strategy: body.strategy,

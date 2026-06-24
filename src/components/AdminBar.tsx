@@ -61,6 +61,7 @@ export function AdminBar({
         <>
           <span style={{ color: "rgba(255,255,255,.55)", fontSize: "var(--text-xs)", marginLeft: 8 }}>as VA:</span>
           <select
+            aria-label="Impersonate VA"
             value={currentVaId ?? ""}
             onChange={(e) => impersonate(e.target.value)}
             style={select}

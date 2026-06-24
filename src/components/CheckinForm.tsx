@@ -9,14 +9,23 @@ function targetLabel(targetHoursWeekly: number | null | undefined) {
   return `${targetHoursWeekly ?? 0}h/week`;
 }
 
-export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: number | null; availabilityNotes?: string | null } }) {
+const DAYS_OFF = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: number | null; availabilityNotes?: string | null; daysOff?: string | null } }) {
   const router = useRouter();
   const [target, setTarget] = useState(String(defaults.targetHoursWeekly ?? ""));
   const [availability, setAvailability] = useState(defaults.availabilityNotes ?? "");
   const [capacity, setCapacity] = useState("");
+  const [daysOff, setDaysOff] = useState<string[]>(
+    (defaults.daysOff ?? "").split(",").map((d) => d.trim()).filter(Boolean),
+  );
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  function toggleDay(day: string) {
+    setDaysOff((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  }
 
   async function submit() {
     setLoading(true);
@@ -24,6 +33,7 @@ export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: numb
       targetHoursWeekly: target ? Number(target) : undefined,
       availabilityNotes: availability,
       capacityFlag: capacity || undefined,
+      daysOff: DAYS_OFF.filter((d) => daysOff.includes(d)).join(","),
       notes,
     });
     setLoading(false);
@@ -55,6 +65,34 @@ export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: numb
       <div style={field}>
         <label style={label}>Availability notes</label>
         <textarea style={{ ...input, minHeight: 70 }} value={availability} onChange={(e) => setAvailability(e.target.value)} />
+      </div>
+      <div style={field}>
+        <label style={label}>Regular days off</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {DAYS_OFF.map((day) => {
+            const on = daysOff.includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => toggleDay(day)}
+                aria-pressed={on}
+                style={{
+                  border: `1px solid ${on ? "var(--color-sky-500)" : "var(--color-border)"}`,
+                  borderRadius: 999,
+                  padding: "6px 12px",
+                  font: "inherit",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: on ? "var(--color-sky-500)" : "var(--color-surface)",
+                  color: on ? "#fff" : "var(--color-text-secondary)",
+                }}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div style={field}>
         <label style={label}>Capacity</label>

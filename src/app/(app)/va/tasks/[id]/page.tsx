@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
+import { taskStrategyLabel } from "@/lib/labels";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -19,6 +20,7 @@ const PRIORITY_VARIANT: Record<string, "default" | "warning" | "danger"> = {
 export default async function VaTaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
+  const actor = await getEffectiveActor(user);
   const task = await getTaskDetail(id);
 
   if (!task) {
@@ -33,8 +35,8 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
   }
 
   // VAs can only view their own tasks; managers/senior VAs can view any.
-  const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(user.role);
-  if (!isManager && !user.isAdmin && task.assignedToId !== user.id) {
+  const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(actor.role);
+  if (!isManager && !actor.isAdmin && task.assignedToId !== actor.id) {
     return (
       <div className="page-head">
         <div>
@@ -74,7 +76,7 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
                 <StatusDropdown taskId={task.id} current={task.status} />
               </div>
               <Row label="Assigned by" value={task.assignedBy.name ?? "—"} />
-              <Row label="Strategy" value={task.strategy} />
+              <Row label="Strategy" value={taskStrategyLabel(task.strategy)} />
               <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                 <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Priority</span>
                 <Badge variant={PRIORITY_VARIANT[task.priority] ?? "default"} dot>

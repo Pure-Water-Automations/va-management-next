@@ -1,5 +1,6 @@
 import { getPipeline } from "@/lib/reads/recruitment";
 import { getCurrentUser } from "@/lib/auth/access";
+import { pluralize } from "@/lib/labels";
 import { canDecideHire, isRecruiter, isGateReviewer } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
@@ -50,11 +51,13 @@ export default async function RecruitmentConsole() {
           <div className="crumb">Recruitment</div>
           <h1>Candidate pipeline</h1>
         </div>
-        <span className="small">{p.candidates.length} active candidates</span>
+        <span className="small">{p.candidates.length} active {pluralize(p.candidates.length, "candidate")}</span>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
-        {p.stages.map((s) => (
+        {/* 'closed' candidates are excluded from the list + the "active" header, so
+            hide that badge too — otherwise "Closed · N" points at rows that aren't shown. */}
+        {p.stages.filter((s) => s !== "closed").map((s) => (
           <Badge key={s} variant={p.counts[s] ? "primary" : "default"}>
             {STAGE_LABEL[s]} · {p.counts[s]}
           </Badge>

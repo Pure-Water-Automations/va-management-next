@@ -5,9 +5,9 @@ import { updateTaskStatus } from "@/lib/actions/tasks";
 // The action wrapper handles identity + JSON parse + audit; updateTaskStatus
 // enforces per-task permission internally, so any authenticated role may call.
 export function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  return action(async ({ user, body }) => {
+  return action(async ({ actor, body }) => {
     const { id } = await params;
     const status = str(body, "status") as TaskStatus;
-    return updateTaskStatus(user.id, user.role, id, status);
+    return updateTaskStatus(actor.id, actor.role, id, status);
   })(request);
 }

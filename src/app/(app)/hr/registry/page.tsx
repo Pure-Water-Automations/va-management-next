@@ -1,5 +1,6 @@
 import { getRegistry } from "@/lib/reads/hr-manage";
 import { getCurrentUser } from "@/lib/auth/access";
+import { humanRole } from "@/lib/labels";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -66,7 +67,7 @@ export default async function RegistryPage() {
                     <div style={{ fontWeight: 600 }}>{va.name}</div>
                     <div className="small">{va.email}</div>
                   </td>
-                  <td style={td}><Badge variant="primary">{va.compensationRole}</Badge></td>
+                  <td style={td}><Badge variant="primary">{humanRole(va.compensationRole)}</Badge></td>
                   <td style={td}><Badge variant={statusVariant(va.status)} dot>{va.status}</Badge></td>
                   <td style={{ ...td, fontFamily: "var(--font-mono)" }}>{va.targetHoursWeekly ?? "—"}</td>
                   <td style={td}>
@@ -92,6 +93,9 @@ export default async function RegistryPage() {
                   </td>
                 </tr>
               ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={9} style={{ ...td, textAlign: "center", color: "var(--color-text-tertiary)" }}>No VAs yet.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

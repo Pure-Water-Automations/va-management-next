@@ -3,8 +3,8 @@ import { bulkUpdateTasks } from "@/lib/actions/tasks";
 import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
-  async ({ user, body }) =>
-    bulkUpdateTasks(user.id, user.role, (body.taskIds as string[]) ?? [], {
+  async ({ actor, body }) =>
+    bulkUpdateTasks(actor.id, actor.role, (body.taskIds as string[]) ?? [], {
       status: body.status,
       priority: body.priority,
       assignedToId: body.assignedToId,

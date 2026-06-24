@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth/access";
+import { humanRole } from "@/lib/labels";
 import { getHrDashboard } from "@/lib/reads/hr";
 import { Stat } from "@/components/ui/Stat";
 import { Badge } from "@/components/ui/Badge";
@@ -15,10 +16,6 @@ import {
 } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
-
-function humanRole(role: string): string {
-  return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function utilColor(pct: number): string {
   if (pct >= 110) return "var(--color-error)";

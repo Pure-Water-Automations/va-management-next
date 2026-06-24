@@ -6,6 +6,7 @@ import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { ClientSelect } from "@/components/ClientSelect";
 import { humanizeStatus } from "@/components/ui/task-format";
+import { taskStrategyLabel } from "@/lib/labels";
 
 const STRATEGIES = [
   "Create",
@@ -117,7 +118,7 @@ export function TaskEditForm({ task, clients }: { task: TaskEditFormTask; client
           <select style={input} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
             {STRATEGIES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {taskStrategyLabel(s)}
               </option>
             ))}
           </select>

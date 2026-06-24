@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { matchAssignee } from "@/lib/services/meeting-actions";
@@ -10,10 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function MeetingActionsPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canReviewMeetingActions(user.role)) redirect("/");
-
-  // Mirror the exact check createTask uses — shows ✓ Add iff the server will accept it.
-  const canConfirm = await canUserDelegateTasks(user.id, user.role);
+  const actor = await getEffectiveActor(user);
+  // Meeting Actions is delegation-gated (it creates delegated tasks). Only those
+  // who can delegate may view it — and `canConfirm` mirrors the exact check
+  // createTask uses, so the ✓ Add button shows iff the server will accept it.
+  const canConfirm = await canUserDelegateTasks(actor.id, actor.role);
+  if (!canConfirm) redirect("/");
 
   // Pending meetings (at least one pending item), newest first.
   const meetings = await db.meetingAction.findMany({

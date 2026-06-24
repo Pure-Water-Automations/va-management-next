@@ -7,6 +7,7 @@ import { ReassignControl } from "@/components/ReassignControl";
 import { ClientSelect } from "@/components/ClientSelect";
 import { StatusDropdown } from "@/components/TaskActions";
 import { PriorityBadge, DueChip, LinkChips } from "@/components/ui/task-format";
+import { taskStrategyLabel } from "@/lib/labels";
 
 const STRATEGIES = ["Create", "Research", "Automate", "Communicate", "Plan", "Delegate", "Fix", "TechSupport", "Simplify", "Recurring"] as const;
 const PRIORITIES = ["Low", "Medium", "High"] as const;
@@ -157,10 +158,10 @@ export function TaskInlineDetail({
           <FieldEditor
             isEditing={editing === "strategy"}
             onEdit={() => setEditing("strategy")}
-            display={<span>{f.strategy}</span>}
+            display={<span>{taskStrategyLabel(f.strategy)}</span>}
             editor={
               <select autoFocus value={f.strategy} onChange={(e) => commit({ strategy: e.target.value })} onBlur={() => setEditing(null)} style={{ ...editorInput, width: "auto" }}>
-                {STRATEGIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {STRATEGIES.map((s) => <option key={s} value={s}>{taskStrategyLabel(s)}</option>)}
               </select>
             }
           />

@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, getEffectiveActor, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { VaTopNav } from "@/components/VaTopNav";
 import { AdminBar } from "@/components/AdminBar";
+import { SelfViewToggle } from "@/components/SelfViewToggle";
 import { CommandPalette } from "@/components/CommandPalette";
+import { viewForRole } from "@/lib/auth/roles";
+import { humanRole } from "@/lib/labels";
 import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
 
@@ -48,41 +50,31 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ]);
   }
 
-  // Delegation authority is comp-role-driven (a Senior VA / any tier flagged on the
-  // Compensation Roles screen), so the VA-console Delegation nav follows it, not the role.
-  // When an admin uses "View as → as VA", reflect the IMPERSONATED VA's own authority so
-  // the preview matches what that VA actually sees — otherwise the admin's always-allowed
-  // authority wrongly shows the Delegation nav for a plain VA (e.g. a trainee).
-  let canDelegate: boolean;
-  if (user.isAdmin && view === "VA" && impersonatedVaId && impersonatedVaId !== user.vaId) {
-    // Map the impersonated VA → its login by EMAIL (Va.email is unique and matches
-    // User.email). Keying on User.vaId is unreliable — some logins aren't linked to
-    // their VA row (e.g. Aira), which would wrongly hide the Delegation nav.
-    const impVa = await db.va.findUnique({
-      where: { vaId: impersonatedVaId },
-      select: { email: true },
-    });
-    const impUser = impVa
-      ? await db.user.findUnique({ where: { email: impVa.email }, select: { id: true, role: true } })
-      : null;
-    canDelegate = impUser ? await canUserDelegateTasks(impUser.id, impUser.role) : false;
-  } else {
-    canDelegate = await canUserDelegateTasks(user.id, user.role);
-  }
+  // Every VA-console capability/identity gate runs against the EFFECTIVE actor, so
+  // an admin's "View as → as VA" preview matches exactly what that VA sees and can
+  // do. Outside VA-impersonation (and for non-admins) the actor IS the logged-in
+  // user, so HR/Payroll/Recruitment views are unchanged. Delegation authority is
+  // comp-role-driven (canUserDelegateTasks reads the actor's tier flag).
+  const actor = await getEffectiveActor(user);
+  const canDelegate = await canUserDelegateTasks(actor.id, actor.role);
 
-  // Enhance / Discover stay founder-only + runtime-toggleable (hidden during VA
-  // demos). Recordings is broader — open to admins (isRecordingsVisible) so trusted
-  // staff (e.g. Aira) can record / review / test.
-  const showRecordings = isRecordingsVisible(user);
+  // Recordings is an admin/founder feature (not a VA tier feature), so under VA
+  // impersonation isRecordingsVisible(actor) is false — a real VA never sees it.
+  const showRecordings = isRecordingsVisible(actor);
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
-  const showMeetingActions = user.isAdmin || canReviewMeetingActions(user.role);
+  // Meeting Actions is a delegation feature (its whole purpose is turning meeting
+  // notes into delegated tasks), so it's gated on delegation authority — only those
+  // who can delegate see it, mirroring the impersonated VA under "View as".
+  const showMeetingActions = canDelegate;
   const meetingActionsCount = showMeetingActions
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
 
-  const userName = user.name ?? user.email;
+  // Identity shown in the nav follows the actor too (the impersonated VA's name +
+  // role pill), so the chrome doesn't contradict the impersonated body content.
+  const userName = actor.name ?? actor.email;
   const adminBar = user.isAdmin ? (
     <AdminBar
       currentView={view}
@@ -93,6 +85,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     />
   ) : null;
 
+  // A non-admin VA-linked user (e.g. Riza, Princess) can toggle between their
+  // management console and their own VA console. Never show the full AdminBar.
+  const selfToggle = !user.isAdmin && !!user.vaId;
+  const ROLE_HOME: Record<string, string> = { HR: "/hr", PAYROLL: "/payroll", RECRUITMENT: "/recruitment", VA: "/va" };
+  const roleView = viewForRole(user.role);
+  const roleHome = ROLE_HOME[roleView] ?? "/va";
+  const roleLabel = humanRole(roleView);
+  const selfViewBar = selfToggle ? (
+    <SelfViewToggle mode={view === "VA" ? "toManagement" : "toVa"} roleLabel={roleLabel} roleHome={roleHome} />
+  ) : null;
+
   // VA console: lightweight glass top-nav shell (no sidebar), centered content.
   if (view === "VA") {
     return (
@@ -100,9 +103,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
         <div style={{ minHeight: "100vh", background: "var(--color-bg-secondary)" }}>
           {adminBar}
+          {selfViewBar}
           <VaTopNav
             name={userName}
-            roleLabel={vaRoleLabel(user.role)}
+            roleLabel={vaRoleLabel(actor.role)}
             canDelegate={canDelegate}
             showMeetingActions={showMeetingActions}
             meetingActionsCount={meetingActionsCount}
@@ -112,8 +116,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           />
           <div className="topnav-content">{children}</div>
         </div>
-        <CommandPalette />
-        <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
+        <CommandPalette canDelegate={canDelegate} />
+        <Purii tour={tourForView(view)} canBypass={actor.isAdmin} />
       </>
     );
   }
@@ -138,11 +142,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         />
         <main className="content" style={{ padding: 0 }}>
           {adminBar}
+          {selfViewBar}
           <Topbar eyebrow={EYEBROW[view] ?? "Console"} notifications={notifications} unreadCount={unread} />
           <div className="content-pad">{children}</div>
         </main>
       </div>
-      <CommandPalette />
+      <CommandPalette canDelegate={canDelegate} />
       <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
     </>
   );

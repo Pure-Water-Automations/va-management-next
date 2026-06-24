@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { ClientSelect } from "@/components/ClientSelect";
+import { taskStrategyLabel } from "@/lib/labels";
 
 type Va = { id: string; name: string | null; email: string; openTasks?: number };
 type Project = { id: string; name: string };
@@ -196,7 +197,7 @@ export function DelegateTaskForm({
           <select style={input} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
             {STRATEGIES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {taskStrategyLabel(s)}
               </option>
             ))}
           </select>

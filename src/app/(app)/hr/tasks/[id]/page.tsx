@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getTaskDetail, getAllTasks } from "@/lib/reads/tasks";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic";
 export default async function HrTaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  const actor = await getEffectiveActor(user);
+  if (!actor.isAdmin && !canManageTasks(actor.role)) {
     redirect("/");
   }
 

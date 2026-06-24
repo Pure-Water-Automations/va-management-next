@@ -8,6 +8,7 @@ export const POST = action(
       targetHoursWeekly: body.targetHoursWeekly,
       availabilityNotes: body.availabilityNotes,
       capacityFlag: body.capacityFlag,
+      daysOff: body.daysOff,
       notes: body.notes,
     }),
   { allow: (r) => r === "VA" || r === "SENIOR_VA" },

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor, isBetaVisible } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
@@ -19,10 +19,11 @@ export const dynamic = "force-dynamic";
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  const actor = await getEffectiveActor(user);
+  if (!actor.isAdmin && !canManageTasks(actor.role)) {
     redirect("/hr/projects");
   }
-  const canEdit = user.isAdmin || canManageProjects(user.role);
+  const canEdit = actor.isAdmin || canManageProjects(actor.role);
 
   const [project, feed, assignees] = await Promise.all([
     getProjectDetail(id),
@@ -34,7 +35,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
-  const betaVisible = await isBetaVisible(user.email);
+  const betaVisible = await isBetaVisible(actor.email);
 
   return (
     <>

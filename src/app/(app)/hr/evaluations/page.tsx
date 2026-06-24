@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/access";
+import { humanRole } from "@/lib/labels";
 import { canDecideHire } from "@/lib/auth/roles";
 import { getEvaluationQueue, getStartableVas } from "@/lib/reads/evaluation";
 import { Card } from "@/components/ui/Card";
@@ -68,7 +69,7 @@ export default async function EvaluationsPage() {
                 <div key={v.vaId} style={startRow}>
                   <div>
                     <span style={{ fontWeight: 600 }}>{v.name}</span>{" "}
-                    <Badge variant="default">{v.compensationRole}</Badge>
+                    <Badge variant="default">{humanRole(v.compensationRole)}</Badge>
                     {!v.supervisorVaId && <span className="small" style={{ marginLeft: 8, color: "var(--color-text-tertiary)" }}>· no supervisor set</span>}
                   </div>
                   <ActionButton
