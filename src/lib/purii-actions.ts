@@ -30,7 +30,7 @@ const STAGES = [
   "tenhr_invited", "tenhr_in_progress", "tenhr_pass", "tenhr_fail",
   "contract_sent", "signed", "onboarding", "closed",
 ];
-const WORKERS = ["sheet-mirror-export", "tier-check", "capacity-monitor", "payroll-close", "monthly-checkin", "desklog-ingest", "nudge", "application-intake-poll"];
+const WORKERS = ["sheet-mirror-export", "tier-check", "capacity-monitor", "payroll-close", "monthly-checkin", "desklog-ingest", "nudge", "application-intake-poll", "application-screen", "transcript-to-tasks", "recordings-process", "sales-followup", "notion-sync"];
 
 export type Proposal = { tool: string; args: Record<string, unknown>; summary: string };
 type Built = Proposal | { error: string };
