@@ -323,6 +323,28 @@ export function Recorder() {
     [trimStart, trimEnd],
   );
 
+  // Click / drag anywhere on the bar (except a handle) to scrub the video there.
+  const seekTrack = useCallback((e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("[data-trim-handle]")) return; // handles own their drags
+    const track = trackRef.current;
+    const v = videoRef.current;
+    if (!track || !v || !v.duration) return;
+    const seek = (clientX: number) => {
+      const rect = track.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+      v.currentTime = (pct / 100) * v.duration;
+      setPlayheadPct(pct);
+    };
+    seek(e.clientX);
+    const onMove = (ev: PointerEvent) => seek(ev.clientX);
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, []);
+
   // ── pill drag ───────────────────────────────────────────────────────────
   const onPillDown = useCallback((e: React.PointerEvent) => {
     const stage = stageRef.current;
@@ -675,10 +697,10 @@ export function Recorder() {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" /></svg>Trim
                   </span>
                   <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-                    {fmt((playheadPct / 100) * dur)} / {fmt(dur)} · drag the handles to trim
+                    {fmt((playheadPct / 100) * dur)} / {fmt(dur)} · tap to jump · drag the handles to trim
                   </span>
                 </div>
-                <div ref={trackRef} style={{ position: "relative", height: 44, borderRadius: "var(--radius-md)", background: "var(--color-bg-secondary)", border: "1px solid var(--color-border-subtle)", overflow: "hidden", touchAction: "none" }}>
+                <div ref={trackRef} onPointerDown={seekTrack} style={{ position: "relative", height: 44, borderRadius: "var(--radius-md)", background: "var(--color-bg-secondary)", border: "1px solid var(--color-border-subtle)", overflow: "hidden", touchAction: "none", cursor: "pointer" }}>
                   <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: `${trimStart}%`, background: "rgba(13,18,32,.06)" }} />
                   <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: `${100 - trimEnd}%`, background: "rgba(13,18,32,.06)" }} />
                   <div style={{ position: "absolute", top: 0, bottom: 0, left: `${trimStart}%`, width: `${Math.max(0, trimEnd - trimStart)}%`, background: "rgba(77,196,232,.16)", borderTop: "2px solid var(--color-sky-400)", borderBottom: "2px solid var(--color-sky-400)" }} />
@@ -687,7 +709,7 @@ export function Recorder() {
                     <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderTop: "5px solid var(--color-error, #e5484d)" }} />
                   </div>
                   {(["start", "end"] as const).map((h) => (
-                    <div key={h} onPointerDown={dragHandle(h)} style={{ position: "absolute", top: 0, bottom: 0, left: `${h === "start" ? trimStart : trimEnd}%`, width: 14, transform: "translateX(-50%)", cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none", zIndex: 3 }}>
+                    <div key={h} data-trim-handle="true" onPointerDown={dragHandle(h)} style={{ position: "absolute", top: 0, bottom: 0, left: `${h === "start" ? trimStart : trimEnd}%`, width: 14, transform: "translateX(-50%)", cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none", zIndex: 3 }}>
                       <div style={{ width: 6, height: "70%", borderRadius: 3, background: "var(--color-sky-500)", boxShadow: "var(--shadow-sm)" }} />
                     </div>
                   ))}
