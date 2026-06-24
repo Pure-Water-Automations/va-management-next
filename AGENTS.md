@@ -152,8 +152,17 @@ console-only without Notion.
   the project page (both **founder-gated by `isBetaVisible`** while beta); client
   self-serve at `/client/settings` (CLIENT_ADMIN).
 - **Worker/timer**: `worker/notion-sync.ts` (`npm run worker:notion`) via
-  `va-management-notion.timer` (every 20 min). No env needed — tokens live in the
-  DB (`NotionConnection.token`).
+  `va-management-notion.timer` (every 20 min). Tokens live in the DB
+  (`NotionConnection.token`).
+- **Connect methods**: (1) one-click **OAuth** — `src/lib/notion-oauth.ts` +
+  `/api/notion/oauth/{start,callback}` + a post-OAuth database picker
+  (`/api/notion/databases` → `listConnectableDatabases`, with an AI/heuristic guess
+  of which DB is Projects vs Tasks via `src/lib/notion-classify.ts`, cheap OpenRouter
+  model, graceful). Needs a **public** Notion integration — set
+  `NOTION_OAUTH_CLIENT_ID`/`_SECRET` (+ redirect URI `…/api/notion/oauth/callback`);
+  see `.env.example`. (2) **Manual** internal-integration token (the fallback when
+  OAuth env is unset). Both store the same `NotionConnection.token`; `connectNotion`
+  reuses a stored token when none is passed.
 
 ## MCP endpoint (create/manage projects & tasks from AI clients)
 

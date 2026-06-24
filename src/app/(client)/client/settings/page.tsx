@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { NotionConnectForm } from "@/components/NotionConnectForm";
 import { NotionHelp } from "@/components/NotionHelp";
+import { notionOauthConfigured } from "@/lib/notion-oauth";
+import { needsDatabasePick } from "@/lib/notion-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,9 @@ export default async function ClientSettingsPage() {
   });
 
   const isAdmin = user.role === "CLIENT_ADMIN";
+  const oauthConfigured = notionOauthConfigured();
+  const needsPick = isAdmin ? await needsDatabasePick(org.id) : false;
+  const fullyConnected = !!conn?.active && !!(conn.projectsDatabaseId || conn.tasksDatabaseId);
 
   return (
     <div className="dash-stage" style={{ maxWidth: 640 }}>
@@ -50,15 +55,18 @@ export default async function ClientSettingsPage() {
         </p>
 
         <div style={{ marginBottom: 22 }}>
-          <NotionHelp audience="client" />
+          <NotionHelp audience="client" oauth={oauthConfigured} />
         </div>
 
         {isAdmin ? (
           <NotionConnectForm
             orgId={org.id}
             orgSlug={org.slug}
+            returnPath="/client/settings"
+            oauthConfigured={oauthConfigured}
+            needsPick={needsPick}
             state={{
-              connected: !!conn?.active,
+              connected: fullyConnected,
               projectsDatabaseId: conn?.projectsDatabaseId ?? null,
               tasksDatabaseId: conn?.tasksDatabaseId ?? null,
               statusProperty: conn?.statusProperty ?? null,

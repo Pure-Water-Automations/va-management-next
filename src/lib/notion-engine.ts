@@ -20,9 +20,11 @@ import {
   notionPageUrl,
   notionPageIdOf,
   notionPageLastEdited,
+  notionSearchDatabases,
   statusPropertyPayload,
   titlePropertyPayload,
 } from "@/lib/notion";
+import { classifyDatabases } from "@/lib/notion-classify";
 import {
   type NotionKind,
   type StatusMap,
@@ -60,12 +62,49 @@ export async function getConnection(clientOrganizationId: string): Promise<Notio
 
 export type ConnectInput = {
   clientOrganizationId: string;
-  token: string;
+  /** Manual internal-integration token. Omit to reuse the token already stored
+   *  (e.g. from the OAuth connect, or to keep the current one on re-config). */
+  token?: string | null;
   projectsDatabase?: string | null;
   tasksDatabase?: string | null;
   statusProperty?: string | null;
   createdByEmail?: string | null;
 };
+
+/** Store just the OAuth access token (no databases yet) — the UI then shows the
+ *  database picker to finish configuring the connection. */
+export async function storeOauthToken(input: {
+  clientOrganizationId: string;
+  token: string;
+  createdByEmail?: string | null;
+}): Promise<void> {
+  await db.notionConnection.upsert({
+    where: { clientOrganizationId: input.clientOrganizationId },
+    update: { token: input.token, active: true, createdByEmail: input.createdByEmail ?? undefined },
+    create: { clientOrganizationId: input.clientOrganizationId, token: input.token, active: true, createdByEmail: input.createdByEmail ?? undefined },
+  });
+}
+
+export type DbOption = { id: string; title: string };
+
+/** List the databases the connection's token can reach + an AI/heuristic guess of
+ *  which is Projects vs Tasks (for the OAuth picker). */
+export async function listConnectableDatabases(
+  clientOrganizationId: string,
+): Promise<{ databases: DbOption[]; suggestedProjects: string | null; suggestedTasks: string | null }> {
+  const conn = await getConnection(clientOrganizationId);
+  if (!conn?.token) throw new Error("Not connected to Notion yet");
+  const databases = await notionSearchDatabases({ token: conn.token });
+  const { projects, tasks } = await classifyDatabases(databases);
+  return { databases, suggestedProjects: projects, suggestedTasks: tasks };
+}
+
+/** True when the connection has a token but no database wired up yet (post-OAuth,
+ *  pre-picker). */
+export async function needsDatabasePick(clientOrganizationId: string): Promise<boolean> {
+  const conn = await getConnection(clientOrganizationId);
+  return !!conn?.active && !!conn.token && !conn.projectsDataSourceId && !conn.tasksDataSourceId;
+}
 
 export type ConnectSummary = {
   projects?: { statusProperty: string; options: string[]; mapped: string[]; unmapped: string[] };
@@ -78,7 +117,14 @@ export type ConnectSummary = {
  * token / unshared database so the UI can surface it.
  */
 export async function connectNotion(input: ConnectInput): Promise<ConnectSummary> {
-  const c: NotionConfig = { token: input.token.trim() };
+  // Reuse the already-stored token (OAuth or prior connect) when none is supplied.
+  let token = input.token?.trim() || "";
+  if (!token) {
+    const existing = await getConnection(input.clientOrganizationId);
+    token = existing?.token?.trim() || "";
+  }
+  if (!token) throw new Error("Connect with Notion (or paste an integration token) first");
+  const c: NotionConfig = { token };
   const preferred = input.statusProperty?.trim() || "Status";
   const statusMap: StatusMap = { meta: {} };
   const summary: ConnectSummary = {};

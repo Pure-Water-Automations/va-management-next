@@ -241,3 +241,44 @@ export function statusPropertyPayload(
 export function titlePropertyPayload(propName: string, text: string): JsonRecord {
   return { [propName]: { title: [{ text: { content: text } }] } };
 }
+
+/** List the databases / data sources this token can access (for the OAuth picker). */
+export async function notionSearchDatabases(cfg: NotionConfig): Promise<Array<{ id: string; title: string }>> {
+  const out: Array<{ id: string; title: string }> = [];
+  let cursor: string | null = null;
+  do {
+    const withFilter: JsonRecord = { page_size: 100, filter: { value: "data_source", property: "object" } };
+    if (cursor) withFilter.start_cursor = cursor;
+    let page: JsonRecord;
+    try {
+      page = await notionRequest("POST", "/search", withFilter, cfg);
+    } catch {
+      const plain: JsonRecord = { page_size: 100 };
+      if (cursor) plain.start_cursor = cursor;
+      page = await notionRequest("POST", "/search", plain, cfg);
+    }
+    const results = Array.isArray(page.results) ? page.results.filter(isRecord) : [];
+    for (const r of results) {
+      const obj = String(r.object ?? "");
+      if (obj !== "database" && obj !== "data_source") continue;
+      const id = String(r.id ?? "");
+      if (id) out.push({ id, title: notionObjectTitle(r) });
+    }
+    cursor = page.has_more === true && typeof page.next_cursor === "string" ? page.next_cursor : null;
+  } while (cursor);
+  const seen = new Set<string>();
+  return out.filter((d) => (seen.has(d.id) ? false : (seen.add(d.id), true)));
+}
+
+function notionObjectTitle(obj: JsonRecord): string {
+  if (Array.isArray(obj.title)) {
+    const t = obj.title
+      .filter(isRecord)
+      .map((x) => (typeof x.plain_text === "string" ? x.plain_text : ""))
+      .join("")
+      .trim();
+    if (t) return t;
+  }
+  if (typeof obj.name === "string" && obj.name.trim()) return obj.name.trim();
+  return "Untitled";
+}

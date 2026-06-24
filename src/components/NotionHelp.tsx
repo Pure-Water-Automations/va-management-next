@@ -41,12 +41,31 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
   );
 }
 
-export function NotionHelp({ audience = "client" }: { audience?: "client" | "staff" }) {
+export function NotionHelp({ audience = "client", oauth = false }: { audience?: "client" | "staff"; oauth?: boolean }) {
   const you = audience === "staff" ? "the client" : "you";
   const your = audience === "staff" ? "their" : "your";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {oauth && (
+        <div
+          style={{
+            borderRadius: "var(--radius-md, 10px)",
+            padding: "14px 16px",
+            background: "var(--color-surface-2, #f6f8fb)",
+            border: "1px solid var(--color-border-subtle, #e6e8ee)",
+            fontSize: "var(--text-sm, 14px)",
+            color: "var(--color-text-secondary, #475467)",
+            lineHeight: 1.6,
+          }}
+        >
+          <strong>Easiest — one click:</strong> press <strong>Connect with Notion</strong> below, choose {your}{" "}
+          workspace, and pick which pages to share in Notion&apos;s own screen. Then select {your} Projects/Tasks
+          database and you&apos;re done — no token to copy, nothing to share manually. The token steps further down are
+          only if {you} prefer to connect with an integration token instead.
+        </div>
+      )}
+
       {/* What it does + what syncs */}
       <div
         style={{
