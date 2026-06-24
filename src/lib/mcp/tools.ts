@@ -135,6 +135,18 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
 
     case "list_assignees": {
       const client = str(args, "client");
+      // Explicit ClientAssignment (who's formally on this account) outranks derived history.
+      let assignedSet = new Set<string>();
+      if (client) {
+        const org = await db.clientOrganization.findFirst({
+          where: { OR: [{ name: { equals: client, mode: "insensitive" } }, { slug: client.toLowerCase() }] },
+          select: { id: true },
+        });
+        if (org) {
+          const a = await db.clientAssignment.findMany({ where: { clientOrganizationId: org.id }, select: { userId: true } });
+          assignedSet = new Set(a.map((x) => x.userId));
+        }
+      }
       const vas = await db.user.findMany({
         where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
         select: {
@@ -163,20 +175,28 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
             openTasks,
             recentTasks: recent.map((t) => t.title),
             clientsWorkedWith: clients,
-            ...(client ? { workedWithClient: clients.some((c) => c.toLowerCase() === client.toLowerCase()) } : {}),
+            ...(client
+              ? {
+                  assignedToClient: assignedSet.has(va.id),
+                  workedWithClient: clients.some((c) => c.toLowerCase() === client.toLowerCase()),
+                }
+              : {}),
           };
         }),
       );
       // Best-fit ordering: prior experience with the client first, then least loaded.
       rows.sort((a, b) => {
         if (client) {
+          const aa = "assignedToClient" in a && a.assignedToClient ? 1 : 0;
+          const ba = "assignedToClient" in b && b.assignedToClient ? 1 : 0;
+          if (aa !== ba) return ba - aa;
           const aw = "workedWithClient" in a && a.workedWithClient ? 1 : 0;
           const bw = "workedWithClient" in b && b.workedWithClient ? 1 : 0;
           if (aw !== bw) return bw - aw;
         }
         return a.openTasks - b.openTasks;
       });
-      return json({ count: rows.length, assignees: rows, note: client ? `Ordered by prior experience with "${client}", then lowest workload.` : "Ordered by lowest current workload." });
+      return json({ count: rows.length, assignees: rows, note: client ? `Ordered by who's assigned to "${client}", then prior experience, then lowest workload.` : "Ordered by lowest current workload." });
     }
 
     case "update_task_status": {

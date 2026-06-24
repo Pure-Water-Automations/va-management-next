@@ -85,6 +85,13 @@ enum CommentVisibility {
   CLIENT_VISIBLE
 }
 
+// Which internal staff are assigned to a client (account manager/TL = LEAD, the
+// VAs working it = MEMBER). Many-to-many: a VA can be on multiple clients.
+enum ClientTeamRole {
+  LEAD
+  MEMBER
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -108,6 +115,7 @@ model User {
   notifications      Notification[]
   clientMemberships  ClientMembership[]
   clientTaskRequests ClientTaskRequest[] @relation("ClientTaskRequestSubmitter")
+  clientAssignments  ClientAssignment[]
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────
@@ -1059,9 +1067,27 @@ model ClientOrganization {
   deal         Deal?
   recordings   Recording[]
   notionConnection NotionConnection?
+  assignments  ClientAssignment[]
 
   @@index([slug])
   @@index([active])
+}
+
+// Internal staff ↔ client assignment (account manager/TL + the VAs on the account).
+// Drives assignee auto-suggest and "my clients" filtering.
+model ClientAssignment {
+  id                   String         @id @default(cuid())
+  clientOrganizationId String
+  userId               String
+  role                 ClientTeamRole @default(MEMBER)
+  createdAt            DateTime       @default(now())
+
+  clientOrganization ClientOrganization @relation(fields: [clientOrganizationId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clientOrganizationId, userId])
+  @@index([clientOrganizationId])
+  @@index([userId])
 }
 
 model ClientMembership {

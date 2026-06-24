@@ -6,6 +6,8 @@ import { NotionConnectForm } from "@/components/NotionConnectForm";
 import { NotionHelp } from "@/components/NotionHelp";
 import { notionOauthConfigured } from "@/lib/notion-oauth";
 import { needsDatabasePick } from "@/lib/notion-engine";
+import { ClientTeamManager } from "@/components/ClientTeamManager";
+import { getClientTeam, getAssignableStaff } from "@/lib/reads/team";
 
 export default async function HrClientOrgPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -49,6 +51,7 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
 
   if (!org) notFound();
 
+  const [team, staff] = await Promise.all([getClientTeam(org.id), getAssignableStaff()]);
   const betaVisible = await isBetaVisible(user.email);
   const conn = org.notionConnection;
   const oauthConfigured = notionOauthConfigured();
@@ -63,6 +66,16 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
         Status: {org.status} · Slug: {org.slug}
         {org.notionId && ` · Notion: ${org.notionId}`}
       </div>
+
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Assigned team</h2>
+        <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 12px", maxWidth: 560 }}>
+          The internal staff working this client — a <strong>Lead</strong> (account manager / Team Lead) plus the VAs on
+          the account. Assigned VAs are auto-suggested first when delegating this client&apos;s work, and this client
+          shows up under their &ldquo;My clients&rdquo;.
+        </p>
+        <ClientTeamManager orgId={org.id} team={team} staff={staff} />
+      </section>
 
       <section style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

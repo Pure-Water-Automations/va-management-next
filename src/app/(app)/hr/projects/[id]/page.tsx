@@ -26,10 +26,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   }
   const canEdit = user.isAdmin || canManageProjects(user.role);
 
+  // Auto-suggest: VAs assigned to this project's client float to the top of the picker.
+  const projectClientId = (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))?.clientOrganizationId ?? null;
   const [project, feed, assignees] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
-    getDelegationAssignees(),
+    getDelegationAssignees(projectClientId),
   ]);
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
