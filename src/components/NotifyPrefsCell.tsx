@@ -52,6 +52,7 @@ export function NotifyPrefsCell({ vaId, channel, number }: { vaId: string; chann
         <option value="email">Email only</option>
         <option value="whatsapp">WhatsApp only</option>
         <option value="none">Off</option>
+        <option value="digest">Daily email digest</option>
       </select>
       {wantsWhatsApp && (
         <input

@@ -141,6 +141,7 @@ enum NotifyChannel {
   email
   whatsapp
   none
+  digest // daily email digest of open tasks (no immediate per-task pings)
 }
 
 model Va {

@@ -21,6 +21,8 @@ test("channelDecision: explicit channels", () => {
   assert.deepEqual(channelDecision("email", true, true), { email: true, whatsapp: false });
   assert.deepEqual(channelDecision("whatsapp", true, true), { email: false, whatsapp: true });
   assert.deepEqual(channelDecision("none", true, true), { email: false, whatsapp: false });
+  // digest → no immediate send (the daily notification-digest email handles it)
+  assert.deepEqual(channelDecision("digest", true, true), { email: false, whatsapp: false });
 });
 
 test("normalizePhone: strips formatting, stores +digits, rejects junk", () => {

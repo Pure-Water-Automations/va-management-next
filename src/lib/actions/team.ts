@@ -8,7 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { normalizePhone } from "@/lib/notify-channel";
 
-const NOTIFY_CHANNELS: NotifyChannel[] = ["both", "email", "whatsapp", "none"];
+const NOTIFY_CHANNELS: NotifyChannel[] = ["both", "email", "whatsapp", "none", "digest"];
 
 type Actor = { role: Role; isAdmin: boolean };
 

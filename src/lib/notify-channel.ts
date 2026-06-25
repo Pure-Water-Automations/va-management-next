@@ -10,6 +10,8 @@ import type { NotifyChannel } from "@prisma/client";
  * whether the WhatsApp Business API is configured at all, decide the channels.
  * WhatsApp only fires when the VA opted in (both|whatsapp) AND has a number AND
  * the integration is live — otherwise it silently falls back to email.
+ * "none" and "digest" get no immediate channel — digest VAs instead receive the
+ * once-a-day notification-digest email (worker/notification-digest.ts).
  */
 export function channelDecision(
   channel: NotifyChannel | null | undefined,
