@@ -160,11 +160,6 @@ export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: 
           <p className="small" style={{ marginTop: 4 }}>
             AI-extracted tasks from recent meeting transcripts — review and confirm.
           </p>
-          {!canConfirm && (
-            <p className="small" style={{ marginTop: 4, color: "var(--color-text-tertiary)" }}>
-              You can review and skip items here. Confirming an item into a task requires delegation permission — ask a team lead or admin.
-            </p>
-          )}
         </div>
         <span style={{ color: "var(--color-text-tertiary)", fontSize: 13, alignSelf: "flex-end" }}>
           {cards.length} meeting{cards.length === 1 ? "" : "s"} pending · {totalItems} item{totalItems === 1 ? "" : "s"}
@@ -174,6 +169,30 @@ export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: 
       {error && (
         <div style={{ background: "var(--color-error-light)", color: "var(--color-error)", padding: "8px 12px", borderRadius: "var(--radius-sm)", marginBottom: 12, fontSize: 13 }}>
           {error}
+        </div>
+      )}
+
+      {!canConfirm && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            background: "var(--color-info-light)",
+            color: "var(--color-info-dark)",
+            padding: "10px 12px",
+            borderRadius: "var(--radius-sm)",
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          <span aria-hidden style={{ fontSize: 15, lineHeight: 1.1 }}>ℹ️</span>
+          <span>
+            <strong>No “Confirm” button? That’s expected for your role.</strong> You can
+            review and skip these suggestions, but turning one into a task needs delegation
+            permission. Ask a team lead or admin to confirm them — or to enable confirming
+            for your tier.
+          </span>
         </div>
       )}
 
