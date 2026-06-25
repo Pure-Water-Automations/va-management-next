@@ -4,7 +4,8 @@ import { computeUtilization, computeFlags } from "@/lib/services/capacity";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Sum taskSpentHrs per VA over a window (days back from now), or all-time if days omitted. */
+/** Sum actual time-at-work hours per VA over a window (days back), or all-time if omitted.
+ *  Tracking/capacity uses DeskLog time_at_work; payroll + tier use task_spent_time (elsewhere). */
 async function hoursByVa(daysBack?: number): Promise<Map<string, number>> {
   const where = daysBack
     ? { date: { gte: new Date(Date.now() - daysBack * DAY) } }
@@ -12,10 +13,10 @@ async function hoursByVa(daysBack?: number): Promise<Map<string, number>> {
   const rows = await db.deskLogHours.groupBy({
     by: ["vaId"],
     where,
-    _sum: { taskSpentHrs: true },
+    _sum: { timeAtWorkHrs: true },
   });
   const m = new Map<string, number>();
-  for (const r of rows) m.set(r.vaId, r._sum.taskSpentHrs ?? 0);
+  for (const r of rows) m.set(r.vaId, r._sum.timeAtWorkHrs ?? 0);
   return m;
 }
 

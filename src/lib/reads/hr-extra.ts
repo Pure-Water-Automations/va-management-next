@@ -9,11 +9,11 @@ export async function getCapacity() {
     db.deskLogHours.groupBy({
       by: ["vaId"],
       where: { date: { gte: new Date(Date.now() - 14 * DAY) } },
-      _sum: { taskSpentHrs: true },
+      _sum: { timeAtWorkHrs: true }, // capacity = actual time-at-work hours (not task-logged)
     }),
     db.capacityFlagEvent.findMany({ orderBy: { timestamp: "desc" }, take: 30 }),
   ]);
-  const last14 = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
+  const last14 = new Map(hours.map((h) => [h.vaId, h._sum.timeAtWorkHrs ?? 0]));
   const flagged = vas
     .map((va) => {
       const last = last14.get(va.vaId) ?? 0;
