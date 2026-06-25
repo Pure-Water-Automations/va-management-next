@@ -17,7 +17,11 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user.isAdmin && !canManageTasks(user.role)) {
-    redirect("/");
+    // VAs/clients don't have the manager task view. Several VA-reachable surfaces
+    // still link here (the Available pool, ⌘K search, "Blocked by" dependencies),
+    // so route them to their own detail view instead of bouncing to the dashboard —
+    // otherwise the click looks broken ("can't open the task").
+    redirect(`/va/tasks/${id}`);
   }
 
   const task = await getTaskDetail(id);

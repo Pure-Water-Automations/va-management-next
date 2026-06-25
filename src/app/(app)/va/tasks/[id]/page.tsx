@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { DueChip, LinkChips } from "@/components/ui/task-format";
+import { DueChip, LinkChips, StatusBadge } from "@/components/ui/task-format";
 import { StatusDropdown, CommentForm } from "@/components/TaskActions";
 import { TaskChecklist } from "@/components/TaskChecklist";
 import { TaskDependencies } from "@/components/TaskDependencies";
@@ -32,9 +32,12 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
     );
   }
 
-  // VAs can only view their own tasks; managers/senior VAs can view any.
+  // A VA may view their own task in full, or read a task from the open/claimable
+  // pool (so they can decide whether to claim it from Available). Managers, senior
+  // VAs, and admins can view any task; everything else stays private.
   const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(user.role);
-  if (!isManager && !user.isAdmin && task.assignedToId !== user.id) {
+  const isOwn = task.assignedToId === user.id;
+  if (!isManager && !user.isAdmin && !isOwn && !task.claimable) {
     return (
       <div className="page-head">
         <div>
@@ -44,6 +47,10 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
       </div>
     );
   }
+  // Only the assignee (or a manager/admin) can change status or comment. A VA
+  // previewing an unclaimed pool task sees it read-only.
+  const canAct = isManager || user.isAdmin || isOwn;
+  const poolPreview = !canAct && task.claimable;
 
   const sops = (task.relatedSops as { title: string; url: string }[] | null) ?? [];
   const trainings = (task.relatedTrainings as { title: string; url: string }[] | null) ?? [];
@@ -67,11 +74,23 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
 
       <div className="dash-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {poolPreview && (
+            <Card padding={14} style={{ borderColor: "var(--color-sky-300)" }}>
+              <p className="small" style={{ margin: 0 }}>
+                This task is in the open pool. Claim it from{" "}
+                <Link href="/hr/tasks/available">Available</Link> to work on it.
+              </p>
+            </Card>
+          )}
           <Card padding={20}>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                 <span style={{ width: 100, color: "var(--color-text-tertiary)", flexShrink: 0 }}>Status</span>
-                <StatusDropdown taskId={task.id} current={task.status} />
+                {canAct ? (
+                  <StatusDropdown taskId={task.id} current={task.status} />
+                ) : (
+                  <StatusBadge value={task.status} />
+                )}
               </div>
               <Row label="Assigned by" value={task.assignedBy.name ?? "—"} />
               <Row label="Strategy" value={task.strategy} />
@@ -160,7 +179,7 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
                 </div>
               ))
             )}
-            <CommentForm taskId={task.id} />
+            {canAct && <CommentForm taskId={task.id} />}
           </div>
         </Card>
       </div>
