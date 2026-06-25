@@ -10,7 +10,7 @@ import { loadSettings, str } from "@/lib/settings";
 import { sendSystemEmail } from "@/lib/email";
 import { itemsForDomain, nudgeBody, type Domain } from "@/lib/notifications";
 
-const baseUrl = env.APP_BASE_URL || "https://team.pwasecondbrain.uk";
+const baseUrl = env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk";
 
 async function main() {
   const run = await db.syncRun.create({ data: { worker: "nudge", status: "FAILED" } });

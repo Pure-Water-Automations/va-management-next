@@ -47,7 +47,7 @@ async function main() {
       created++;
       await logActivity({ source: "recruitment_intake", eventType: "application_received", summary: `New application: ${r.name || email}` });
       if (from && teamLead) {
-        await sendSystemEmail({ from, to: teamLead, subject: `New VA application — ${r.name || email}`, body: `A new VA application was submitted.\n\nName: ${r.name || "(not provided)"}\nEmail: ${email}\nSkills/Role: ${r.skillsRoleTags || "(not provided)"}\n\nReview it: ${env.APP_BASE_URL || "https://team.pwasecondbrain.uk"}/recruitment` });
+        await sendSystemEmail({ from, to: teamLead, subject: `New VA application — ${r.name || email}`, body: `A new VA application was submitted.\n\nName: ${r.name || "(not provided)"}\nEmail: ${email}\nSkills/Role: ${r.skillsRoleTags || "(not provided)"}\n\nReview it: ${env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk"}/recruitment` });
       }
     }
 

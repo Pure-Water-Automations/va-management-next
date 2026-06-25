@@ -31,4 +31,4 @@ ssh "$VPS" "cd $BASE/current && \
   curl -s http://127.0.0.1:8796/api/health"
 
 echo ""
-echo "==> done. https://team.pwasecondbrain.uk"
+echo "==> done. https://dev-team.pwasecondbrain.uk"

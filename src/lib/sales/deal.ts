@@ -155,7 +155,7 @@ export async function maybeConvertDeal(dealId: string) {
 }
 
 function appBaseLink(settings: Map<string, string>): string {
-  return (settings.get("app_base_url")?.trim() || "https://team.pwasecondbrain.uk").replace(/\/+$/, "");
+  return (settings.get("app_base_url")?.trim() || "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "");
 }
 
 /**

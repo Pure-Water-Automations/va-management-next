@@ -76,7 +76,7 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         dueDate: str(args, "dueDate"),
         ownerId: ctx.actorId,
       });
-      return json({ created: true, id: project.id, name: project.name, url: `https://team.pwasecondbrain.uk/hr/projects/${project.id}` });
+      return json({ created: true, id: project.id, name: project.name, url: `https://dev-team.pwasecondbrain.uk/hr/projects/${project.id}` });
     }
 
     case "list_tasks": {
@@ -130,7 +130,7 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         projectId,
         assignedToId,
       });
-      return json({ created: true, id: task.id, title: task.title, assignedTo: task.assignedTo.name ?? task.assignedTo.email, emailSent: task.emailSent, url: `https://team.pwasecondbrain.uk/hr/tasks/${task.id}` });
+      return json({ created: true, id: task.id, title: task.title, assignedTo: task.assignedTo.name ?? task.assignedTo.email, emailSent: task.emailSent, url: `https://dev-team.pwasecondbrain.uk/hr/tasks/${task.id}` });
     }
 
     case "list_assignees": {
