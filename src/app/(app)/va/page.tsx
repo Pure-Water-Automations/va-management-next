@@ -130,6 +130,22 @@ export default async function VaConsole() {
         <Stat label="Cumulative" value={Math.round(d.cumulative)} unit="h" variant="navy" />
         <Stat label="Utilization" value={Math.round(d.utilizationPct)} unit="%" variant="sky" />
       </div>
+      {(() => {
+        // Surface how fresh the DeskLog feed is, so a stale 0% reads as "not synced yet" rather
+        // than "you did no work". Ingest writes yesterday's data daily, so >3 days behind = delayed.
+        const syncedThrough = d.deskLogSyncedThrough ? new Date(d.deskLogSyncedThrough) : null;
+        const stale = syncedThrough ? Date.now() - syncedThrough.getTime() > 3 * 24 * 60 * 60 * 1000 : false;
+        const asOf = syncedThrough ? syncedThrough.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+        return (
+          <div className="small" style={{ marginTop: 8, color: stale ? "var(--color-warning-dark)" : "var(--color-text-tertiary)" }}>
+            {asOf
+              ? stale
+                ? `⚠ Task-hour data is only synced through ${asOf} — your recent hours aren't counted yet, so utilization may read low. (Not a reflection of your work.)`
+                : `Task-hour data synced through ${asOf}.`
+              : "Task-hour data hasn't synced yet."}
+          </div>
+        );
+      })()}
 
       {/* ── On your plate ──────────────────────────────────────────── */}
       <div className="sec-head">
