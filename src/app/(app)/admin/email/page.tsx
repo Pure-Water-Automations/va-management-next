@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { TestEmailButton } from "@/components/TestEmailButton";
 import { EmailTestMode } from "@/components/EmailTestMode";
+import { DigestToggle } from "@/components/DigestToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,14 @@ export default async function EmailSenderPage({ searchParams }: { searchParams: 
   if (!user.isAdmin) redirect("/");
   const sp = await searchParams;
 
-  const [status, fromSetting, redirectRow] = await Promise.all([
+  const [status, fromSetting, redirectRow, digestRow] = await Promise.all([
     senderStatus(),
     db.setting.findUnique({ where: { key: "system_email_from" } }),
     db.setting.findUnique({ where: { key: "email_redirect_to" }, select: { value: true } }),
+    db.setting.findUnique({ where: { key: "notification_digest_enabled" }, select: { value: true } }),
   ]);
   const clientConfigured = !!oauthClient();
+  const digestOn = (digestRow?.value ?? "").toUpperCase() === "TRUE";
 
   return (
     <>
@@ -70,6 +73,16 @@ export default async function EmailSenderPage({ searchParams }: { searchParams: 
           </div>
         )}
         {status.connected && fromSetting?.value && <TestEmailButton />}
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <h2 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-xl)", margin: "0 0 12px" }}>Daily task digest</h2>
+        <p className="small" style={{ marginTop: 0, marginBottom: 14 }}>
+          When on, each VA whose notification preference is <strong>Daily email digest</strong> gets one email each morning
+          summarizing their open tasks (with a “new since yesterday” note) instead of a ping per task. Runs with the daily
+          automations; needs a connected sending account above.
+        </p>
+        <DigestToggle enabled={digestOn} />
       </Card>
 
       <Card variant="flat">

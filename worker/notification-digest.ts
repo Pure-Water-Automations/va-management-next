@@ -24,14 +24,16 @@ async function main() {
   const run = await db.syncRun.create({ data: { worker: "notification-digest", status: "FAILED" } });
   try {
     const settings = await loadSettings();
+    const enabled = str(settings, "notification_digest_enabled", "FALSE").toUpperCase() === "TRUE";
     const from = str(settings, "system_email_from", "");
     const baseUrl = str(settings, "app_base_url", BASE_URL) || BASE_URL;
-    if (!from) {
+    if (!enabled || !from) {
+      const reason = !enabled ? "notification_digest_enabled not TRUE" : "no_system_email_from";
       await db.syncRun.update({
         where: { id: run.id },
-        data: { status: "SUCCESS", finishedAt: new Date(), detailsJson: { skipped: true, reason: "no_system_email_from" } },
+        data: { status: "SUCCESS", finishedAt: new Date(), detailsJson: { skipped: true, reason } },
       });
-      console.log("notification-digest: skipped (no system_email_from)");
+      console.log(`notification-digest: skipped (${reason})`);
       return;
     }
 
