@@ -4,17 +4,25 @@ import { computeUtilization, computeFlags } from "@/lib/services/capacity";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Sum actual time-at-work hours per VA over a window (days back), or all-time if omitted.
- *  Tracking/capacity uses DeskLog time_at_work; payroll + tier use task_spent_time (elsewhere). */
+/** Sum DeskLog "task hours" (task_spent_time) per VA over a window — the intended
+ *  productivity metric (same field payroll + tier use). Shown next to time-at-work in HR
+ *  views so a clocked-in-but-not-logging gap is visible. */
 async function hoursByVa(daysBack?: number): Promise<Map<string, number>> {
   const where = daysBack
     ? { date: { gte: new Date(Date.now() - daysBack * DAY) } }
     : undefined;
-  const rows = await db.deskLogHours.groupBy({
-    by: ["vaId"],
-    where,
-    _sum: { timeAtWorkHrs: true },
-  });
+  const rows = await db.deskLogHours.groupBy({ by: ["vaId"], where, _sum: { taskSpentHrs: true } });
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(r.vaId, r._sum.taskSpentHrs ?? 0);
+  return m;
+}
+
+/** Sum actual time-at-work (time_at_work) per VA — the "clocked in" hours shown alongside. */
+async function atWorkByVa(daysBack?: number): Promise<Map<string, number>> {
+  const where = daysBack
+    ? { date: { gte: new Date(Date.now() - daysBack * DAY) } }
+    : undefined;
+  const rows = await db.deskLogHours.groupBy({ by: ["vaId"], where, _sum: { timeAtWorkHrs: true } });
   const m = new Map<string, number>();
   for (const r of rows) m.set(r.vaId, r._sum.timeAtWorkHrs ?? 0);
   return m;
@@ -28,7 +36,7 @@ export async function getHrDashboard() {
   const redT = num(settings, "efficiency_red_threshold", 15);
   const yellowT = num(settings, "efficiency_yellow_threshold", 25);
 
-  const [vas, pendingReviews, recentActivity, last14d, effRows, openEvaluations, incomingRequests] =
+  const [vas, pendingReviews, recentActivity, last14d, effRows, openEvaluations, incomingRequests, atWork14d] =
     await Promise.all([
       db.va.findMany({
         where: { status: { in: ["active", "training"] } },
@@ -60,6 +68,7 @@ export async function getHrDashboard() {
           clientOrganization: { select: { name: true } },
         },
       }),
+      atWorkByVa(14),
     ]);
 
   // Capacity flags from utilization vs target.
@@ -69,7 +78,7 @@ export async function getHrDashboard() {
       const target = va.targetHoursWeekly ?? 0;
       const { utilizationPct } = computeUtilization(target, last);
       const flags = computeFlags(target, last);
-      return { va, last14dHours: last, utilizationPct, ...flags };
+      return { va, last14dHours: last, atWork14dHours: atWork14d.get(va.vaId) ?? 0, utilizationPct, ...flags };
     })
     .filter((r) => r.overburdened || r.underutilized);
 
@@ -115,6 +124,7 @@ export async function getHrDashboard() {
         role: va.compensationRole,
         target,
         last14dHours: last,
+        atWork14dHours: atWork14d.get(va.vaId) ?? 0,
         utilizationPct,
         overburdened: f.overburdened,
         underutilized: f.underutilized,

@@ -84,7 +84,7 @@ export default async function HrDashboard() {
       iconColor: c.overburdened ? "var(--color-error-dark)" : "var(--color-sky-700)",
       icon: <IconAlertTriangle size={18} />,
       title: c.va.name,
-      sub: `${Math.round(c.utilizationPct)}% utilization · ${c.last14dHours.toFixed(1)}h / 2wk`,
+      sub: `${Math.round(c.utilizationPct)}% utilization · ${c.last14dHours.toFixed(1)}h logged · ${c.atWork14dHours.toFixed(1)}h at work / 2wk`,
       href: "/hr/capacity",
       cta: "Review",
     })),

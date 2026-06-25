@@ -24,9 +24,9 @@ async function main() {
     const hours = await db.deskLogHours.groupBy({
       by: ["vaId"],
       where: { date: { gte: since } },
-      _sum: { timeAtWorkHrs: true }, // capacity flags off actual time-at-work (matches the HR display)
+      _sum: { taskSpentHrs: true }, // capacity flags off task hours (the intended metric)
     });
-    const last14 = new Map(hours.map((h) => [h.vaId, h._sum.timeAtWorkHrs ?? 0]));
+    const last14 = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
 
     for (const va of vas) {
       const flags = computeFlags(va.targetHoursWeekly ?? 0, last14.get(va.vaId) ?? 0);

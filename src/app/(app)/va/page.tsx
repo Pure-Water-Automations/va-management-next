@@ -125,8 +125,8 @@ export default async function VaConsole() {
 
       {/* ── Stat row ───────────────────────────────────────────────── */}
       <div className="stat-grid" data-tour-el="/va">
-        <Stat label="Hours · last 7 days" value={d.last7.toFixed(1)} unit="h" />
-        <Stat label="Hours · last 14 days" value={d.last14.toFixed(1)} unit="h" />
+        <Stat label="Task hours · last 7 days" value={d.last7.toFixed(1)} unit="h" />
+        <Stat label="Task hours · last 14 days" value={d.last14.toFixed(1)} unit="h" />
         <Stat label="Cumulative" value={Math.round(d.cumulative)} unit="h" variant="navy" />
         <Stat label="Utilization" value={Math.round(d.utilizationPct)} unit="%" variant="sky" />
       </div>

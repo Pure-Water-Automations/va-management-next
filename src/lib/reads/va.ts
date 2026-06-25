@@ -5,15 +5,15 @@ import { baselineCutover, deskLogSinceCutover, withBaseline } from "@/lib/servic
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// Rolling tracking hours = actual time AT WORK (DeskLog time_at_work), not task-logged
-// time. Payroll + tier eligibility deliberately use taskSpentHrs (the cumulative read
-// below and payroll/tier workers) — only the rolling display/capacity metric changes here.
+// Rolling "task hours" = DeskLog task_spent_time — the intended productivity metric
+// (same field payroll + tier use). HR views show it next to actual time-at-work so a
+// clocked-in-but-not-logging gap is visible; payroll/tier stay on task hours.
 async function sumHours(vaId: string, daysBack?: number): Promise<number> {
   const where = daysBack
     ? { vaId, date: { gte: new Date(Date.now() - daysBack * DAY) } }
     : { vaId };
-  const r = await db.deskLogHours.aggregate({ where, _sum: { timeAtWorkHrs: true } });
-  return r._sum.timeAtWorkHrs ?? 0;
+  const r = await db.deskLogHours.aggregate({ where, _sum: { taskSpentHrs: true } });
+  return r._sum.taskSpentHrs ?? 0;
 }
 
 export type VaDashboard = Awaited<ReturnType<typeof getVaDashboard>>;
