@@ -41,6 +41,14 @@ const envSchema = z.object({
   // (claude-3.5-haiku was retired by OpenRouter/Bedrock 2026-06-20 → HTTP 404.)
   OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
   OPENROUTER_ENHANCE_SEARCH_MODEL: optionalEnvString(z.string()),
+  // Beta gate for the Loom-style screen recorder + library. Default ON. Set to
+  // "false" in the production deployment to fully hide Recordings — even from
+  // admins (isRecordingsVisible is admin-OR-founder, so emptying FOUNDER_EMAILS
+  // alone is not enough). Staging leaves it on so the recorder stays testable.
+  RECORDINGS_ENABLED: z.preprocess((value) => {
+    if (typeof value !== "string" || value.trim() === "") return true; // default ON
+    return !["false", "0", "off", "no"].includes(value.trim().toLowerCase());
+  }, z.boolean()),
   // MCP endpoint: shared bearer token + the service identity it acts as. The
   // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
   MCP_API_TOKEN: optionalEnvString(z.string()),
@@ -81,6 +89,12 @@ const envSchema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.string().default("whisper-1"),
   ),
+  // Video Core — shared AI video-editing backend, loopback-only on this VPS
+  // (127.0.0.1:3101). Powers the recording "Auto enhance" (tighten) feature. All
+  // optional so the app boots without it; enhance no-ops until set.
+  VIDEO_CORE_BASE_URL: optionalEnvString(z.string().url()),
+  VIDEO_CORE_API_KEY: optionalEnvString(z.string()),
+  VIDEO_CORE_WORKSPACE_ID: optionalEnvString(z.string()),
 });
 
 export const env = envSchema.parse(process.env);

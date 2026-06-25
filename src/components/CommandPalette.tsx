@@ -23,7 +23,7 @@ const QUICK_NAV: { label: string; href: string }[] = [
   { label: "Templates", href: "/hr/templates" },
 ];
 
-export function CommandPalette() {
+export function CommandPalette({ canDelegate = true }: { canDelegate?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -120,9 +120,17 @@ export function CommandPalette() {
   // Build the flattened, filtered item list.
   const items = useMemo<PaletteItem[]>(() => {
     const q = query.trim().toLowerCase();
-    const quick: PaletteItem[] = QUICK_NAV.filter(
-      (c) => !q || c.label.toLowerCase().includes(q),
-    ).map((c) => ({ key: `nav:${c.href}`, label: c.label, href: c.href, group: "Quick navigation" }));
+    // QUICK_NAV is entirely manager/delegation routes (/hr/tasks*, /hr/projects),
+    // so hide them when the (effective) actor can't delegate — e.g. an admin
+    // impersonating a plain VA, or a real non-delegating VA.
+    const quick: PaletteItem[] = canDelegate
+      ? QUICK_NAV.filter((c) => !q || c.label.toLowerCase().includes(q)).map((c) => ({
+          key: `nav:${c.href}`,
+          label: c.label,
+          href: c.href,
+          group: "Quick navigation" as const,
+        }))
+      : [];
 
     const projects: PaletteItem[] = results.projects.map((p) => ({
       key: `project:${p.id}`,
@@ -139,7 +147,7 @@ export function CommandPalette() {
     }));
 
     return [...quick, ...projects, ...tasks];
-  }, [query, results]);
+  }, [query, results, canDelegate]);
 
   // Keep the active index within bounds when the list changes.
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { getCurrentUser, getEffectiveVaId } from "@/lib/auth/access";
+import { humanRole } from "@/lib/labels";
 import { getVaDashboard } from "@/lib/reads/va";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
@@ -37,13 +38,13 @@ export default async function VaTierPage() {
           <div className="crumb">My Console</div>
           <h1>Tier progress</h1>
         </div>
-        <Badge variant="primary">{d.va.compensationRole}</Badge>
+        <Badge variant="primary">{humanRole(d.va.compensationRole)}</Badge>
       </div>
 
       <div className="stat-grid">
         <Stat label="Cumulative hours" value={Math.round(d.cumulative)} unit="h" variant="navy" />
-        <Stat label="Current role" value={d.va.compensationRole} />
-        <Stat label="Next role" value={d.role?.nextRoleId ?? "—"} />
+        <Stat label="Current role" value={humanRole(d.va.compensationRole)} />
+        <Stat label="Next role" value={d.role?.nextRoleId ? humanRole(d.role.nextRoleId) : "—"} />
         <Stat label="Hours to next" value={d.hoursToNext != null ? Math.round(d.hoursToNext) : "—"} unit={d.hoursToNext != null ? "h" : undefined} />
       </div>
 
@@ -55,7 +56,7 @@ export default async function VaTierPage() {
               <div style={{ width: `${pct}%`, height: "100%", background: "linear-gradient(90deg,var(--color-sky-400),var(--color-success))" }} />
             </div>
             <div className="small">
-              {Math.round(d.cumulative)}h of {threshold}h toward {d.role.nextRoleId}
+              {Math.round(d.cumulative)}h of {threshold}h toward {humanRole(d.role.nextRoleId)}
               {d.eligibility.eligible && " — "}
               {d.eligibility.eligible && <Badge variant="success" dot>Eligible — pending HR review</Badge>}
             </div>

@@ -10,6 +10,7 @@ const th: React.CSSProperties = {
   letterSpacing: "0.1em", color: "var(--color-text-tertiary)", borderBottom: "1px solid var(--color-border)", whiteSpace: "nowrap",
 };
 const td: React.CSSProperties = { padding: "11px 16px", borderBottom: "1px solid var(--color-border-subtle)", whiteSpace: "nowrap" };
+const truncate: React.CSSProperties = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", color: "var(--color-text-secondary)" };
 
 export default async function CheckinsPage() {
   const rows = await getCheckins();
@@ -54,10 +55,12 @@ export default async function CheckinsPage() {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
             <thead>
-              <tr>{["VA", "Last check-in", "This month"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+              <tr>{["VA", "Last check-in", "This month", "Days off", "Availability", "Notes"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {rows.map(({ va, ageDays, thisMonth }) => (
+              {rows.map(({ va, ageDays, thisMonth }) => {
+                const days = (va.daysOff ?? "").split(",").map((d) => d.trim()).filter(Boolean);
+                return (
                 <tr key={va.vaId}>
                   <td style={td}><div style={{ fontWeight: 600 }}>{va.name}</div><div className="small">{va.email}</div></td>
                   <td style={td}>
@@ -66,8 +69,26 @@ export default async function CheckinsPage() {
                     )}
                   </td>
                   <td style={td}>{thisMonth ? <Badge variant="success" dot>Done</Badge> : <Badge variant="warning" dot>Pending</Badge>}</td>
+                  <td style={td}>
+                    {days.length === 0 ? <span className="small" style={{ color: "var(--color-text-tertiary)" }}>—</span> : (
+                      <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                        {days.map((d) => <Badge key={d} size="sm">{d}</Badge>)}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ ...td, whiteSpace: "normal", maxWidth: 220 }}>
+                    {va.availabilityNotes ? (
+                      <span className="small" style={truncate} title={va.availabilityNotes}>{va.availabilityNotes}</span>
+                    ) : <span className="small" style={{ color: "var(--color-text-tertiary)" }}>—</span>}
+                  </td>
+                  <td style={{ ...td, whiteSpace: "normal", maxWidth: 220 }}>
+                    {va.lastCheckinNotes ? (
+                      <span className="small" style={truncate} title={va.lastCheckinNotes}>{va.lastCheckinNotes}</span>
+                    ) : <span className="small" style={{ color: "var(--color-text-tertiary)" }}>—</span>}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

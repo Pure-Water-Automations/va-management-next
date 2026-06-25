@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { getSavedViews } from "@/lib/reads/views";
@@ -63,7 +63,8 @@ export default async function HrTasksPage({
     group: rawGroup,
   } = await searchParams;
   const user = await getCurrentUser();
-  if (!canManageTasks(user.role)) {
+  const actor = await getEffectiveActor(user);
+  if (!actor.isAdmin && !canManageTasks(actor.role)) {
     return <p style={{ padding: 32 }}>Not authorized.</p>;
   }
 
@@ -86,7 +87,7 @@ export default async function HrTasksPage({
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
-    getSavedViews(user.id, "tasks"),
+    getSavedViews(actor.id, "tasks"),
   ]);
 
   // ── Server-side sort ───────────────────────────────────────────────────────

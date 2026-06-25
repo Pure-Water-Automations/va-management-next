@@ -1,3 +1,4 @@
+import type { Role } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
@@ -34,8 +35,12 @@ export type CurrentUser = Awaited<ReturnType<typeof getCurrentUser>>;
 // "Founder" gate — stricter than isAdmin (other staff like Aira are also admins).
 // Used to keep beta/experimental features (Enhance, Discover, Recordings) visible
 // to Justin only. Override the allow-list with the FOUNDER_EMAILS env var.
+//
+// `??` (not `||`) so an explicitly EMPTY FOUNDER_EMAILS="" means "no founders"
+// (the production/official deployment sets this to disable Enhance/Discover).
+// Only an UNSET var falls back to the default founder list (dev/staging).
 const FOUNDER_EMAILS = new Set(
-  (process.env.FOUNDER_EMAILS || "okamotomiak@gmail.com,j.okamoto@hji.edu")
+  (process.env.FOUNDER_EMAILS ?? "okamotomiak@gmail.com,j.okamoto@hji.edu")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
@@ -64,8 +69,12 @@ export async function isBetaVisible(email: string | null | undefined): Promise<b
  * deliberately broader than `isBetaVisible` (which keeps Enhance/Discover
  * founder-only) and independent of the beta toggle; the recorder is admin-gated,
  * so regular VAs never see it regardless.
+ *
+ * The whole feature can be killed per-deployment with `RECORDINGS_ENABLED=false`
+ * (the production/official deployment sets this) so it's hidden even from admins.
  */
-export function isRecordingsVisible(user: CurrentUser): boolean {
+export function isRecordingsVisible(user: { isAdmin: boolean; email: string | null }): boolean {
+  if (!env.RECORDINGS_ENABLED) return false;
   return user.isAdmin || isFounder(user.email);
 }
 
@@ -81,6 +90,14 @@ export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> 
     const picked = (await cookies()).get("va_view")?.value as ConsoleView | undefined;
     if (picked && VIEWS.includes(picked)) return picked;
   }
+  // A non-admin user who is also linked to a VA record (e.g. Riza, Princess) can
+  // flip into their OWN VA console via the `va_self_view` cookie. This grants no
+  // extra power — getEffectiveActor still returns `self` for non-admins, so all
+  // capability/write checks stay self-scoped; they only see their own VA data.
+  if (!user.isAdmin && user.vaId) {
+    const self = (await cookies()).get("va_self_view")?.value;
+    if (self === "VA") return "VA";
+  }
   return viewForRole(user.role);
 }
 
@@ -93,11 +110,81 @@ export async function getEffectiveVaId(user: CurrentUser): Promise<string | null
   if (user.vaId) return user.vaId;
   if (!user.isAdmin) return null;
   const picked = (await cookies()).get("va_as_va")?.value;
-  if (picked) return picked;
+  // Validate the cookie still points to an active/training VA — a stale value
+  // (e.g. a VA that was removed or deactivated) would otherwise yield a blank
+  // "as VA" picker and silently fall back to the admin's own console.
+  if (picked) {
+    const ok = await db.va.findFirst({
+      where: { vaId: picked, status: { in: ["active", "training"] } },
+      select: { vaId: true },
+    });
+    if (ok) return picked;
+  }
   const first = await db.va.findFirst({
     where: { status: { in: ["active", "training"] } },
     orderBy: { name: "asc" },
     select: { vaId: true },
   });
   return first?.vaId ?? null;
+}
+
+/**
+ * The principal that VA-console capability checks AND write authorization should
+ * run against — so an admin's "View as → as VA" preview matches exactly what that
+ * VA can see and do.
+ *
+ * Normally this is just the logged-in user. When an admin is impersonating a
+ * specific VA (effective view === "VA" AND `va_as_va` is set to a VA other than
+ * their own), it resolves the impersonated VA's LOGIN — keyed by **email**
+ * (`Va.email` is unique and equals `User.email`; `User.vaId` is unreliable since
+ * some logins, e.g. Aira, aren't linked to their VA row) — and returns that
+ * login's id/role with **all admin/founder powers forced OFF** (`isAdmin:false`,
+ * `impersonating:true`). A VA with no matching login falls back to a safe,
+ * non-privileged actor (role "VA") so the preview under-shows, never over-shows.
+ *
+ * Non-admins, and admins NOT in VA-impersonation mode, always get themselves —
+ * so normal behavior (incl. the admin role-bypass in `action()`) is unchanged.
+ */
+export type EffectiveActor = {
+  id: string;
+  role: Role;
+  isAdmin: boolean;
+  email: string;
+  vaId: string | null;
+  name: string | null;
+  impersonating: boolean;
+};
+
+export async function getEffectiveActor(user: CurrentUser): Promise<EffectiveActor> {
+  const self: EffectiveActor = {
+    id: user.id,
+    role: user.role,
+    isAdmin: user.isAdmin,
+    email: user.email,
+    vaId: user.vaId,
+    name: user.name,
+    impersonating: false,
+  };
+  if (!user.isAdmin) return self;
+  if ((await getEffectiveView(user)) !== "VA") return self;
+  const impVaId = await getEffectiveVaId(user);
+  if (!impVaId || impVaId === user.vaId) return self;
+  const impVa = await db.va.findUnique({
+    where: { vaId: impVaId },
+    select: { email: true, name: true },
+  });
+  if (!impVa) return self;
+  const impUser = await db.user.findUnique({
+    where: { email: impVa.email },
+    select: { id: true, role: true, name: true },
+  });
+  return {
+    id: impUser?.id ?? user.id,
+    role: impUser?.role ?? "VA",
+    isAdmin: false,
+    email: impVa.email,
+    vaId: impVaId,
+    name: impUser?.name ?? impVa.name,
+    impersonating: true,
+  };
 }

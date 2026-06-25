@@ -1,0 +1,1 @@
+ALTER TABLE "Va" ADD COLUMN "notifyTasks" TEXT NOT NULL DEFAULT 'each';

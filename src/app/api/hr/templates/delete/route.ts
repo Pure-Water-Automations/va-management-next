@@ -3,10 +3,10 @@ import { deleteProjectTemplate, deleteTaskTemplate } from "@/lib/actions/templat
 import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
-  async ({ user, body }) => {
+  async ({ actor, body }) => {
     const id = str(body, "id");
-    if (body.kind === "project") return deleteProjectTemplate(user.id, user.role, id);
-    if (body.kind === "task") return deleteTaskTemplate(user.id, user.role, id);
+    if (body.kind === "project") return deleteProjectTemplate(actor.id, actor.role, id);
+    if (body.kind === "task") return deleteTaskTemplate(actor.id, actor.role, id);
     throw new Error('Missing or invalid field: kind (expected "project" or "task")');
   },
   { allow: (r) => canManageTasks(r) },

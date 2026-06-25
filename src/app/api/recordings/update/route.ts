@@ -1,7 +1,7 @@
-import { action, str, optStr } from "@/lib/api";
+import { recordingsAction, str, optStr } from "@/lib/api";
 import { updateRecording } from "@/lib/actions/recordings";
 
-export const POST = action(
+export const POST = recordingsAction(
   async ({ user, body }) =>
     updateRecording(user, {
       recordingId: str(body, "recordingId"),

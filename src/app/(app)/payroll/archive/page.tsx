@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { pluralize, titleCase } from "@/lib/labels";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -25,7 +26,7 @@ export default async function PayrollArchive() {
           <div className="crumb">Payroll</div>
           <h1>Period archive</h1>
         </div>
-        <span className="small">{periods.length} closed/paid periods</span>
+        <span className="small">{periods.length} closed/paid {pluralize(periods.length, "period")}</span>
       </div>
 
       <Card padding={0} style={{ overflow: "hidden" }} tourEl="/payroll/archive">
@@ -41,7 +42,7 @@ export default async function PayrollArchive() {
                   <td style={td}>{day(p.closeDate)}</td>
                   <td style={{ ...td, fontFamily: "var(--font-mono)" }}>{(p.periodTotalHours ?? 0).toFixed(1)}</td>
                   <td style={{ ...td, fontFamily: "var(--font-mono)" }}>{money(p.periodTotalPayroll)}</td>
-                  <td style={td}><Badge variant={p.status === "paid" ? "success" : "default"}>{p.status}</Badge></td>
+                  <td style={td}><Badge variant={p.status === "paid" ? "success" : "default"}>{titleCase(p.status)}</Badge></td>
                 </tr>
               ))}
               {periods.length === 0 && (

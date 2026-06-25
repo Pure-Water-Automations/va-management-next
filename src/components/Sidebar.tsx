@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Role } from "@prisma/client";
 import type { ConsoleView } from "@/lib/auth/roles";
+import { humanRole } from "@/lib/labels";
 import { NavItemLink } from "./NavItemLink";
 import { NavGroup } from "./NavGroup";
 import { Avatar } from "./Avatar";
@@ -52,9 +53,6 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/hr/registry", label: "VA Registry", icon: <IconUsers /> },
         { href: "/hr/roles", label: "Compensation Roles", icon: <IconWallet /> },
         { href: "/hr/checkins", label: "Forms & Check-ins", icon: <IconCalendarCheck /> },
-        { href: "/admin/contract", label: "Contract template", icon: <IconFileText /> },
-        { href: "/admin/client-agreement", label: "Client agreement", icon: <IconFileText /> },
-        { href: "/admin/email", label: "Email sender", icon: <IconMail /> },
       ],
     },
     {
@@ -163,9 +161,14 @@ export function Sidebar({
           </NavGroup>
         )}
 
+        {/* Admin-only tools — the target pages redirect non-admins, so they live
+            here behind the isAdmin gate (not in the shared HR "Manage" group). */}
         {isAdmin && (
           <NavGroup label="Admin">
             <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
+            <NavItemLink href="/admin/contract" label="Contract template" icon={<IconFileText />} />
+            <NavItemLink href="/admin/client-agreement" label="Client agreement" icon={<IconFileText />} />
+            <NavItemLink href="/admin/email" label="Email sender" icon={<IconMail />} />
           </NavGroup>
         )}
 
@@ -182,7 +185,7 @@ export function Sidebar({
         <Avatar name={name} size={34} />
         <div className="foot-meta">
           <div className="foot-name">{name}</div>
-          <div className="foot-role">{role.replace(/_/g, " ")}</div>
+          <div className="foot-role">{humanRole(role)}</div>
         </div>
         <a href="/api/logout" title="Sign out" aria-label="Sign out" style={{ display: "flex", flex: "none", color: "rgba(255,255,255,.6)" }}>
           <IconLogOut size={16} />

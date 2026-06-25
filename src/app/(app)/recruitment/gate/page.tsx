@@ -1,5 +1,6 @@
 import { getGateQueue, getPreTrialQueue } from "@/lib/reads/hr-extra";
 import { getCurrentUser } from "@/lib/auth/access";
+import { pluralize } from "@/lib/labels";
 import { isGateReviewer } from "@/lib/auth/roles";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -104,7 +105,7 @@ export default async function GateReviewPage() {
                 <div>
                   <div style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>{c.name ?? c.email}</div>
                   <div className="small">
-                    {c.email} · {hrs}h logged · {c.sessions.length} sessions · {c.tenhrAssignmentTitle ?? "no assignment"}
+                    {c.email} · {hrs}h logged · {c.sessions.length} {pluralize(c.sessions.length, "session")} · {c.tenhrAssignmentTitle ?? "no assignment"}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>

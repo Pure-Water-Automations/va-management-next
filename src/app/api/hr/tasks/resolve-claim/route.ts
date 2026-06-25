@@ -3,6 +3,6 @@ import { resolveClaim } from "@/lib/actions/tasks";
 import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
-  async ({ user, body }) => resolveClaim(user.id, user.role, str(body, "taskId"), body.approve === true || body.approve === "true"),
+  async ({ actor, body }) => resolveClaim(actor.id, actor.role, str(body, "taskId"), body.approve === true || body.approve === "true"),
   { allow: canManageTasks },
 );

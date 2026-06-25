@@ -1,8 +1,8 @@
-import { action, optStr } from "@/lib/api";
+import { recordingsAction, optStr } from "@/lib/api";
 import { createRecording } from "@/lib/actions/recordings";
 
 // Admin-only for now: allow:()=>false denies non-admins; admins bypass the guard.
-export const POST = action(
+export const POST = recordingsAction(
   async ({ user, body }) =>
     createRecording(user, {
       mimeType: optStr(body, "mimeType"),

@@ -207,7 +207,7 @@ export default function ClientRequestDetailPage() {
         {comments.map((c) => (
           <Card key={c.id} padding="var(--space-4)">
             <div style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", marginBottom: "var(--space-1)" }}>
-              {c.author.name} · {new Date(c.createdAt).toLocaleString()}
+              {c.author.name ?? "Team"} · {new Date(c.createdAt).toLocaleString()}
             </div>
             <div style={{ fontSize: "var(--text-sm)", lineHeight: "var(--leading-relaxed)", color: "var(--color-text-primary)" }}>
               {c.body}

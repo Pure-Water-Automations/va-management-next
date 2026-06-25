@@ -140,11 +140,14 @@ model Va {
   desklogUserId     String?
   skillSpecs        String?
   availabilityNotes String?
+  daysOff           String?   // comma-separated regular days off, e.g. "Mon,Sat"
+  lastCheckinNotes  String?   // latest free-text check-in notes
   lastCheckinDate   DateTime?
   notionProfileUrl  String?
   roleStartedDate   DateTime?
   notionDisplayTier String?
   tierMismatchFlag  String?
+  notifyTasks       String    @default("each") // task-email preference: "each" | "digest" | "off"
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -657,6 +660,14 @@ model Recording {
   aiTitle        String?
   aiSummary      String? @db.Text
   aiStatus       String? // pending | running | done | failed | skipped
+
+  // Auto-enhance (tighten via Video Core — remove fillers + dead-air). Manual button.
+  enhanceStatus       String? // processing | done | failed
+  enhancedKey         String? // recordings/<id>/enhanced.mp4
+  enhancedDurationSec Float?
+  enhanceStats        Json? // { cutMs, outputMs, sourceMs, byType }
+  enhanceError        String? @db.Text
+  enhancedAt          DateTime?
 
   // Review workflow (supervisor / HR)
   reviewStatus String? // needs_review | reviewed | flagged

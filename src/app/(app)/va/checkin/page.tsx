@@ -27,7 +27,7 @@ export default async function VaCheckinPage() {
         <p className="small" style={{ marginTop: 0, marginBottom: 18 }}>
           A quick monthly pulse — your target hours, availability, and how your workload feels.
         </p>
-        <CheckinForm defaults={{ targetHoursWeekly: va?.targetHoursWeekly, availabilityNotes: va?.availabilityNotes }} />
+        <CheckinForm defaults={{ targetHoursWeekly: va?.targetHoursWeekly, availabilityNotes: va?.availabilityNotes, daysOff: va?.daysOff }} />
       </Card>
     </>
   );

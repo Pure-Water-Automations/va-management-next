@@ -7,3 +7,6 @@ node_modules/
 tsconfig.tsbuildinfo
 next-env.d.ts
 *.log
+
+# superpowers session scratch
+.superpowers/

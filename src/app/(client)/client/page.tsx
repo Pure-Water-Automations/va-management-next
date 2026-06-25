@@ -129,7 +129,7 @@ export default async function ClientDashboardPage() {
             const step = STEP_OF[r.status] ?? 0;
             const owner = r.assignedTask?.assignedTo?.name;
             return (
-              <a key={r.id} href="/client/requests" className="surface" style={{ display: "block", padding: "16px 18px" }}>
+              <a key={r.id} href={`/client/requests/${r.id}`} className="surface" style={{ display: "block", padding: "16px 18px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "var(--text-base)", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 9 }}>{r.title}</div>

@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/access";
+import { humanRole } from "@/lib/labels";
 import { db } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -60,10 +61,13 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
           <div key={m.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
             <div>
               <div style={{ fontWeight: 500, fontSize: 14 }}>{m.user.name ?? m.user.email}</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{m.user.email} · {m.user.role}</div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{m.user.email} · {humanRole(m.user.role)}</div>
             </div>
           </div>
         ))}
+        {org.memberships.length === 0 && (
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", padding: "10px 0" }}>No members yet.</div>
+        )}
       </section>
 
       <section>
@@ -74,6 +78,9 @@ export default async function HrClientOrgPage({ params }: { params: Promise<{ sl
             <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{p.status}</span>
           </div>
         ))}
+        {org.projects.length === 0 && (
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", padding: "10px 0" }}>No projects yet.</div>
+        )}
       </section>
     </div>
   );

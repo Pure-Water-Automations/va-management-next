@@ -6,9 +6,9 @@ import { canManageTasks } from "@/lib/auth/roles";
 // id after awaiting. updateTask enforces canManageTasks internally too.
 export function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return action(
-    async ({ user, body }) => {
+    async ({ actor, body }) => {
       const { id } = await params;
-      return updateTask(user.id, user.role, id, body);
+      return updateTask(actor.id, actor.role, id, body);
     },
     { allow: (r) => canManageTasks(r) },
   )(request);

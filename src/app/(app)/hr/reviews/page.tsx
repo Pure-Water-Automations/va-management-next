@@ -1,5 +1,6 @@
 import { getReviewQueue } from "@/lib/reads/hr-manage";
 import { getCurrentUser } from "@/lib/auth/access";
+import { humanRole } from "@/lib/labels";
 import { canDecideHire } from "@/lib/auth/roles";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -35,7 +36,7 @@ export default async function ReviewsPage() {
               <div>
                 <div style={{ fontWeight: 600 }}>{r.vaName ?? r.vaId}</div>
                 <div className="small">
-                  {r.currentRole} → {r.targetRole ?? "next"} · {Math.round(r.cumulativeHoursAtTrigger ?? 0)}h ·{" "}
+                  {r.currentRole ? humanRole(r.currentRole) : "—"} → {r.targetRole ? humanRole(r.targetRole) : "next"} · {Math.round(r.cumulativeHoursAtTrigger ?? 0)}h ·{" "}
                   <Badge variant="warning">{r.status.replace(/_/g, " ")}</Badge>
                 </div>
               </div>
@@ -44,7 +45,7 @@ export default async function ReviewsPage() {
                   <ActionButton
                     path="/api/hr/approve-tier"
                     body={{ reviewId: r.id, vaId: r.vaId, targetRole: r.targetRole }}
-                    confirm={`Approve ${r.vaName ?? r.vaId} → ${r.targetRole ?? "next tier"}? This changes their pay.`}
+                    confirm={`Approve ${r.vaName ?? r.vaId} → ${r.targetRole ? humanRole(r.targetRole) : "next tier"}? This changes their pay.`}
                     variant="secondary"
                   >
                     Approve

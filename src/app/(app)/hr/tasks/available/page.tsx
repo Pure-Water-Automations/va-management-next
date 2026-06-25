@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAvailableTasks } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
@@ -9,8 +9,9 @@ import { PoolTaskActions } from "@/components/PoolTaskActions";
 export const dynamic = "force-dynamic";
 
 export default async function AvailableTasksPage() {
-  const user = await getCurrentUser(); // any signed-in user can view/claim from the pool
-  const isManager = user.isAdmin || canManageTasks(user.role);
+  const user = await getCurrentUser();
+  const actor = await getEffectiveActor(user); // any signed-in user can view/claim from the pool
+  const isManager = actor.isAdmin || canManageTasks(actor.role);
   const tasks = await getAvailableTasks();
 
   return (

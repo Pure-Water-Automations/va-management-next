@@ -3,10 +3,10 @@ import { createProjectTemplate, createTaskTemplate } from "@/lib/actions/templat
 import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
-  async ({ user, body }) => {
+  async ({ actor, body }) => {
     const kind = body.kind;
     if (kind === "project") {
-      return createProjectTemplate(user.id, user.role, {
+      return createProjectTemplate(actor.id, actor.role, {
         name: body.name,
         description: body.description,
         type: body.type,
@@ -15,7 +15,7 @@ export const POST = action(
       });
     }
     if (kind === "task") {
-      return createTaskTemplate(user.id, user.role, {
+      return createTaskTemplate(actor.id, actor.role, {
         name: body.name,
         title: body.title,
         instructions: body.instructions,

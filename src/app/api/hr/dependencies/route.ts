@@ -3,7 +3,7 @@ import { addDependency } from "@/lib/actions/dependencies";
 import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
-  async ({ user, body }) =>
-    addDependency(user.id, user.role, str(body, "taskId"), str(body, "dependsOnTaskId")),
+  async ({ actor, body }) =>
+    addDependency(actor.id, actor.role, str(body, "taskId"), str(body, "dependsOnTaskId")),
   { allow: (r) => canManageTasks(r) },
 );

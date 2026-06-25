@@ -1,8 +1,12 @@
+import type { Role } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createTask } from "@/lib/actions/tasks";
 import { logActivity } from "@/lib/activity";
 import { allItemsResolved } from "@/lib/services/meeting-actions";
-import type { CurrentUser } from "@/lib/auth/access";
+
+// Minimal principal shape — satisfied by both CurrentUser and EffectiveActor, so
+// callers pass the IMPERSONATED actor when an admin is viewing-as a VA.
+type Actor = { id: string; role: Role; email: string };
 
 /** Flip a MeetingAction to RESOLVED once all its items are confirmed/skipped. */
 async function maybeResolveAction(meetingActionId: string): Promise<void> {
@@ -17,7 +21,7 @@ async function maybeResolveAction(meetingActionId: string): Promise<void> {
 
 /** Confirm one item → create a real Task via createTask, then mark CONFIRMED. */
 export async function confirmMeetingActionItem(
-  user: CurrentUser,
+  actor: Actor,
   input: { itemId: string; assigneeId: string; dueDate?: string },
 ) {
   const item = await db.meetingActionItem.findUnique({ where: { id: input.itemId } });
@@ -26,7 +30,7 @@ export async function confirmMeetingActionItem(
 
   // createTask enforces delegation authority, sends the assignment email, and
   // writes ActivityLog + a notification — identical to a manually created task.
-  const task = await createTask(user.id, user.role, {
+  const task = await createTask(actor.id, actor.role, {
     title: item.title,
     instructions: item.description ?? undefined,
     assignedToId: input.assigneeId,
@@ -36,7 +40,7 @@ export async function confirmMeetingActionItem(
 
   await db.meetingActionItem.update({
     where: { id: item.id },
-    data: { status: "CONFIRMED", taskId: task.id, resolvedBy: user.email, resolvedAt: new Date() },
+    data: { status: "CONFIRMED", taskId: task.id, resolvedBy: actor.email, resolvedAt: new Date() },
   });
   await maybeResolveAction(item.meetingActionId);
   return { taskId: task.id };
@@ -44,7 +48,7 @@ export async function confirmMeetingActionItem(
 
 /** Skip one item, or all still-pending items on a meeting. */
 export async function skipMeetingActionItems(
-  user: CurrentUser,
+  actor: Actor,
   input: { meetingActionId: string; itemId?: string; all?: boolean },
 ) {
   if (!input.all && !input.itemId) throw new Error("itemId or all required");
@@ -54,7 +58,7 @@ export async function skipMeetingActionItems(
 
   const result = await db.meetingActionItem.updateMany({
     where,
-    data: { status: "SKIPPED", resolvedBy: user.email, resolvedAt: new Date() },
+    data: { status: "SKIPPED", resolvedBy: actor.email, resolvedAt: new Date() },
   });
   if (result.count > 0) {
     await logActivity({

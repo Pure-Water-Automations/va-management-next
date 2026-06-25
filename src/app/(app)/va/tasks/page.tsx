@@ -1,4 +1,5 @@
 import { getCurrentUser, getEffectiveVaId } from "@/lib/auth/access";
+import { taskStrategyLabel } from "@/lib/labels";
 import { db } from "@/lib/db";
 import { getMyTasks } from "@/lib/reads/tasks";
 import { Stat } from "@/components/ui/Stat";
@@ -46,6 +47,9 @@ export default async function VaTasksPage() {
           <div className="crumb">My Console</div>
           <h1>My Tasks</h1>
         </div>
+        <a href="/va/tasks/new" className="btn btn-primary" style={{ alignSelf: "center" }}>
+          + New task
+        </a>
       </div>
 
       <div className="stat-grid">
@@ -144,7 +148,7 @@ function Section({ title, tasks }: { title: string; tasks: TaskItem[] }) {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                <Badge variant="default">{t.strategy}</Badge>
+                <Badge variant="default">{taskStrategyLabel(t.strategy)}</Badge>
                 <PriorityBadge value={t.priority} />
                 <span style={{ pointerEvents: "auto" }}>
                   <StatusDropdown taskId={t.id} current={t.status} />

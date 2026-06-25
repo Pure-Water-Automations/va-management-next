@@ -25,7 +25,7 @@ export default async function ClientRecordingsPage() {
   return (
     <div className="dash-stage">
       <h1 style={{ margin: "0 0 6px", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--text-3xl)", letterSpacing: "-.03em", color: "var(--color-navy-900)" }}>
-        Video updates
+        Videos
       </h1>
       <p style={{ margin: "0 0 22px", fontSize: "var(--text-base)", color: "var(--color-text-secondary)" }}>
         Short walkthroughs from your team — easier to follow than a long email. Each one has a summary and transcript.

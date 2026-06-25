@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
@@ -37,7 +37,8 @@ function fmt(d: Date): string {
 
 export default async function HrTasksGanttPage() {
   const user = await getCurrentUser();
-  if (!canManageTasks(user.role)) {
+  const actor = await getEffectiveActor(user);
+  if (!actor.isAdmin && !canManageTasks(actor.role)) {
     redirect("/hr/tasks");
   }
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { TaskViewTabs } from "@/components/TaskViewTabs";
@@ -48,7 +48,8 @@ export default async function TaskCalendarPage({
 }) {
   const { month: monthRaw } = await searchParams;
   const user = await getCurrentUser();
-  if (!canManageTasks(user.role) && !user.isAdmin) {
+  const actor = await getEffectiveActor(user);
+  if (!canManageTasks(actor.role) && !actor.isAdmin) {
     redirect("/hr/tasks");
   }
 
