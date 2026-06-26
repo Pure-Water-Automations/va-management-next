@@ -7,12 +7,10 @@ import { VaQuickActions } from "@/components/VaQuickActions";
 import { StatusDropdown } from "@/components/TaskActions";
 import { PriorityBadge, DueChip, AssigneeChip } from "@/components/ui/task-format";
 import { IconTrendingUp, IconCalendarCheck, IconChevronRight, IconArrowRight, IconSparkles } from "@/components/icons";
+import { humanRole } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
-function humanRole(role: string): string {
-  return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 function isToday(d: Date): boolean {
   const n = new Date();
   return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
@@ -91,12 +89,16 @@ export default async function VaConsole() {
                   <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", fontWeight: 600, whiteSpace: "nowrap" }}>Hours this week</span>
                   <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--color-navy-900)", whiteSpace: "nowrap" }}>
                     {d.last7.toFixed(1)}
-                    <span style={{ color: "var(--color-text-tertiary)", fontWeight: 500 }}> / {targetWeek}h</span>
+                    <span style={{ color: "var(--color-text-tertiary)", fontWeight: 500 }}>{targetWeek > 0 ? ` / ${targetWeek}h` : "h"}</span>
                   </span>
                 </div>
-                <div style={{ height: 7, borderRadius: 999, background: "var(--color-bg-tertiary)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${hoursPct}%`, borderRadius: 999, background: "linear-gradient(90deg, var(--color-sky-400), var(--color-success))" }} />
-                </div>
+                {targetWeek > 0 ? (
+                  <div style={{ height: 7, borderRadius: 999, background: "var(--color-bg-tertiary)", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${hoursPct}%`, borderRadius: 999, background: "linear-gradient(90deg, var(--color-sky-400), var(--color-success))" }} />
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "var(--text-2xs)", color: "var(--color-text-tertiary)" }}>No weekly target set</div>
+                )}
               </div>
               <a href="/va/tasks" style={{ flex: "none", textDecoration: "none", background: "var(--color-surface)", border: "1px solid var(--color-sky-100)", borderRadius: "var(--radius-md)", padding: "13px 18px", textAlign: "center" }}>
                 <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--text-2xl)", color: "var(--color-navy-900)", lineHeight: 1 }}>{dueToday.length}</div>
