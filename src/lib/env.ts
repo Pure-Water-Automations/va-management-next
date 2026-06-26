@@ -41,6 +41,13 @@ const envSchema = z.object({
   // (claude-3.5-haiku was retired by OpenRouter/Bedrock 2026-06-20 → HTTP 404.)
   OPENROUTER_ENHANCE_MODEL: optionalEnvString(z.string()),
   OPENROUTER_ENHANCE_SEARCH_MODEL: optionalEnvString(z.string()),
+  // NVIDIA NIM — FREE default backend (see SecondBrain/tools/nvidia-nim/AGENTS.md).
+  // openrouterChat sends open-weight, non-tool-calling calls here first (free), with
+  // OpenRouter as the runtime fallback. Closed models (Claude/GPT) and tool-calling
+  // agents stay on OpenRouter. Wired via systemd EnvironmentFile=/etc/secondbrain/nvidia.env.
+  NVIDIA_API_KEY: optionalEnvString(z.string()),
+  NVIDIA_BASE_URL: optionalEnvString(z.string()),
+  NVIDIA_MATRIX_MODEL: optionalEnvString(z.string()),
   // Notion two-way sync — public OAuth integration (one-click "Connect with
   // Notion"). All optional: when unset, the connect UI falls back to the manual
   // internal-integration-token flow. Redirect URI defaults to
