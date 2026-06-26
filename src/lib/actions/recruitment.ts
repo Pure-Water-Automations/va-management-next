@@ -7,7 +7,7 @@ import type {
 } from "@prisma/client";
 import { logActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
-import { sendSystemEmail } from "@/lib/email";
+import { sendSystemEmail, type SystemEmailResult } from "@/lib/email";
 import { env } from "@/lib/env";
 import { REC_STAGES } from "@/lib/reads/recruitment";
 import { loadSettings, num as settingNum, str as settingStr } from "@/lib/settings";
@@ -244,7 +244,18 @@ export async function preTrialGate(
       eventType: "pretrial_approved",
       summary: `Pre-trial review passed for ${candidateLabel(candidate)} by ${actorEmail} — skills-trial invite sent`,
     });
-    await emailSkillsTrialInvite(candidate, token, taskCount, settings);
+    const sent = await emailSkillsTrialInvite(candidate, token, taskCount, settings);
+    if (!sent.ok) {
+      // The candidate has advanced but the invite email did not actually send
+      // (no Gmail token, redirect/test mode, etc.). Record it loudly so HR can
+      // re-send from the pipeline instead of the failure being silent.
+      console.warn(`emailSkillsTrialInvite skipped for ${candidate.email}: ${sent.reason}`);
+      await logActivity({
+        source: "recruitment",
+        eventType: "skills_trial_invite_failed",
+        summary: `⚠️ Skills-trial invite NOT delivered to ${candidateLabel(candidate)} (${sent.reason}) — use "Resend trial invite" in the pipeline`,
+      });
+    }
     return candidate;
   }
 
@@ -260,6 +271,50 @@ export async function preTrialGate(
     source: "recruitment",
     eventType: "pretrial_declined",
     summary: `Pre-trial review declined for ${candidateLabel(candidate)} by ${actorEmail}${notes ? `: ${notes}` : ""} — moved to waitlist`,
+  });
+  return candidate;
+}
+
+/**
+ * Re-send the skills-trial (10-hour) invite email to a candidate who is already
+ * mid-trial. Covers the case where the original invite never landed (Gmail
+ * hiccup, test-mode redirect, etc.) so HR can recover without resetting the
+ * candidate's stage. Unlike the pre-trial gate, this surfaces a send failure as
+ * an error so the operator knows immediately whether it actually went out.
+ */
+export async function resendSkillsTrialInvite(candidateId: string, actorEmail: string) {
+  const candidate = await db.candidate.findUnique({
+    where: { candidateId },
+    select: { candidateId: true, name: true, email: true, currentStage: true, trainingAccessToken: true },
+  });
+  if (!candidate) throw new Error("Candidate not found.");
+  if (candidate.currentStage !== "tenhr_in_progress") {
+    throw new Error("Trial invite can only be re-sent while the candidate is in the 10-hour trial.");
+  }
+
+  const settings = await loadSettings();
+  const taskCount = await db.trainingAssignment.count({ where: { active: true } });
+  if (taskCount === 0) {
+    throw new Error("No skills-trial tasks are set up yet. Add them in Recruitment → Skills-Trial Tasks first.");
+  }
+
+  // Defensive: the tracker token should already exist for an in-progress
+  // candidate, but mint one if it's somehow missing so the link is always valid.
+  let token = candidate.trainingAccessToken;
+  if (!token) {
+    token = randomUUID();
+    await db.candidate.update({ where: { candidateId }, data: { trainingAccessToken: token } });
+  }
+
+  const sent = await emailSkillsTrialInvite(candidate, token, taskCount, settings);
+  if (!sent.ok) {
+    throw new Error(`Invite email did not send (${sent.reason}). Check the Gmail connection / email settings.`);
+  }
+
+  await logActivity({
+    source: "recruitment",
+    eventType: "skills_trial_invite_resent",
+    summary: `Skills-trial invite re-sent to ${candidateLabel(candidate)} by ${actorEmail}`,
   });
   return candidate;
 }
@@ -615,10 +670,10 @@ async function emailSkillsTrialInvite(
   token: string,
   taskCount: number,
   settings: Map<string, string>,
-): Promise<void> {
+): Promise<SystemEmailResult> {
   const trackerLink = `${appBaseUrl(settings)}/track/${token}`;
 
-  await sendSystemEmail({
+  return sendSystemEmail({
     from: systemEmailFrom(settings),
     to: candidate.email,
     subject: "Next step: your Pure Water VA skills trial",

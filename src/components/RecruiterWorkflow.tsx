@@ -70,8 +70,21 @@ export function RecruiterWorkflow({ candidateId, name, email, stage, hasVideoOrB
         buttons.push(<Button key="rj" size="sm" variant="ghost" loading={busy === "rj"} onClick={() => run("rj", "/api/recruitment/decide", { decision: "reject" }, `Reject ${who}?`)}>Reject</Button>);
       }
       break;
-    case "tenhr_invited":
     case "tenhr_in_progress":
+      if (canGate) buttons.push(
+        <Button
+          key="resend"
+          size="sm"
+          variant="secondary"
+          loading={busy === "resend"}
+          onClick={() => run("resend", "/api/recruitment/resend-invite", {}, `Re-send the skills-trial invite email to ${who}?`)}
+        >
+          ✉ Resend trial invite
+        </Button>,
+      );
+      buttons.push(<a key="gate" href="/recruitment/gate" style={linkBtn}>Gate review →</a>);
+      break;
+    case "tenhr_invited":
       buttons.push(<a key="gate" href="/recruitment/gate" style={linkBtn}>Gate review →</a>);
       break;
     case "tenhr_pass":

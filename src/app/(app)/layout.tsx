@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
-import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { canUserDelegateTasks, canVaDelegateTasks } from "@/lib/auth/delegation";
 import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
@@ -62,10 +62,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       where: { vaId: impersonatedVaId },
       select: { email: true },
     });
-    const impUser = impVa
-      ? await db.user.findUnique({ where: { email: impVa.email }, select: { id: true, role: true } })
+    const impUser = impVa?.email
+      ? await db.user.findUnique({ where: { email: impVa.email.toLowerCase() }, select: { id: true, role: true } })
       : null;
-    canDelegate = impUser ? await canUserDelegateTasks(impUser.id, impUser.role) : false;
+    // If the impersonated VA has a linked login, use its full authority; otherwise
+    // (many VAs have no User account yet) judge delegation straight from the VA's
+    // comp tier so the preview still reflects what that tier grants.
+    canDelegate = impUser
+      ? await canUserDelegateTasks(impUser.id, impUser.role)
+      : await canVaDelegateTasks(impersonatedVaId);
   } else {
     canDelegate = await canUserDelegateTasks(user.id, user.role);
   }
