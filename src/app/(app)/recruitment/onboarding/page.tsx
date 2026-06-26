@@ -33,6 +33,16 @@ export default async function OnboardingPage() {
         <span className="small">{rows.length} in progress</span>
       </div>
 
+      {!canEdit && rows.length > 0 && (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "var(--color-info-light)", color: "var(--color-info-dark)", padding: "10px 12px", borderRadius: "var(--radius-sm)", marginBottom: 14, fontSize: 13 }}>
+          <span aria-hidden style={{ fontSize: 15, lineHeight: 1.1 }}>ℹ️</span>
+          <span>
+            These step tags are <strong>read-only</strong> in your view — they show each candidate&apos;s onboarding
+            status, not buttons. Marking a step complete requires HR Manager, People-Ops, or Team-Lead permission.
+          </span>
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <Card><div className="small">No active onboarding.</div></Card>
       ) : (

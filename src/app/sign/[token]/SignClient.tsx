@@ -48,7 +48,7 @@ export function SignClient({ token }: { token: string }) {
     <Shell>
       <h1>Your {state.company} contract</h1>
       <p style={{ color: "#666" }}>Please read, then sign at the bottom. Sign by {state.deadline}.</p>
-      <style dangerouslySetInnerHTML={{ __html: ".contract-body,.contract-body p,.contract-body li{color:var(--color-text-primary)}.contract-body ul,.contract-body ol{padding-left:1.4em;margin:.5em 0}.contract-body li{margin:.25em 0}.contract-body li::marker{color:inherit}" }} />
+      <style dangerouslySetInnerHTML={{ __html: ".contract-body,.contract-body p,.contract-body li{color:var(--color-text-primary,#1f2733)}.contract-body ul,.contract-body ol{padding-left:1.5em!important;margin:.6em 0;list-style-position:outside}.contract-body li{margin:.3em 0}.contract-body li::marker{color:var(--color-text-primary,#1f2733)}" }} />
       <div className="contract-body" style={{ border: "1px solid #e3e3e3", borderRadius: 12, padding: 24, background: "#fff", maxHeight: 420, overflow: "auto" }}
            dangerouslySetInnerHTML={{ __html: state.contractHtml }} />
       <div style={{ marginTop: 24 }}>
