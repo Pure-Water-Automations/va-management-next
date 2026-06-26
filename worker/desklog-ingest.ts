@@ -50,35 +50,43 @@ async function main() {
           fromDate: from,
           toDate: from,
         });
-        await db.deskLogHours.create({
-          data: {
-            date: dateOnly,
-            vaId: va.vaId,
-            desklogUserId: va.desklogUserId,
-            project: r.project,
-            task: r.task,
-            billable: r.billable,
-            timeAtWorkHrs: r.timeAtWorkHrs,
-            focusTimeHrs: r.focusTimeHrs,
-            idleTimeHrs: r.idleTimeHrs,
-            taskSpentHrs: r.taskSpentHrs,
-            taskAssignedHrs: r.taskAssignedHrs,
-            payRule: r.payRule,
-          },
-        });
-        await db.deskLogEfficiency.create({
-          data: {
-            date: dateOnly,
-            vaId: va.vaId,
-            desklogUserId: va.desklogUserId,
-            activityPct: r.activityPct,
-            efficiencyPct: r.efficiencyPct,
-            productiveTimeHrs: r.productiveTimeHrs,
-            focusTimeHrs: r.focusTimeHrs,
-            idleTimeHrs: r.idleTimeHrs,
-            nonProductiveTimeHrs: r.nonProductiveTimeHrs,
-          },
-        });
+        // Idempotent: atomically replace any existing rows for this VA+day so a
+        // re-run (or a double-fire) can't duplicate — the cause of the earlier
+        // DeskLog inflation. Inside the try (after a successful fetch), so a failed
+        // pull falls to the catch below and never wipes good data.
+        await db.$transaction([
+          db.deskLogHours.deleteMany({ where: { vaId: va.vaId, date: dateOnly } }),
+          db.deskLogEfficiency.deleteMany({ where: { vaId: va.vaId, date: dateOnly } }),
+          db.deskLogHours.create({
+            data: {
+              date: dateOnly,
+              vaId: va.vaId,
+              desklogUserId: va.desklogUserId,
+              project: r.project,
+              task: r.task,
+              billable: r.billable,
+              timeAtWorkHrs: r.timeAtWorkHrs,
+              focusTimeHrs: r.focusTimeHrs,
+              idleTimeHrs: r.idleTimeHrs,
+              taskSpentHrs: r.taskSpentHrs,
+              taskAssignedHrs: r.taskAssignedHrs,
+              payRule: r.payRule,
+            },
+          }),
+          db.deskLogEfficiency.create({
+            data: {
+              date: dateOnly,
+              vaId: va.vaId,
+              desklogUserId: va.desklogUserId,
+              activityPct: r.activityPct,
+              efficiencyPct: r.efficiencyPct,
+              productiveTimeHrs: r.productiveTimeHrs,
+              focusTimeHrs: r.focusTimeHrs,
+              idleTimeHrs: r.idleTimeHrs,
+              nonProductiveTimeHrs: r.nonProductiveTimeHrs,
+            },
+          }),
+        ]);
         ingested++;
       } catch (e) {
         const msg = String(e);

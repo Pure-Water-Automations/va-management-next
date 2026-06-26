@@ -21,7 +21,8 @@ const CHECKS: { field: string; label: string }[] = [
 
 export default async function OnboardingPage() {
   const [user, rows] = await Promise.all([getCurrentUser(), getOnboarding()]);
-  const canEdit = isGateReviewer(user.role);
+  // Match the sibling recruitment pages (pipeline/gate): admins can act here too.
+  const canEdit = isGateReviewer(user.role) || user.isAdmin;
 
   return (
     <>
