@@ -16,6 +16,7 @@ const ROLES: Role[] = [
   "TEAM_LEAD",
   "BOOKKEEPER",
   "RECRUITER",
+  "SALES",
   "SENIOR_VA",
   "VA",
 ];
@@ -26,6 +27,7 @@ const ROLE_LABELS: Record<Role, string> = {
   TEAM_LEAD: "Team Lead",
   BOOKKEEPER: "Bookkeeper",
   RECRUITER: "Recruiter",
+  SALES: "Sales",
   SENIOR_VA: "Senior VA",
   VA: "VA",
   CLIENT_ADMIN: "Client Admin",

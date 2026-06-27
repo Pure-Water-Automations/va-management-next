@@ -5,6 +5,7 @@ const HOME: Record<string, string> = {
   HR: "/hr",
   PAYROLL: "/payroll",
   RECRUITMENT: "/recruitment",
+  SALES: "/sales",
   VA: "/va",
 };
 

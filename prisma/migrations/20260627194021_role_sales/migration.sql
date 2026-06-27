@@ -1,0 +1,2 @@
+-- Add the SALES role.
+ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'SALES';

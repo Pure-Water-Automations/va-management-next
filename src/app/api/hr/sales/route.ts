@@ -5,7 +5,7 @@ import { sendClientAgreement } from "@/lib/sales/agreement";
 import { markAgreementPaid } from "@/lib/sales/payment";
 import { saveDiscoveryNotes, setCallStatus } from "@/lib/actions/discovery-notes";
 
-const allow = (role: string) => role === "HR_MANAGER" || role === "PEOPLE_OPS";
+const allow = (role: string) => role === "SALES" || role === "HR_MANAGER" || role === "PEOPLE_OPS";
 
 // One route, dispatched on `op`, for the internal sales surface. Admins bypass.
 export const POST = action(
