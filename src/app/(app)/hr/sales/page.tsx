@@ -29,6 +29,8 @@ export default async function HrSalesPage() {
     leadVerdict: d.leadVerdict,
     leadScore: d.leadScore,
     leadSummary: d.leadSummary,
+    discoveryCallAt: d.discoveryCallAt ? d.discoveryCallAt.toISOString() : null,
+    discoveryCallStatus: d.discoveryCallStatus,
     agreement: d.agreement
       ? {
           status: d.agreement.status,

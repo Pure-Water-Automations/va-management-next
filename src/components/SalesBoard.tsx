@@ -18,6 +18,8 @@ export type DealRow = {
   leadVerdict: string | null;
   leadScore: number | null;
   leadSummary: string | null;
+  discoveryCallAt: string | null;
+  discoveryCallStatus: string | null;
   agreement: { status: string; sent: boolean; signed: boolean; paid: boolean } | null;
 };
 
@@ -94,6 +96,12 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
                   </div>
                   <div className="small">{d.contactName || ""} {d.contactEmail ? `· ${d.contactEmail}` : ""}</div>
                   {d.leadSummary && <div className="small" style={{ color: "var(--text-secondary,#666)", maxWidth: 420 }}>{d.leadSummary}</div>}
+                  {d.discoveryCallAt && (
+                    <div className="small" style={{ color: d.discoveryCallStatus === "cancelled" ? "#a32d2d" : "#0d5e7e" }}>
+                      📅 {new Date(d.discoveryCallAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {d.discoveryCallStatus && d.discoveryCallStatus !== "scheduled" ? ` · ${d.discoveryCallStatus}` : ""}
+                    </div>
+                  )}
                   <div className="small">{d.packageName || "—"}{d.dealValue ? ` · $${d.dealValue.toLocaleString()}` : ""}{d.billingType ? ` · ${d.billingType}` : ""}</div>
                 </td>
                 <td style={{ padding: 8 }}>

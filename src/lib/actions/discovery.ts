@@ -3,6 +3,7 @@
  * funnel and creates (or refreshes) a Deal at stage "new", then kicks off
  * best-effort AI lead scoring. Mirrors actions/apply.ts (the recruitment side).
  */
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -63,22 +64,25 @@ export async function submitDiscoveryLead(raw: Record<string, unknown>) {
   const existing = await db.deal.findFirst({
     where: { contactEmail: fields.contactEmail, source: "native_form", stage: { in: [...OPEN_INTAKE_STAGES] } },
     orderBy: { createdAt: "desc" },
-    select: { id: true, stage: true },
+    select: { id: true, stage: true, discoveryCallToken: true },
   });
 
   let isNew = false;
   let dealId: string;
+  let bookingToken: string;
   if (existing) {
     // Refresh their answers; re-open the lead if we'd previously dropped it,
     // but never regress an in-progress deal (e.g. discovery_scheduled) back to new.
     const stageReset = REENGAGE_STAGES.has(existing.stage) ? { stage: "new" as const } : {};
+    bookingToken = existing.discoveryCallToken ?? randomUUID();
     const updated = await db.deal.update({
       where: { id: existing.id },
-      data: { ...data, ...stageReset, lastContactAt: new Date() },
+      data: { ...data, ...stageReset, discoveryCallToken: bookingToken, lastContactAt: new Date() },
     });
     dealId = updated.id;
   } else {
-    const created = await db.deal.create({ data: { ...data, stage: "new", lastContactAt: new Date() } });
+    bookingToken = randomUUID();
+    const created = await db.deal.create({ data: { ...data, stage: "new", discoveryCallToken: bookingToken, lastContactAt: new Date() } });
     dealId = created.id;
     isNew = true;
   }
@@ -94,7 +98,8 @@ export async function submitDiscoveryLead(raw: Record<string, unknown>) {
   // AI scoring — best-effort, never block the lead's submission.
   void scoreAndSaveLead(dealId).catch(() => {});
 
-  return { ok: true, dealId, isNew };
+  // bookingToken is the capability for the public slot picker + /discovery/[token].
+  return { ok: true, dealId, isNew, bookingToken };
 }
 
 async function notifySalesOwner(

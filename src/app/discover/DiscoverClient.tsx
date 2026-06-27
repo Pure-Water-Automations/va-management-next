@@ -8,6 +8,7 @@ import {
   fitVerdict,
   type DiscoveryQuestion,
 } from "@/lib/discovery-questions";
+import { BookingPicker } from "./BookingPicker";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,6 +26,8 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [bookingToken, setBookingToken] = useState<string | null>(null);
+  const [bookedLabel, setBookedLabel] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const visible = useMemo(() => questions.filter((q) => isVisible(q, answers)), [questions, answers]);
@@ -97,6 +100,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     }).then((r) => r.json()).catch(() => ({ ok: false, error: "Network error — please try again." }));
     setSubmitting(false);
     if (!res.ok) { setError(res.error || "Something went wrong. Please try again."); return; }
+    setBookingToken(res.result?.bookingToken ?? null);
     setDone(true);
   }
 
@@ -108,6 +112,26 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   }
 
   if (done) {
+    // Already-booked confirmation.
+    if (bookedLabel) {
+      return (
+        <div style={page}>
+          <div style={{ ...card, textAlign: "center", alignItems: "center" }}>
+            <div style={{ fontSize: 44 }}>✅</div>
+            <h1 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-3xl)", color: "var(--color-navy-900)", margin: "8px 0 0" }}>
+              You&apos;re booked!
+            </h1>
+            <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-lg)", maxWidth: 460 }}>
+              Your discovery call is set for <strong>{bookedLabel}</strong>. A calendar invite is on its way to your email.
+            </p>
+            <p style={{ color: "var(--color-text-tertiary)", fontSize: "var(--text-md)" }}>
+              No re-explaining — we&apos;ll review your answers first. See you then!
+            </p>
+            {testimonial && <blockquote style={quote}>{testimonial}</blockquote>}
+          </div>
+        </div>
+      );
+    }
     // Soften the affirmation for lower-fit answers (no budget / just exploring) so
     // the copy never over-promises — same heuristic the server scores with.
     const strongFit = fitVerdict(answers) !== "cold";
@@ -119,13 +143,11 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
             {strongFit ? "You’re a strong fit — let’s make this call count." : "Thanks — let’s find the right next step."}
           </h1>
           <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-lg)", maxWidth: 460 }}>
-            Thanks for sharing. Pick a time for your free 30-minute discovery call and
-            we&apos;ll review your answers beforehand — no re-explaining, no pitch.
+            Pick a time for your free 30-minute discovery call and we&apos;ll review
+            your answers beforehand — no re-explaining, no pitch.
           </p>
-          {bookingUrl ? (
-            <a href={bookingUrl} target="_blank" rel="noreferrer" style={{ ...okBtn, textDecoration: "none", marginTop: 8 }}>
-              Book my free call →
-            </a>
+          {bookingToken ? (
+            <BookingPicker token={bookingToken} fallbackUrl={bookingUrl} onBooked={(label) => setBookedLabel(label || "your selected time")} />
           ) : (
             <p style={{ color: "var(--color-text-tertiary)", fontSize: "var(--text-md)" }}>
               We&apos;ll email you shortly to schedule your call.

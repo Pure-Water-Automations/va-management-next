@@ -1210,6 +1210,14 @@ model Deal {
   leadSummary        String?
   leadFlags          Json?     // string[]
   scoredAt           DateTime?
+  // ── Native discovery-call booking (Phase 2) ───────────────────────────
+  discoveryCallAt       DateTime?
+  discoveryCallEndAt    DateTime?
+  discoveryCallToken    String?   @unique // magic link: book / reschedule / cancel
+  discoveryCallStatus   String?   // "scheduled" | "completed" | "no_show" | "cancelled"
+  discoveryCallVideoUrl String?
+  discoveryRepEmail     String?   // rep whose slot was chosen (= accountOwnerEmail)
+  discoveryReminderSentAt DateTime? // set once the pre-call reminder has gone out
   accountOwnerEmail String?
   stage             DealStage           @default(new)
   packageName       String?
