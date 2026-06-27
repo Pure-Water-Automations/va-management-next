@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconDashboard, IconFolder, IconMessageSquare, IconFilm, IconSettings } from "@/components/icons";
+import { IconDashboard, IconFolder, IconListChecks, IconMessageSquare, IconFilm, IconSettings } from "@/components/icons";
 
 const LINKS = [
   { href: "/client", label: "Dashboard", exact: true, icon: <IconDashboard /> },
   { href: "/client/projects", label: "Projects", icon: <IconFolder /> },
+  { href: "/client/tasks", label: "Tasks", icon: <IconListChecks /> },
   { href: "/client/requests", label: "Requests", icon: <IconMessageSquare /> },
   { href: "/client/recordings", label: "Videos", icon: <IconFilm /> },
 ];
