@@ -1,0 +1,10 @@
+[Unit]
+Description=Send discovery-call reminders hourly
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+Unit=va-management-discovery-reminders.service
+
+[Install]
+WantedBy=timers.target
