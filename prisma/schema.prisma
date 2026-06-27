@@ -1241,6 +1241,7 @@ model Deal {
 
   @@index([stage])
   @@index([nextFollowUpAt])
+  @@index([discoveryCallStatus, discoveryCallAt])
 }
 
 enum ClientAgreementStatus {

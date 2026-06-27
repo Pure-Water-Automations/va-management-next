@@ -53,17 +53,30 @@ test("generateSlots honors lead time (min notice)", () => {
   assert.deepEqual(slots.map((s) => s.startIso), ["2026-06-28T10:00:00.000Z", "2026-06-28T10:30:00.000Z"]);
 });
 
-test("generateSlots applies the tz offset (US Eastern = -300 => 09:00 local is 14:00Z)", () => {
+test("generateSlots applies a fixed tz offset (offset -300 => 09:00 local is 14:00Z)", () => {
   const slots = generateSlots([repA], { slotMinutes: 60, horizonDays: 0, tzOffsetMinutes: -300, leadMinutes: 0 }, now, []);
   assert.equal(slots[0].startIso, "2026-06-28T14:00:00.000Z");
 });
 
-test("generateSlots dedupes the same instant across reps (one slot, first rep wins)", () => {
+test("generateSlots is DST-correct with an IANA zone (NY summer EDT vs winter EST)", () => {
+  // June 28 is EDT (-240): 09:00 local => 13:00Z
+  const summer = generateSlots([repA], { slotMinutes: 60, horizonDays: 0, tz: "America/New_York", leadMinutes: 0 }, new Date("2026-06-28T12:00:00.000Z"), []);
+  assert.equal(summer[0].startIso, "2026-06-28T13:00:00.000Z");
+  // Jan 5 is EST (-300): 09:00 local => 14:00Z
+  const winter = generateSlots([repA], { slotMinutes: 60, horizonDays: 0, tz: "America/New_York", leadMinutes: 0 }, new Date("2026-01-05T12:00:00.000Z"), []);
+  assert.equal(winter[0].startIso, "2026-01-05T14:00:00.000Z");
+});
+
+test("generateSlots dedupes the same instant across reps, assigning the least-loaded rep", () => {
   const repB: BookingRep = { email: "b@pwa.com", windows: allDayWindows };
-  const slots = generateSlots([repA, repB], { slotMinutes: 30, horizonDays: 0, tzOffsetMinutes: 0, leadMinutes: 0 }, now, []);
-  const at9 = slots.filter((s) => s.startIso === "2026-06-28T09:00:00.000Z");
-  assert.equal(at9.length, 1);
-  assert.equal(at9[0].repEmail, "a@pwa.com");
+  const opts = { slotMinutes: 30, horizonDays: 0, tzOffsetMinutes: 0, leadMinutes: 0 };
+  // No load -> alphabetical tiebreak picks a@pwa.com.
+  const even = generateSlots([repA, repB], opts, now, []);
+  assert.equal(even.find((s) => s.startIso === "2026-06-28T09:00:00.000Z")!.repEmail, "a@pwa.com");
+  // a is busier -> b wins the shared instant.
+  const load = new Map([["a@pwa.com", 3], ["b@pwa.com", 0]]);
+  const balanced = generateSlots([repA, repB], opts, now, [], load);
+  assert.equal(balanced.find((s) => s.startIso === "2026-06-28T09:00:00.000Z")!.repEmail, "b@pwa.com");
 });
 
 test("isSlotOpen confirms a real slot and rejects a fake one", () => {

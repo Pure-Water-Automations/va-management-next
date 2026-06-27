@@ -27,6 +27,13 @@ async function main() {
 
   console.log(`discovery-reminders: ${due.length} call(s) due within ${hours}h.`);
   for (const d of due) {
+    // Claim the row atomically first so two overlapping worker runs can't both
+    // send (only one updateMany flips it from null).
+    const claim = await db.deal.updateMany({
+      where: { id: d.id, discoveryReminderSentAt: null, discoveryCallStatus: "scheduled" },
+      data: { discoveryReminderSentAt: new Date() },
+    });
+    if (claim.count === 0) continue; // already claimed / cancelled
     const when = d.discoveryCallAt!.toUTCString();
     const to = [d.contactEmail, d.discoveryRepEmail].filter(Boolean) as string[];
     try {
@@ -41,7 +48,6 @@ async function main() {
             `\nSee you soon!`,
         });
       }
-      await db.deal.update({ where: { id: d.id }, data: { discoveryReminderSentAt: new Date() } });
       console.log(`  ✓ reminded ${d.orgName}`);
     } catch (err) {
       console.warn(`  ✗ ${d.orgName}:`, err instanceof Error ? err.message : err);
