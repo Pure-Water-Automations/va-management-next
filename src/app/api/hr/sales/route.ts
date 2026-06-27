@@ -6,11 +6,18 @@ import { markAgreementPaid } from "@/lib/sales/payment";
 import { saveDiscoveryNotes, setCallStatus } from "@/lib/actions/discovery-notes";
 
 const allow = (role: string) => role === "SALES" || role === "HR_MANAGER" || role === "PEOPLE_OPS";
+// Finance / provisioning ops a SALES rep must NOT do (confirm payment, create the
+// client org). Reserved for HR Manager / People Ops / admin.
+const FINANCE_OPS = new Set(["mark_paid", "convert"]);
+const canFinance = (role: string) => role === "HR_MANAGER" || role === "PEOPLE_OPS";
 
 // One route, dispatched on `op`, for the internal sales surface. Admins bypass.
 export const POST = action(
-  async ({ body }) => {
+  async ({ user, body }) => {
     const op = str(body, "op");
+    if (FINANCE_OPS.has(op) && !user.isAdmin && !canFinance(user.role)) {
+      throw new Error("Not authorized: payment and client conversion are restricted to HR.");
+    }
     switch (op) {
       case "create_deal":
         return createDeal({

@@ -12,6 +12,7 @@ export default async function SalesConsole() {
   if (!isSalesRep(user.role) && !user.isAdmin) redirect("/");
 
   const rows = await loadSalesRows();
+  const canFinance = user.isAdmin || user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS";
   return (
     <>
       <div className="page-head">
@@ -25,7 +26,7 @@ export default async function SalesConsole() {
           </p>
         </div>
       </div>
-      <SalesBoard deals={rows} />
+      <SalesBoard deals={rows} canFinance={canFinance} />
     </>
   );
 }

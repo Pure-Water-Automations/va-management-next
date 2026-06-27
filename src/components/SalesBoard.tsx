@@ -44,7 +44,7 @@ async function call(body: Record<string, unknown>) {
   return r.json().catch(() => ({ ok: false, error: "Bad response" }));
 }
 
-export function SalesBoard({ deals }: { deals: DealRow[] }) {
+export function SalesBoard({ deals, canFinance = true }: { deals: DealRow[]; canFinance?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -128,12 +128,16 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
                   <button type="button" disabled={!d.contactEmail || busy === `send-${d.id}`} onClick={() => run(`send-${d.id}`, { op: "send_agreement", dealId: d.id })}>
                     {a?.sent ? "Resend agreement" : "Send agreement"}
                   </button>
-                  <button type="button" disabled={!a?.signed || !!a?.paid || busy === `paid-${d.id}`} onClick={() => run(`paid-${d.id}`, { op: "mark_paid", dealId: d.id })}>
-                    Mark paid
-                  </button>
-                  <button type="button" disabled={!signedPaid || !!d.clientOrgId || busy === `conv-${d.id}`} onClick={() => run(`conv-${d.id}`, { op: "convert", dealId: d.id })}>
-                    {d.clientOrgId ? "Client created" : "Create client"}
-                  </button>
+                  {canFinance && (
+                    <>
+                      <button type="button" disabled={!a?.signed || !!a?.paid || busy === `paid-${d.id}`} onClick={() => run(`paid-${d.id}`, { op: "mark_paid", dealId: d.id })}>
+                        Mark paid
+                      </button>
+                      <button type="button" disabled={!signedPaid || !!d.clientOrgId || busy === `conv-${d.id}`} onClick={() => run(`conv-${d.id}`, { op: "convert", dealId: d.id })}>
+                        {d.clientOrgId ? "Client created" : "Create client"}
+                      </button>
+                    </>
+                  )}
                   {inDiscovery && (
                     <button type="button" onClick={() => setOpenNotes((o) => (o === d.id ? null : d.id))}>
                       {openNotes === d.id ? "Hide notes" : d.discoveryNotesJson ? "Edit notes" : "Call notes"}

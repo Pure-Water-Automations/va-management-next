@@ -296,10 +296,17 @@ const RECRUITMENT_TOUR: TourStep[] = [
   { sprite: "celebrating", title: "That's it! 🎉", body: "Ask me 'how do I…' anytime." },
 ];
 
+const SALES_TOUR: TourStep[] = [
+  { sprite: "waving", title: "Hi! I'm Purii 👋", body: "Quick spin through the sales console." },
+  { sprite: "pointing", title: "Pipeline", body: "Every deal by stage. New leads arrive auto-scored from the public discover form — book the discovery call, save call notes, and send the agreement.", href: "/sales", cta: "Open Pipeline" },
+  { sprite: "celebrating", title: "That's it! 🎉", body: "Ask me 'how do I…' anytime." },
+];
+
 export function tourForView(view: ReturnType<typeof viewForRole>): TourStep[] {
   if (view === "HR") return HR_TOUR;
   if (view === "PAYROLL") return PAYROLL_TOUR;
   if (view === "RECRUITMENT") return RECRUITMENT_TOUR;
+  if (view === "SALES") return SALES_TOUR;
   return VA_TOUR;
 }
 
