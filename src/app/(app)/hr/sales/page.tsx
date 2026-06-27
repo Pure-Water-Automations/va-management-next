@@ -25,6 +25,10 @@ export default async function HrSalesPage() {
     billingType: d.billingType,
     startDate: d.startDate ? d.startDate.toISOString().slice(0, 10) : null,
     clientOrgId: d.clientOrgId,
+    source: d.source,
+    leadVerdict: d.leadVerdict,
+    leadScore: d.leadScore,
+    leadSummary: d.leadSummary,
     agreement: d.agreement
       ? {
           status: d.agreement.status,

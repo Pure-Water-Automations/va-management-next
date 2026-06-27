@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 
 export type DealRow = {
@@ -14,6 +14,11 @@ export type DealRow = {
   billingType: string | null;
   startDate: string | null;
   clientOrgId: string | null;
+  source: string | null;
+  leadVerdict: string | null;
+  leadScore: number | null;
+  leadSummary: string | null;
+  discoveryCallAt?: string | null;
   agreement: { status: string; sent: boolean; signed: boolean; paid: boolean } | null;
 };
 
@@ -83,8 +88,13 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
             return (
               <tr key={d.id} style={{ borderBottom: "1px solid var(--border,#eee)", verticalAlign: "top" }}>
                 <td style={{ padding: 8 }}>
-                  <div style={{ fontWeight: 600 }}>{d.orgName}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {d.leadVerdict && <ScoreChip verdict={d.leadVerdict} score={d.leadScore} />}
+                    <span style={{ fontWeight: 600 }}>{d.orgName}</span>
+                    {d.source === "native_form" && <span style={tagStyle}>discover</span>}
+                  </div>
                   <div className="small">{d.contactName || ""} {d.contactEmail ? `· ${d.contactEmail}` : ""}</div>
+                  {d.leadSummary && <div className="small" style={{ color: "var(--text-secondary,#666)", maxWidth: 420 }}>{d.leadSummary}</div>}
                   <div className="small">{d.packageName || "—"}{d.dealValue ? ` · $${d.dealValue.toLocaleString()}` : ""}{d.billingType ? ` · ${d.billingType}` : ""}</div>
                 </td>
                 <td style={{ padding: 8 }}>
@@ -128,6 +138,20 @@ function Badge({ on, label }: { on: boolean; label: string }) {
     </span>
   );
 }
+
+function ScoreChip({ verdict, score }: { verdict: string; score: number | null }) {
+  const c =
+    verdict === "hot" ? { bg: "#d4f5e2", fg: "#1a7a4a" } :
+    verdict === "warm" ? { bg: "#fff3d4", fg: "#966200" } :
+    { bg: "#e8e8ed", fg: "#48484a" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 9px", borderRadius: 9999, fontSize: 11, fontWeight: 700, background: c.bg, color: c.fg, textTransform: "capitalize" }}>
+      {verdict}{typeof score === "number" ? ` ${score}` : ""}
+    </span>
+  );
+}
+
+const tagStyle: CSSProperties = { padding: "1px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: "var(--color-sky-100, #c4eef9)", color: "var(--color-sky-800, #0d5e7e)", textTransform: "uppercase", letterSpacing: "0.04em" };
 
 function NewDealForm({ onCreate, busy }: { onCreate: (b: Record<string, unknown>) => void; busy: boolean }) {
   const [f, setF] = useState<Record<string, string>>({ stage: "verbal_yes" });
