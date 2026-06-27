@@ -44,3 +44,10 @@ test("blendLead uses the AI summary when present", () => {
   assert.equal(blended.summary, "Strong fit.");
   assert.ok(blended.flags.includes("needs board sign-off"));
 });
+
+test("blendLead never rates a lead higher than the deterministic baseline", () => {
+  const base = leadBaseline(hot); // hot
+  const blended = blendLead({ verdict: "warm", score: 80, summary: "Some open questions.", concerns: [] }, base);
+  assert.equal(blended.verdict, "warm"); // AI's more conservative call wins
+  assert.ok(blended.score >= 41 && blended.score <= 69); // clamped into the warm band
+});

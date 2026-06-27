@@ -5,6 +5,7 @@ import {
   DISCOVERY_QUESTIONS,
   isVisible,
   estimateAdminCost,
+  fitVerdict,
   type DiscoveryQuestion,
 } from "@/lib/discovery-questions";
 
@@ -107,12 +108,15 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   }
 
   if (done) {
+    // Soften the affirmation for lower-fit answers (no budget / just exploring) so
+    // the copy never over-promises — same heuristic the server scores with.
+    const strongFit = fitVerdict(answers) !== "cold";
     return (
       <div style={page}>
         <div style={{ ...card, textAlign: "center", alignItems: "center" }}>
           <div style={{ fontSize: 44 }}>🌊</div>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-3xl)", color: "var(--color-navy-900)", margin: "8px 0 0" }}>
-            You&apos;re a strong fit — let&apos;s make this call count.
+            {strongFit ? "You’re a strong fit — let’s make this call count." : "Thanks — let’s find the right next step."}
           </h1>
           <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-lg)", maxWidth: 460 }}>
             Thanks for sharing. Pick a time for your free 30-minute discovery call and
@@ -265,6 +269,13 @@ function MultiSelect({
     const sel = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt];
     rebuild(sel, other);
   }
+  function toggleOther() {
+    setOtherOn((v) => {
+      const next = !v;
+      if (!next) rebuild(selected, ""); // hiding "Other" drops its free-text value
+      return next;
+    });
+  }
 
   return (
     <div>
@@ -278,7 +289,7 @@ function MultiSelect({
           );
         })}
         {allowOther && (
-          <button onClick={() => setOtherOn((v) => !v)} style={{ ...checkBtn, ...(otherOn ? choiceActive : {}), fontWeight: otherOn ? 700 : 400 }}>
+          <button onClick={toggleOther} style={{ ...checkBtn, ...(otherOn ? choiceActive : {}), fontWeight: otherOn ? 700 : 400 }}>
             <span style={{ marginRight: 8 }}>{otherOn ? "☑" : "☐"}</span>Other…
           </button>
         )}

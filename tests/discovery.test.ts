@@ -88,3 +88,8 @@ test("every question has a unique key", () => {
   const keys = DISCOVERY_QUESTIONS.map((q) => q.key);
   assert.equal(new Set(keys).size, keys.length);
 });
+
+test("fitVerdict: strong signals but a non-decision-maker is at most warm", () => {
+  // budget Yes + hours 10–20 + timeline ASAP, but Operations/Admin is not the buyer.
+  assert.equal(fitVerdict({ ...base, role: "Operations / Admin" }), "warm");
+});

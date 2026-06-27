@@ -168,6 +168,8 @@ export function fitVerdict(answers: Record<string, string>): "hot" | "warm" | "c
   if (hours === "20+" || hours === "10–20") pts += 1;
   if (timeline === "ASAP") pts += 1;
 
-  if (pts >= 3 && budget === "yes" && timeline !== "Just exploring") return "hot";
+  // "hot" requires an actual decision-maker — a strong-but-non-buyer contact is
+  // at most "warm" (keeps this consistent with leadBaseline's decision-maker flag).
+  if (pts >= 3 && decisionMaker && budget === "yes" && timeline !== "Just exploring") return "hot";
   return "warm";
 }

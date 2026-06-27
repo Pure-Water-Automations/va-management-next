@@ -33,7 +33,23 @@ export function leadBaseline(answers: Record<string, string>): LeadBaseline {
 
 type AiOut = { verdict: LeadVerdict; score: number; summary: string; concerns: string[] };
 
-/** Blend the AI read with the deterministic baseline (baseline is the floor). */
+const ORD: Record<LeadVerdict, number> = { cold: 0, warm: 1, hot: 2 };
+const VERDICT_BY_ORD: LeadVerdict[] = ["cold", "warm", "hot"];
+
+/** Keep the score inside its verdict's band so the chip and the number agree. */
+function clampToBand(verdict: LeadVerdict, score: number): number {
+  if (verdict === "cold") return Math.min(score, 40);
+  if (verdict === "warm") return Math.max(41, Math.min(score, 69));
+  return Math.max(70, score); // hot
+}
+
+/**
+ * Conservative blend of the AI read and the deterministic baseline. The AI adds
+ * the human-readable summary and can be MORE skeptical, but never makes a lead
+ * look stronger than the deterministic BANT/fit signals justify: the final
+ * verdict is the lower (more conservative) of the two, and the score is clamped
+ * into that verdict's band.
+ */
 export function blendLead(ai: AiOut | null, base: LeadBaseline): LeadResult {
   if (!ai) {
     const summary =
@@ -44,12 +60,8 @@ export function blendLead(ai: AiOut | null, base: LeadBaseline): LeadResult {
           : "Strong-fit lead: decision-maker, funding available, real time pain, wants relief soon.";
     return { verdict: base.verdict, score: base.score, summary, flags: base.flags };
   }
-  let verdict = ai.verdict;
-  // Baseline floor: never upgrade a cold lead, never wave through with a budget=no.
-  if (base.verdict === "cold") verdict = "cold";
-  else if (verdict === "hot" && base.verdict === "warm" && base.flags.length) verdict = "warm";
-  let score = clampScore(ai.score);
-  if (base.verdict === "cold") score = Math.min(score, 40);
+  const verdict = VERDICT_BY_ORD[Math.min(ORD[base.verdict], ORD[ai.verdict])];
+  const score = clampToBand(verdict, clampScore(ai.score));
   const flags = dedupe([...ai.concerns, ...base.flags]);
   return { verdict, score, summary: ai.summary.trim(), flags };
 }

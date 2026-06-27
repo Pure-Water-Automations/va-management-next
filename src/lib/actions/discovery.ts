@@ -17,13 +17,23 @@ import {
 } from "@/lib/discovery-questions";
 import { scoreAndSaveLead } from "@/lib/actions/lead-screening";
 
+/** Thrown for bad public input — the route surfaces its message; other errors stay internal. */
+export class DiscoveryValidationError extends Error {}
+
+// Native-form deals still in the intake funnel. A re-submission updates one of
+// these; a contact whose only deal is won/lost/negotiating (or a non-native,
+// manually-created deal) gets a fresh lead instead of overwriting real work.
+const OPEN_INTAKE_STAGES = ["new", "discovery_scheduled", "discovery_completed", "nurture", "no_show"] as const;
+// Stages that mean "we'd dropped them" — a fresh submission re-opens the lead.
+const REENGAGE_STAGES = new Set(["nurture", "no_show"]);
+
 export async function submitDiscoveryLead(raw: Record<string, unknown>) {
   const validation = validateDiscovery(raw);
-  if (!validation.ok) throw new Error(validation.error);
+  if (!validation.ok) throw new DiscoveryValidationError(validation.error);
   const answers = validation.answers;
   const fields = dealFieldsFromAnswers(answers);
-  if (!fields.orgName) throw new Error("Please answer: your organization.");
-  if (!fields.contactEmail) throw new Error("Please answer: your email address.");
+  if (!fields.orgName) throw new DiscoveryValidationError("Please answer: your organization.");
+  if (!fields.contactEmail) throw new DiscoveryValidationError("Please answer: your email address.");
 
   const settings = await loadSettings();
   const rate = num(settings, "admin_cost_rate", 25);
@@ -47,15 +57,25 @@ export async function submitDiscoveryLead(raw: Record<string, unknown>) {
     discoveryJson: answers as Prisma.InputJsonValue,
   };
 
-  // Dedupe on contact email (Deal.contactEmail is not unique → findFirst).
-  const existing = fields.contactEmail
-    ? await db.deal.findFirst({ where: { contactEmail: fields.contactEmail }, select: { id: true } })
-    : null;
+  // Dedupe only against an existing native-form lead still in the intake funnel,
+  // newest first. Won/lost/negotiating deals and manually-created (non-native)
+  // deals are never overwritten — those get a fresh lead instead.
+  const existing = await db.deal.findFirst({
+    where: { contactEmail: fields.contactEmail, source: "native_form", stage: { in: [...OPEN_INTAKE_STAGES] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, stage: true },
+  });
 
   let isNew = false;
   let dealId: string;
   if (existing) {
-    const updated = await db.deal.update({ where: { id: existing.id }, data: { ...data, lastContactAt: new Date() } });
+    // Refresh their answers; re-open the lead if we'd previously dropped it,
+    // but never regress an in-progress deal (e.g. discovery_scheduled) back to new.
+    const stageReset = REENGAGE_STAGES.has(existing.stage) ? { stage: "new" as const } : {};
+    const updated = await db.deal.update({
+      where: { id: existing.id },
+      data: { ...data, ...stageReset, lastContactAt: new Date() },
+    });
     dealId = updated.id;
   } else {
     const created = await db.deal.create({ data: { ...data, stage: "new", lastContactAt: new Date() } });
@@ -96,6 +116,7 @@ async function notifySalesOwner(
         `A new client lead came in through the discovery funnel.\n\n` +
         `Organization: ${fields.orgName}\n` +
         `Contact: ${fields.contactName ?? "(not provided)"} <${fields.contactEmail}>\n` +
+        `Phone: ${answers.phone || "—"}\n` +
         `Role: ${answers.role ?? "(not provided)"}\n` +
         `Team size: ${fields.teamSize ?? "—"}\n` +
         `Pain: ${(fields.painTags ?? []).join(", ") || "—"}\n` +
