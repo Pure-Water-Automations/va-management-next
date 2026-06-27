@@ -63,6 +63,49 @@ journey is **reuse, not rebuild**.
 | `track/[token]` magic link | `discovery/[token]` magic link (reschedule/cancel) |
 | `createVaFromCandidate` (endpoint) | `convertDealToClient` (endpoint, already built) |
 
+## UI (from Claude Design — locked 2026-06-27)
+
+Designs delivered in `~/Downloads/VA Console Addons/` (`PWA Intake
+High-Conversion.dc.html` is the chosen public funnel; `PWA Discovery Funnel.dc.html`
+is the component-kit/board reference; `_ds/` is an exported PWA design system whose
+tokens match the app's existing `src/styles/tokens/`). Locked decisions:
+
+- **Public funnel = High-Conversion variant.** Beyond the basic intake it adds:
+  a **mission step** (team size + one-sentence mission), a **cost-of-inaction
+  reveal** (computes a $/yr admin-cost figure from the hours-per-week answer,
+  shown back to the lead), a **budget/funding qualification** ("is funding
+  available to move?"), **social proof** (a testimonial + star rating +
+  "Verified"), and real **scarcity** text (driven by actual open-slot counts),
+  plus a "based on your answers, you're a strong fit" affirmation before booking.
+- **Form interaction = one-question-per-screen** (Typeform-style, "press Enter to
+  continue"), mobile-first.
+- **Sales console deal card = Option A (score-forward)**: lead-score chip is the
+  focal point, with the AI summary line and a calendar chip for the booked call.
+- **Audience broadened** beyond pastors: role options are Founder/CEO, Executive
+  Director, Director / Program Lead, Pastor / Faith Leader, Operations / Admin,
+  Other. The funnel serves "mission-driven organizations," matching the design
+  system's framing. Copy stays warm/servant-hearted ("Refreshing leaders.
+  Removing burdens.").
+- **Design system:** reuse the app's existing token set (already identical to the
+  exported `_ds`). Build screens as real Next.js components; treat the `.dc.html`
+  files as the visual source of truth. Do not hand-fork a second token system.
+
+### High-conversion logic implications
+
+- **Cost-of-inaction** is computed (hours/week × a configurable blended admin
+  rate × 52). Display client-side; persist the shown figure on the Deal for sales
+  context. The rate lives in `Setting` (`admin_cost_rate`).
+- **Fit affirmation** is a deterministic client/server function over the answers
+  (authority + budget + pain + urgency) — a pre-AI heuristic. It powers the
+  "strong fit" message and seeds an initial `leadVerdict` before async AI scoring
+  refines it.
+- **Lead scoring** now has explicit BANT inputs from the form (role=authority,
+  funding=budget, pain tags=need, timeline=urgency); `scoreAndSaveLead` blends
+  these with the AI read.
+- **Social proof + scarcity** content: testimonial(s) in `Setting`
+  (`discovery_testimonials`); scarcity text derived from the live open-slot count,
+  never faked.
+
 ## Data model
 
 One migration. No new top-level tables for intake/scoring/notes — extend `Deal`.
@@ -71,7 +114,13 @@ A small `SalesRepAvailability` concept is added for multi-rep booking.
 ### `Deal` (extend)
 
 - `source` — already exists; set `"native_form"` for public submissions.
-- Intake: `discoveryJson Json?` (raw form answers).
+- Intake: `discoveryJson Json?` (full raw form answers — the source of truth for
+  every question). Promote these answers used for scoring/filtering/booking into
+  typed columns: `teamSize String?`, `missionStatement String?`,
+  `hoursPerWeek String?` (band), `budgetAvailable String?` (`yes | no | unsure`),
+  `timeline String?`, `painTags Json?` (`string[]`), `triedBefore String?`,
+  `heardAbout String?`, `estimatedAdminCost Int?` (the computed cost-of-inaction
+  figure shown to the lead), `fitVerdict String?` (pre-AI heuristic).
 - AI scoring (mirror `Candidate.screen*`):
   - `leadVerdict String?` — `hot | warm | cold`
   - `leadScore Int?` — 0–100
@@ -160,6 +209,8 @@ no timezone-preference negotiation beyond storing the lead's timezone.
 - `discovery_booking_windows` — per-rep availability + calendar id + video url.
 - `discovery_call_video_url` — default video link.
 - `discovery_reminder_hours` — reminder lead time.
+- `admin_cost_rate` — blended hourly admin rate for the cost-of-inaction calc.
+- `discovery_testimonials` — social-proof testimonial(s) for the funnel.
 - Reuse: `app_base_url`, `system_email_from`, `company_name`.
 
 ## Reuse / drift cleanup (downstream — no rebuild)
@@ -204,10 +255,12 @@ purewaterautomations.com
 
 ## Build phases (each independently shippable)
 
-1. **Public lead capture + AI scoring** — `/discover`, `/api/discover`, `Deal`
-   extension, `scoreAndSaveLead`, Sales Board score chips, new-lead
-   notification. *(Core website→system win; ships standalone — booking can stay
-   a TidyCal link in this phase.)*
+1. **Public lead capture + AI scoring** — the high-conversion `/discover`
+   one-question-per-screen form (mission step, cost-of-inaction reveal, budget
+   qualification, social proof, fit affirmation), `/api/discover`, `Deal`
+   extension + promoted columns, `scoreAndSaveLead` (BANT + AI), Sales Board
+   score-forward (Option A) cards, new-lead notification. *(Core website→system
+   win; ships standalone — booking can stay a TidyCal link in this phase.)*
 2. **Native multi-rep discovery booking** — availability config, open-slot
    computation + calendar conflict removal, `bookDiscoveryCall`, Calendar event,
    confirmation + reminder emails, `/discovery/[token]` reschedule/cancel.
