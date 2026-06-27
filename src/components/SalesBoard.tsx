@@ -18,7 +18,6 @@ export type DealRow = {
   leadVerdict: string | null;
   leadScore: number | null;
   leadSummary: string | null;
-  discoveryCallAt?: string | null;
   agreement: { status: string; sent: boolean; signed: boolean; paid: boolean } | null;
 };
 

@@ -89,7 +89,10 @@ export function validateDiscovery(raw: Record<string, unknown>): DiscoveryValida
   const answers: Record<string, string> = {};
   for (const q of DISCOVERY_QUESTIONS) {
     if (!isVisible(q, raw)) continue;
-    const value = typeof raw[q.key] === "string" ? (raw[q.key] as string).trim() : "";
+    // Cap stored length — this is a public, unauthenticated endpoint, so bound
+    // the per-field size to keep the row (and the discoveryJson blob) small.
+    const cap = q.type === "long_text" ? 2000 : 300;
+    const value = (typeof raw[q.key] === "string" ? (raw[q.key] as string).trim() : "").slice(0, cap);
     if (!value) {
       if (q.required) return { ok: false, error: `Please answer: ${q.label}` };
       continue;
@@ -143,7 +146,9 @@ const HOURS_MIDPOINT: Record<string, number> = {
 export function estimateAdminCost(hoursBand: string, rate: number): number {
   const mid = HOURS_MIDPOINT[hoursBand];
   if (!mid || !Number.isFinite(rate) || rate <= 0) return 0;
-  return Math.round(mid * rate * 52);
+  // Clamp below Postgres int4 max — estimatedAdminCost is an Int column and a
+  // fat-fingered admin_cost_rate setting must not overflow the insert.
+  return Math.min(Math.round(mid * rate * 52), 2_000_000_000);
 }
 
 /** Pre-AI fit heuristic over the BANT-ish answers. Deterministic + testable. */
