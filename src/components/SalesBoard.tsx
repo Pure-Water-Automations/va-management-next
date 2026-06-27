@@ -51,7 +51,7 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
   const [showNew, setShowNew] = useState(false);
   const [openNotes, setOpenNotes] = useState<string | null>(null);
 
-  async function run(key: string, body: Record<string, unknown>) {
+  async function run(key: string, body: Record<string, unknown>): Promise<boolean> {
     setBusy(key);
     setMsg(null);
     const res = await call(body);
@@ -59,9 +59,10 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
     if (res.ok) {
       setMsg("Done.");
       router.refresh();
-    } else {
-      setMsg(res.error || "Failed.");
+      return true;
     }
+    setMsg(res.error || "Failed.");
+    return false;
   }
 
   return (
@@ -151,7 +152,7 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
                     <DiscoveryNotesPanel
                       deal={d}
                       busy={busy === `notes-${d.id}`}
-                      onSave={(notes) => run(`notes-${d.id}`, { op: "save_discovery_notes", dealId: d.id, ...notes }).then(() => setOpenNotes(null))}
+                      onSave={(notes) => run(`notes-${d.id}`, { op: "save_discovery_notes", dealId: d.id, ...notes }).then((ok) => { if (ok) setOpenNotes(null); })}
                     />
                   </td>
                 </tr>
@@ -173,7 +174,7 @@ function DiscoveryNotesPanel({ deal, busy, onSave }: { deal: DealRow; busy: bool
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 860 }}>
       <div style={{ gridColumn: "1 / -1", fontWeight: 600, color: "var(--color-navy-900,#132272)" }}>
-        Discovery call notes — saving marks the call complete and moves the deal to “discovery completed”.
+        Discovery call notes — saving records the call{deal.stage === "discovery_scheduled" ? ", marks it complete, and advances the deal to “discovery completed”" : ""}.
       </div>
       {NOTE_TEXT_FIELDS.map((field) => (
         <label key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, gridColumn: field.long ? "1 / -1" : "auto" }}>

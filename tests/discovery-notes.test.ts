@@ -20,9 +20,12 @@ test("normalizeDiscoveryNotes trims, caps, and validates enums", () => {
   assert.equal(n.nextStep, "send proposal");
 });
 
-test("normalizeDiscoveryNotes rejects a non-ISO follow-up date", () => {
+test("normalizeDiscoveryNotes rejects a non-ISO or impossible follow-up date", () => {
   assert.equal(normalizeDiscoveryNotes({ followUpDate: "next tuesday" }).followUpDate, "");
   assert.equal(normalizeDiscoveryNotes({ followUpDate: "07/10/2026" }).followUpDate, "");
+  assert.equal(normalizeDiscoveryNotes({ followUpDate: "2026-99-99" }).followUpDate, ""); // impossible
+  assert.equal(normalizeDiscoveryNotes({ followUpDate: "2026-02-31" }).followUpDate, ""); // no Feb 31
+  assert.equal(normalizeDiscoveryNotes({ followUpDate: "2026-07-15" }).followUpDate, "2026-07-15"); // valid
 });
 
 test("notesHaveContent is false for an empty capture, true once anything is set", () => {

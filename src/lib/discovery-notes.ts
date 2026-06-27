@@ -40,7 +40,13 @@ function pick(v: unknown, allowed: readonly string[]): string {
 
 function normalizeDate(v: unknown): string {
   const s = cap(v, 20);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return "";
+  const [, y, mo, d] = m;
+  // Round-trip so impossible dates (e.g. 2026-99-99, 2026-02-31) are rejected.
+  const dt = new Date(Date.UTC(+y, +mo - 1, +d));
+  const ok = dt.getUTCFullYear() === +y && dt.getUTCMonth() === +mo - 1 && dt.getUTCDate() === +d;
+  return ok ? s : "";
 }
 
 /** Coerce arbitrary form input into the structured, length-bounded notes shape. */
