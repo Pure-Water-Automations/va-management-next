@@ -1192,6 +1192,24 @@ model Deal {
   contactName       String?
   contactEmail      String?
   source            String?
+  // ── Native discovery funnel: public intake (Phase 1) ──────────────────
+  discoveryJson      Json?     // full raw /discover answers (source of truth)
+  teamSize           String?
+  missionStatement   String?
+  hoursPerWeek       String?   // band: "Under 5" | "5–10" | "10–20" | "20+"
+  budgetAvailable    String?   // "yes" | "unsure" | "no"
+  timeline           String?
+  painTags           Json?     // string[]
+  triedBefore        String?
+  heardAbout         String?
+  estimatedAdminCost Int?      // computed cost-of-inaction figure ($/yr)
+  fitVerdict         String?   // pre-AI heuristic: "hot" | "warm" | "cold"
+  // ── AI lead scoring (mirrors Candidate.screen*) ───────────────────────
+  leadVerdict        String?   // "hot" | "warm" | "cold"
+  leadScore          Int?      // 0–100
+  leadSummary        String?
+  leadFlags          Json?     // string[]
+  scoredAt           DateTime?
   accountOwnerEmail String?
   stage             DealStage           @default(new)
   packageName       String?
