@@ -1218,6 +1218,8 @@ model Deal {
   discoveryCallVideoUrl String?
   discoveryRepEmail     String?   // rep whose slot was chosen (= accountOwnerEmail)
   discoveryReminderSentAt DateTime? // set once the pre-call reminder has gone out
+  // ── Discovery-call notes (Phase 3): structured capture from the call ──
+  discoveryNotesJson    Json?
   accountOwnerEmail String?
   stage             DealStage           @default(new)
   packageName       String?

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { Fragment, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { NOTE_TEXT_FIELDS, BUYING_SIGNALS, DECISION_TYPES, type DiscoveryNotes } from "@/lib/discovery-notes";
 
 export type DealRow = {
   id: string;
@@ -20,6 +21,7 @@ export type DealRow = {
   leadSummary: string | null;
   discoveryCallAt: string | null;
   discoveryCallStatus: string | null;
+  discoveryNotesJson: Partial<DiscoveryNotes> | null;
   agreement: { status: string; sent: boolean; signed: boolean; paid: boolean } | null;
 };
 
@@ -47,6 +49,7 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [openNotes, setOpenNotes] = useState<string | null>(null);
 
   async function run(key: string, body: Record<string, unknown>) {
     setBusy(key);
@@ -86,8 +89,10 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
           {deals.map((d) => {
             const a = d.agreement;
             const signedPaid = !!a?.signed && !!a?.paid;
+            const inDiscovery = ["discovery_scheduled", "discovery_completed"].includes(d.stage) || !!d.discoveryCallAt || !!d.discoveryNotesJson;
             return (
-              <tr key={d.id} style={{ borderBottom: "1px solid var(--border,#eee)", verticalAlign: "top" }}>
+              <Fragment key={d.id}>
+              <tr style={{ borderBottom: "1px solid var(--border,#eee)", verticalAlign: "top" }}>
                 <td style={{ padding: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {d.leadVerdict && <ScoreChip verdict={d.leadVerdict} score={d.leadScore} />}
@@ -128,8 +133,30 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
                   <button type="button" disabled={!signedPaid || !!d.clientOrgId || busy === `conv-${d.id}`} onClick={() => run(`conv-${d.id}`, { op: "convert", dealId: d.id })}>
                     {d.clientOrgId ? "Client created" : "Create client"}
                   </button>
+                  {inDiscovery && (
+                    <button type="button" onClick={() => setOpenNotes((o) => (o === d.id ? null : d.id))}>
+                      {openNotes === d.id ? "Hide notes" : d.discoveryNotesJson ? "Edit notes" : "Call notes"}
+                    </button>
+                  )}
+                  {d.discoveryCallStatus === "scheduled" && (
+                    <button type="button" disabled={busy === `noshow-${d.id}`} onClick={() => run(`noshow-${d.id}`, { op: "set_call_status", dealId: d.id, status: "no_show" })}>
+                      No-show
+                    </button>
+                  )}
                 </td>
               </tr>
+              {openNotes === d.id && (
+                <tr style={{ borderBottom: "2px solid var(--border,#eee)", background: "var(--color-bg-secondary,#f5f5f7)" }}>
+                  <td colSpan={4} style={{ padding: 16 }}>
+                    <DiscoveryNotesPanel
+                      deal={d}
+                      busy={busy === `notes-${d.id}`}
+                      onSave={(notes) => run(`notes-${d.id}`, { op: "save_discovery_notes", dealId: d.id, ...notes }).then(() => setOpenNotes(null))}
+                    />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             );
           })}
         </tbody>
@@ -137,6 +164,53 @@ export function SalesBoard({ deals }: { deals: DealRow[] }) {
     </div>
   );
 }
+
+function DiscoveryNotesPanel({ deal, busy, onSave }: { deal: DealRow; busy: boolean; onSave: (notes: Record<string, string>) => void }) {
+  const existing = (deal.discoveryNotesJson ?? {}) as Record<string, string>;
+  const [f, setF] = useState<Record<string, string>>({ ...existing });
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 860 }}>
+      <div style={{ gridColumn: "1 / -1", fontWeight: 600, color: "var(--color-navy-900,#132272)" }}>
+        Discovery call notes — saving marks the call complete and moves the deal to “discovery completed”.
+      </div>
+      {NOTE_TEXT_FIELDS.map((field) => (
+        <label key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, gridColumn: field.long ? "1 / -1" : "auto" }}>
+          <span style={{ color: "var(--text-secondary,#666)" }}>{field.label}</span>
+          {field.long ? (
+            <textarea value={f[field.key] ?? ""} onChange={set(field.key)} rows={2} style={notesInput} />
+          ) : (
+            <input value={f[field.key] ?? ""} onChange={set(field.key)} style={notesInput} />
+          )}
+        </label>
+      ))}
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+        <span style={{ color: "var(--text-secondary,#666)" }}>Buying signal</span>
+        <select value={f.buyingSignals ?? ""} onChange={set("buyingSignals")} style={notesInput}>
+          <option value="">—</option>
+          {BUYING_SIGNALS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+        <span style={{ color: "var(--text-secondary,#666)" }}>Decision process</span>
+        <select value={f.decisionProcess ?? ""} onChange={set("decisionProcess")} style={notesInput}>
+          <option value="">—</option>
+          {DECISION_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+        <span style={{ color: "var(--text-secondary,#666)" }}>Follow-up date</span>
+        <input type="date" value={f.followUpDate ?? ""} onChange={set("followUpDate")} style={notesInput} />
+      </label>
+      <div style={{ gridColumn: "1 / -1" }}>
+        <button type="button" disabled={busy} onClick={() => onSave(f)}>{busy ? "Saving…" : "Save notes"}</button>
+      </div>
+    </div>
+  );
+}
+
+const notesInput: CSSProperties = { border: "1px solid var(--border,#ccc)", borderRadius: 8, padding: "7px 9px", font: "inherit", fontSize: 13 };
 
 function Badge({ on, label }: { on: boolean; label: string }) {
   return (

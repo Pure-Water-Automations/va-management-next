@@ -31,6 +31,7 @@ export default async function HrSalesPage() {
     leadSummary: d.leadSummary,
     discoveryCallAt: d.discoveryCallAt ? d.discoveryCallAt.toISOString() : null,
     discoveryCallStatus: d.discoveryCallStatus,
+    discoveryNotesJson: (d.discoveryNotesJson as DealRow["discoveryNotesJson"]) ?? null,
     agreement: d.agreement
       ? {
           status: d.agreement.status,
