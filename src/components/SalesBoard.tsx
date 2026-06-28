@@ -50,8 +50,33 @@ function initials(email: string | null): string {
   const s = parts.length >= 2 ? parts[0][0] + parts[1][0] : local.slice(0, 2);
   return s.toUpperCase();
 }
-function money(n: number): string {
-  return n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n.toLocaleString()}`;
+/** Compact pipeline-value form, e.g. $10.6k / $2.4k / $850. */
+function compactMoney(n: number): string {
+  if (n >= 1000) return `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+  return `$${n.toLocaleString()}`;
+}
+/** Per-deal value chip, formatted by billing type ($2,400/mo · $3,500 · $90/hr). */
+function dealValueLabel(d: DealRow): string | null {
+  if (d.dealValue == null) return null;
+  const v = `$${d.dealValue.toLocaleString()}`;
+  if (d.billingType === "retainer") return `${v}/mo`;
+  if (d.billingType === "hourly") return `${v}/hr`;
+  return v;
+}
+
+type NextAction = { label: string; op?: string; href?: string; finance?: boolean; needsEmail?: boolean };
+/** The single contextual closing action, derived from Deal.stage + agreement status. */
+function nextAction(d: DealRow): NextAction {
+  if (d.stage === "won" || d.clientOrgId) return { label: "In onboarding", href: "/hr/client-onboarding" };
+  const a = d.agreement;
+  if (a?.paid) return { label: "Create client", op: "convert", finance: true };
+  if (a?.signed) return { label: "Mark paid", op: "mark_paid", finance: true };
+  if (a?.sent) return { label: "Resend agreement", op: "send_agreement", needsEmail: true };
+  return { label: "Send agreement", op: "send_agreement", needsEmail: true };
+}
+/** What a non-finance rep sees instead of a finance button. */
+function pendingLabel(a: NextAction): string {
+  return a.op === "convert" ? "Awaiting client setup" : a.op === "mark_paid" ? "Awaiting payment" : a.label;
 }
 
 export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: DealRow[]; canFinance?: boolean; testimonials?: string | null }) {
@@ -89,14 +114,14 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   }, [filtered]);
 
   const stats = useMemo(() => {
-    const count = (s: string) => deals.filter((d) => d.stage === s).length;
-    const proposals = deals.filter((d) => d.stage === "proposal_sent" || d.stage === "negotiation");
+    const TERMINAL = new Set(["won", "lost", "nurture", "no_show"]);
+    const open = deals.filter((d) => !TERMINAL.has(d.stage));
     return {
-      newLeads: count("new"),
-      discoveryScheduled: count("discovery_scheduled"),
-      proposalsOut: proposals.length,
-      inPlay: proposals.reduce((sum, d) => sum + (d.dealValue || 0), 0),
-      won: count("won"),
+      pipelineValue: open.reduce((s, d) => s + (d.dealValue || 0), 0),
+      openDeals: open.length,
+      awaitingSig: deals.filter((d) => d.agreement?.sent && !d.agreement?.signed).length,
+      awaitingPay: deals.filter((d) => d.agreement?.signed && !d.agreement?.paid).length,
+      won: deals.filter((d) => d.stage === "won").length,
     };
   }, [deals]);
 
@@ -109,6 +134,12 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
     dragId.current = null;
     const d = id ? deals.find((x) => x.id === id) : null;
     if (id && d && d.stage !== stage) void run(`stage-${id}`, { op: "set_stage", dealId: id, stage });
+  }
+
+  // The contextual closing action on a card/drawer (existing ops only).
+  function doNextAction(deal: DealRow, a: NextAction) {
+    if (a.href) { router.push(a.href); return; }
+    if (a.op) void run(`act-${deal.id}`, { op: a.op, dealId: deal.id });
   }
 
   return (
@@ -133,9 +164,10 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
       {view === "board" && (
         <>
           <div style={statStrip}>
-            <StatCard label="New leads" value={stats.newLeads} sub="awaiting first touch" />
-            <StatCard label="Discovery scheduled" value={stats.discoveryScheduled} sub="upcoming calls" />
-            <StatCard label="Proposals out" value={stats.proposalsOut} sub={stats.inPlay ? `${money(stats.inPlay)} in play` : "—"} accent />
+            <StatCard label="Pipeline value" value={compactMoney(stats.pipelineValue)} sub="open deals" accent />
+            <StatCard label="Open deals" value={stats.openDeals} sub="in the pipeline" />
+            <StatCard label="Awaiting signature" value={stats.awaitingSig} sub="agreement sent" />
+            <StatCard label="Awaiting payment" value={stats.awaitingPay} sub="signed, unpaid" />
             <StatCard label="Won" value={stats.won} sub="closed clients" />
           </div>
 
@@ -156,7 +188,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
                     <span style={countPill}>{cards.length}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {cards.map((d) => <DealCard key={d.id} deal={d} onOpen={() => setOpenId(d.id)} onDragStartCard={(id) => { dragId.current = id; }} />)}
+                    {cards.map((d) => <DealCard key={d.id} deal={d} canFinance={canFinance} onOpen={() => setOpenId(d.id)} onDragStartCard={(id) => { dragId.current = id; }} onAction={(a) => doNextAction(d, a)} />)}
                   </div>
                 </div>
               );
@@ -194,7 +226,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   );
 }
 
-function StatCard({ label, value, sub, accent }: { label: string; value: number; sub: string; accent?: boolean }) {
+function StatCard({ label, value, sub, accent }: { label: string; value: number | string; sub: string; accent?: boolean }) {
   return (
     <div style={{ ...statCard, ...(accent ? statCardAccent : {}) }}>
       <div style={{ fontSize: 13, color: accent ? "rgba(255,255,255,0.8)" : "var(--color-text-secondary,#666)" }}>{label}</div>
@@ -240,8 +272,9 @@ function callChip(d: DealRow) {
   );
 }
 
-function DealCard({ deal, onOpen, onDragStartCard }: { deal: DealRow; onOpen: () => void; onDragStartCard: (id: string) => void }) {
+function DealCard({ deal, canFinance, onOpen, onDragStartCard, onAction }: { deal: DealRow; canFinance: boolean; onOpen: () => void; onDragStartCard: (id: string) => void; onAction: (a: NextAction) => void }) {
   const dragging = useRef(false);
+  const value = dealValueLabel(deal);
   return (
     <div
       draggable
@@ -256,21 +289,42 @@ function DealCard({ deal, onOpen, onDragStartCard }: { deal: DealRow; onOpen: ()
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
         <div style={{ fontWeight: 600, color: "var(--color-navy-900,#132272)", fontSize: 14, lineHeight: 1.25 }}>{deal.orgName}</div>
-        <Avatar email={deal.accountOwnerEmail} />
+        {value && <span style={{ fontWeight: 700, fontSize: 13, color: "var(--color-navy-900,#132272)", whiteSpace: "nowrap" }}>{value}</span>}
       </div>
       <div className="small" style={{ color: "var(--color-text-secondary,#666)", marginTop: 2 }}>{deal.contactName || deal.contactEmail || ""}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
         {deal.leadVerdict && <ScoreChip verdict={deal.leadVerdict} score={deal.leadScore} />}
+        {deal.packageName && <span style={pkgTag}>{deal.packageName}</span>}
         {deal.source === "native_form" && <span style={tagStyle}>discover</span>}
       </div>
       {deal.leadSummary && <div style={{ fontSize: 12, color: "var(--color-text-secondary,#666)", marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{deal.leadSummary}</div>}
       {deal.discoveryCallAt && <div style={{ marginTop: 8 }}>{callChip(deal)}</div>}
-      {(deal.packageName || deal.dealValue) && (
-        <div className="small" style={{ marginTop: 8, color: "var(--color-text-tertiary,#98989d)" }}>
-          {deal.packageName || ""}{deal.dealValue ? ` · ${money(deal.dealValue)}` : ""}
-        </div>
-      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--color-border-subtle,#eee)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <Avatar email={deal.accountOwnerEmail} />
+          <span className="small" style={{ color: "var(--color-text-tertiary,#98989d)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.accountOwnerEmail ? deal.accountOwnerEmail.split("@")[0] : "unassigned"}</span>
+        </span>
+        <CardAction deal={deal} canFinance={canFinance} onAction={onAction} />
+      </div>
     </div>
+  );
+}
+
+/** The one contextual closing action on a card (button, link chip, or muted status). */
+function CardAction({ deal, canFinance, onAction }: { deal: DealRow; canFinance: boolean; onAction: (a: NextAction) => void }) {
+  const a = nextAction(deal);
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  if (a.href) {
+    return <a href={a.href} onClick={stop} style={{ ...cardActionChip, textDecoration: "none" }}>{a.label} →</a>;
+  }
+  if (a.finance && !canFinance) {
+    return <span style={{ ...cardActionChip, color: "var(--color-text-tertiary,#98989d)", cursor: "default" }}>{pendingLabel(a)}</span>;
+  }
+  const disabled = !!a.needsEmail && !deal.contactEmail;
+  return (
+    <button type="button" disabled={disabled} onClick={(e) => { stop(e); onAction(a); }} style={{ ...cardActionBtn, opacity: disabled ? 0.5 : 1 }}>
+      {a.label}
+    </button>
   );
 }
 
@@ -316,8 +370,16 @@ function DealDrawer({ deal, canFinance, busy, run }: { deal: DealRow; canFinance
         <Avatar email={deal.accountOwnerEmail} />
       </div>
       <div className="small">{deal.contactName || ""} {deal.contactEmail ? `· ${deal.contactEmail}` : ""}</div>
+      {(dealValueLabel(deal) || deal.packageName) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {dealValueLabel(deal) && <span style={{ fontWeight: 700, fontSize: 18, color: "var(--color-navy-900,#132272)" }}>{dealValueLabel(deal)}</span>}
+          {deal.packageName && <span style={pkgTag}>{deal.packageName}</span>}
+        </div>
+      )}
       {deal.leadSummary && <div style={{ fontSize: 13, color: "var(--color-text-secondary,#666)" }}>{deal.leadSummary}</div>}
       {deal.discoveryCallAt && <div>{callChip(deal)}</div>}
+
+      <ClosingTimeline deal={deal} />
 
       <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
         <span style={{ color: "var(--color-text-secondary,#666)" }}>Stage</span>
@@ -347,6 +409,9 @@ function DealDrawer({ deal, canFinance, busy, run }: { deal: DealRow; canFinance
           <button type="button" disabled={busy === `noshow-${deal.id}`} onClick={() => run(`noshow-${deal.id}`, { op: "set_call_status", dealId: deal.id, status: "no_show" })} style={drawerBtn}>No-show</button>
         )}
         {inDiscovery && <button type="button" onClick={() => setShowNotes((s) => !s)} style={drawerBtn}>{showNotes ? "Hide notes" : deal.discoveryNotesJson ? "Edit call notes" : "Call notes"}</button>}
+        {deal.stage !== "won" && deal.stage !== "lost" && !deal.clientOrgId && (
+          <button type="button" disabled={busy === `lost-${deal.id}`} onClick={() => run(`lost-${deal.id}`, { op: "set_stage", dealId: deal.id, stage: "lost" })} style={{ ...drawerBtn, color: "var(--color-error-dark,#a01a1a)", borderColor: "var(--color-error-light,#fde8e8)" }}>Mark lost</button>
+        )}
       </div>
 
       {showNotes && (
@@ -354,6 +419,29 @@ function DealDrawer({ deal, canFinance, busy, run }: { deal: DealRow; canFinance
           <DiscoveryNotesPanel deal={deal} busy={busy === `notes-${deal.id}`} onSave={(notes) => run(`notes-${deal.id}`, { op: "save_discovery_notes", dealId: deal.id, ...notes }).then((ok) => { if (ok) setShowNotes(false); })} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** The README's closing-progress timeline, derived from the agreement booleans. */
+function ClosingTimeline({ deal }: { deal: DealRow }) {
+  const a = deal.agreement;
+  const steps = [
+    { label: "Agreement sent", done: !!a?.sent },
+    { label: "Client signed", done: !!a?.signed },
+    { label: "Payment received", done: !!a?.paid },
+    { label: "Client created", done: !!deal.clientOrgId || deal.stage === "won" },
+  ];
+  return (
+    <div style={{ background: "var(--color-bg-secondary,#f5f5f7)", borderRadius: 12, padding: "14px 16px" }}>
+      <div className="small" style={{ marginBottom: 10, fontWeight: 600, color: "var(--color-navy-900,#132272)" }}>Closing progress</div>
+      {steps.map((s, i) => (
+        <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 10, position: "relative", paddingBottom: i < steps.length - 1 ? 14 : 0 }}>
+          {i < steps.length - 1 && <span style={{ position: "absolute", left: 8, top: 18, bottom: 0, width: 2, background: s.done ? "var(--color-success,#30c97a)" : "var(--color-border,#d2d2d7)" }} />}
+          <span style={{ width: 18, height: 18, borderRadius: 999, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: s.done ? "var(--color-success,#30c97a)" : "var(--color-surface,#fff)", border: s.done ? "none" : "2px solid var(--color-border,#d2d2d7)", color: "#fff", fontSize: 11, fontWeight: 700, zIndex: 1 }}>{s.done ? "✓" : ""}</span>
+          <span style={{ fontSize: 13, color: s.done ? "var(--color-text-primary,#1d1d1f)" : "var(--color-text-tertiary,#98989d)", fontWeight: s.done ? 600 : 400 }}>{s.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -478,3 +566,6 @@ const card: CSSProperties = { background: "var(--color-surface,#fff)", border: "
 const drawerBtn: CSSProperties = { border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 9999, padding: "8px 14px", background: "var(--color-surface,#fff)", color: "var(--color-navy-900,#132272)", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const notesInput: CSSProperties = { border: "1px solid var(--color-border,#ccc)", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 13, width: "100%" };
 const tagStyle: CSSProperties = { padding: "1px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: "var(--color-sky-100, #c4eef9)", color: "var(--color-sky-800, #0d5e7e)", textTransform: "uppercase", letterSpacing: "0.04em" };
+const pkgTag: CSSProperties = { padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 600, background: "var(--color-sky-50,#e7f8fd)", color: "var(--color-sky-700,#157ba0)" };
+const cardActionBtn: CSSProperties = { border: "none", borderRadius: 9999, padding: "6px 13px", background: "var(--color-navy-900,#132272)", color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" };
+const cardActionChip: CSSProperties = { display: "inline-flex", alignItems: "center", borderRadius: 9999, padding: "6px 12px", background: "var(--color-bg-tertiary,#e8e8ed)", color: "var(--color-navy-900,#132272)", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" };
