@@ -50,6 +50,11 @@ function initials(email: string | null): string {
   const s = parts.length >= 2 ? parts[0][0] + parts[1][0] : local.slice(0, 2);
   return s.toUpperCase();
 }
+/** True if the event target is an interactive control inside the card (so the
+ *  card's own open-on-click/key doesn't also fire). */
+function isInteractive(t: EventTarget | null): boolean {
+  return t instanceof HTMLElement && !!t.closest("button,a,input,select,textarea");
+}
 /** Compact pipeline-value form, e.g. $10.6k / $2.4k / $850. */
 function compactMoney(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
@@ -114,7 +119,9 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   }, [filtered]);
 
   const stats = useMemo(() => {
-    const TERMINAL = new Set(["won", "lost", "nurture", "no_show"]);
+    // Only won/lost are closed; nurture/no_show are still re-engageable (the funnel
+    // treats them as open intake), so they stay in the open pipeline.
+    const TERMINAL = new Set(["won", "lost"]);
     const open = deals.filter((d) => !TERMINAL.has(d.stage));
     return {
       pipelineValue: open.reduce((s, d) => s + (d.dealValue || 0), 0),
@@ -280,11 +287,11 @@ function DealCard({ deal, canFinance, onOpen, onDragStartCard, onAction }: { dea
       draggable
       onDragStart={(e) => { dragging.current = true; e.dataTransfer.setData("text/plain", deal.id); e.dataTransfer.effectAllowed = "move"; onDragStartCard(deal.id); }}
       onDragEnd={() => { window.setTimeout(() => { dragging.current = false; }, 0); }}
-      onClick={() => { if (dragging.current) return; onOpen(); }}
+      onClick={(e) => { if (dragging.current || isInteractive(e.target)) return; onOpen(); }}
       role="button"
       tabIndex={0}
       aria-label={`Open ${deal.orgName}`}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+      onKeyDown={(e) => { if (isInteractive(e.target)) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
       style={card}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
@@ -315,6 +322,8 @@ function CardAction({ deal, canFinance, onAction }: { deal: DealRow; canFinance:
   const a = nextAction(deal);
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   if (a.href) {
+    // Onboarding lives under /hr — only finance/HR can reach it; SALES reps get a static chip.
+    if (!canFinance) return <span style={{ ...cardActionChip, cursor: "default" }}>{a.label}</span>;
     return <a href={a.href} onClick={stop} style={{ ...cardActionChip, textDecoration: "none" }}>{a.label} →</a>;
   }
   if (a.finance && !canFinance) {
