@@ -121,12 +121,29 @@ function localDateParts(instant: Date, opts: SlotOptions): { y: number; mo: numb
  * of scheduled calls per rep), so config order doesn't decide workload. Past /
  * inside-the-lead-window / already-booked slots are dropped. Pure: `now` is passed in.
  */
+export type BusyMs = { startMs: number; endMs: number };
+
+/** Half-open overlap: does [aStart,aEnd) intersect any busy interval? Pure. */
+export function overlapsBusy(aStart: number, aEnd: number, intervals: BusyMs[] | undefined): boolean {
+  if (!intervals) return false;
+  for (const b of intervals) if (aStart < b.endMs && b.startMs < aEnd) return true;
+  return false;
+}
+
+/** Convert ISO free/busy intervals to ms (dropping anything unparseable). */
+export function toBusyMs(intervals: { start: string; end: string }[]): BusyMs[] {
+  return intervals
+    .map((b) => ({ startMs: Date.parse(b.start), endMs: Date.parse(b.end) }))
+    .filter((b) => Number.isFinite(b.startMs) && Number.isFinite(b.endMs) && b.endMs > b.startMs);
+}
+
 export function generateSlots(
   reps: BookingRep[],
   opts: SlotOptions,
   now: Date,
   booked: { repEmail: string; startIso: string }[],
   repLoad?: Map<string, number>,
+  busyByRep?: Map<string, BusyMs[]>,
 ): Slot[] {
   const slotMinutes = opts.slotMinutes ?? 30;
   const horizonDays = opts.horizonDays ?? 10;
@@ -140,6 +157,7 @@ export function generateSlots(
     const ref = new Date(now.getTime() + dOffset * 86_400_000);
     const { y, mo, d, weekday } = localDateParts(ref, opts);
     for (const rep of reps) {
+      const busy = busyByRep?.get(rep.email.toLowerCase());
       for (const w of rep.windows) {
         if (w.day !== weekday) continue;
         const startMin = minutesOf(w.start);
@@ -147,9 +165,11 @@ export function generateSlots(
         for (let t = startMin; t + slotMinutes <= endMin; t += slotMinutes) {
           const startMs = wallToUtcMs(y, mo, d, Math.floor(t / 60), t % 60, opts);
           if (startMs < minMs) continue;
+          const endMs = startMs + slotMinutes * 60_000;
           const startIso = new Date(startMs).toISOString();
           if (bookedSet.has(`${rep.email}|${startIso}`)) continue;
-          const slot: Slot = { startIso, endIso: new Date(startMs + slotMinutes * 60_000).toISOString(), repEmail: rep.email, repName: rep.name };
+          if (overlapsBusy(startMs, endMs, busy)) continue; // rep is busy on their calendar
+          const slot: Slot = { startIso, endIso: new Date(endMs).toISOString(), repEmail: rep.email, repName: rep.name };
           const arr = candidates.get(startIso);
           if (arr) arr.push(slot);
           else candidates.set(startIso, [slot]);
@@ -178,8 +198,9 @@ export function isSlotOpen(
   booked: { repEmail: string; startIso: string }[],
   startIso: string,
   repLoad?: Map<string, number>,
+  busyByRep?: Map<string, BusyMs[]>,
 ): Slot | null {
-  return generateSlots(reps, opts, now, booked, repLoad).find((s) => s.startIso === startIso) ?? null;
+  return generateSlots(reps, opts, now, booked, repLoad, busyByRep).find((s) => s.startIso === startIso) ?? null;
 }
 
 function icsStamp(iso: string): string {

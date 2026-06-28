@@ -1,9 +1,11 @@
 /**
  * Native discovery-call booking — server actions over the pure slot engine.
- * Our DB is the source of truth for availability (open slots = rep windows minus
- * already-booked calls); the confirmation email carries an .ics invite, so this
- * needs no Google Calendar API. Mirrors the recruitment magic-link pattern.
+ * Availability = rep windows minus already-booked calls minus (when a rep has
+ * connected their Google Calendar) their real busy times; booking creates a GCal
+ * event with a Meet link when possible and always sends an .ics email as the
+ * durable fallback. Mirrors the recruitment magic-link pattern.
  */
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
@@ -13,10 +15,14 @@ import {
   generateSlots,
   isSlotOpen,
   buildIcs,
+  toBusyMs,
   type BookingRep,
   type SlotOptions,
   type Slot,
+  type BusyMs,
 } from "@/lib/discovery-booking";
+import { resolveRepCalendar, connectedReps } from "@/lib/calendar-connection";
+import { freeBusy, createEvent, updateEventTime, deleteEvent } from "@/lib/google/calendar";
 
 export class BookingError extends Error {}
 
@@ -63,13 +69,49 @@ function repLoadFrom(booked: { repEmail: string }[]): Map<string, number> {
   return m;
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+}
+
+/**
+ * Per-rep Google Calendar busy times over the horizon. Best-effort + bounded:
+ * only reps with an active calendar connection are queried (in parallel, with a
+ * timeout); a failure/timeout just omits that rep, so booking never blocks on
+ * Google and reps without a connection stay bookable via DB availability alone.
+ */
+async function repBusy(reps: BookingRep[], horizonDays: number): Promise<Map<string, BusyMs[]>> {
+  const busy = new Map<string, BusyMs[]>();
+  const emails = reps.map((r) => r.email);
+  const connected = await connectedReps(emails).catch(() => new Set<string>());
+  if (!connected.size) return busy;
+  const now = new Date();
+  const timeMin = now.toISOString();
+  const timeMax = new Date(now.getTime() + (horizonDays + 1) * 86_400_000).toISOString();
+  await Promise.all(
+    reps
+      .filter((r) => connected.has(r.email.toLowerCase()))
+      .map(async (r) => {
+        try {
+          const cal = await resolveRepCalendar(r.email);
+          if (!cal) return;
+          const intervals = await withTimeout(freeBusy(cal.auth, cal.calendarId, timeMin, timeMax), 4000);
+          busy.set(r.email.toLowerCase(), toBusyMs(intervals));
+        } catch {
+          /* best-effort — omit this rep's calendar busy times */
+        }
+      }),
+  );
+  return busy;
+}
+
 /** Open slots the public picker shows (union across reps, deduped by instant). */
 export async function getOpenSlots(): Promise<Slot[]> {
   const settings = await loadSettings();
   const { reps, opts, horizonDays } = bookingConfig(settings);
   if (!reps.length) return [];
   const booked = await bookedSlots(horizonDays);
-  return generateSlots(reps, opts, new Date(), booked, repLoadFrom(booked));
+  const busy = await repBusy(reps, horizonDays);
+  return generateSlots(reps, opts, new Date(), booked, repLoadFrom(booked), busy);
 }
 
 /** A friendly wall-clock string in the configured timezone. */
@@ -121,15 +163,20 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
   const { reps, opts, tzLabel, horizonDays } = bookingConfig(settings);
   if (!reps.length) throw new BookingError("Booking isn't available right now — we'll reach out to schedule.");
 
-  // Re-check the slot is real and open, excluding only THIS deal's own current booking.
+  // Re-check the slot is real and open (DB bookings + the reps' GCal busy times),
+  // excluding only THIS deal's own current booking.
   const allBooked = await bookedSlots(horizonDays);
   const booked = allBooked.filter((b) => b.dealId !== deal.id);
-  const slot = isSlotOpen(reps, opts, new Date(), booked, startIso, repLoadFrom(booked));
+  const busy = await repBusy(reps, horizonDays);
+  const slot = isSlotOpen(reps, opts, new Date(), booked, startIso, repLoadFrom(booked), busy);
   if (!slot) throw new BookingError("That time was just taken — please pick another.");
 
   const rep = reps.find((r) => r.email === slot.repEmail);
-  const videoUrl = rep?.videoUrl || str(settings, "discovery_call_video_url") || null;
+  let videoUrl = rep?.videoUrl || str(settings, "discovery_call_video_url") || null;
   const wasBooked = !!deal.discoveryCallAt;
+  const prevRepEmail = deal.discoveryRepEmail;
+  const prevEventId = deal.discoveryCalEventId;
+  const prevCalId = deal.discoveryCalId;
 
   try {
     await db.deal.update({
@@ -152,7 +199,46 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
     throw err;
   }
 
+  const company = str(settings, "company_name", "Pure Water Automations");
   const label = formatSlot(slot.startIso, opts, tzLabel);
+
+  // Best-effort Google Calendar event (with a Meet link). On reschedule, move the
+  // existing event; if the rep changed, remove the old event first. The .ics email
+  // below is always the durable fallback, so a Google failure never breaks booking.
+  let calEventId = prevEventId;
+  let calId = prevCalId;
+  try {
+    const cal = await resolveRepCalendar(slot.repEmail);
+    if (cal) {
+      const sameEvent = wasBooked && !!prevEventId && prevCalId === cal.calendarId && prevRepEmail?.toLowerCase() === slot.repEmail.toLowerCase();
+      if (sameEvent) {
+        await updateEventTime(cal.auth, cal.calendarId, prevEventId!, slot.startIso, slot.endIso);
+      } else {
+        if (wasBooked && prevEventId && prevCalId && prevRepEmail) {
+          const oldCal = await resolveRepCalendar(prevRepEmail).catch(() => null);
+          if (oldCal) await deleteEvent(oldCal.auth, prevCalId, prevEventId).catch(() => {});
+        }
+        const created = await createEvent(cal.auth, cal.calendarId, {
+          summary: `Discovery call — ${company} × ${deal.orgName}`,
+          description: "A free 30-minute discovery call to map out how we can help.",
+          startIso: slot.startIso,
+          endIso: slot.endIso,
+          attendees: [deal.contactEmail, slot.repEmail].filter(Boolean) as string[],
+          meetRequestId: randomUUID(),
+        });
+        calEventId = created.eventId || null;
+        calId = cal.calendarId;
+        if (created.meetLink) videoUrl = created.meetLink;
+      }
+      await db.deal.update({
+        where: { id: deal.id },
+        data: { discoveryCalEventId: calEventId, discoveryCalId: calId, ...(videoUrl ? { discoveryCallVideoUrl: videoUrl } : {}) },
+      });
+    }
+  } catch {
+    /* best-effort — the .ics email is the durable invite */
+  }
+
   await logActivity({
     source: "sales",
     eventType: wasBooked ? "discovery_call_rescheduled" : "discovery_call_booked",
@@ -178,12 +264,24 @@ export async function cancelDiscoveryCall(token: string) {
   const startIso = deal.discoveryCallAt.toISOString();
   const endIso = (deal.discoveryCallEndAt ?? deal.discoveryCallAt).toISOString();
 
+  // Best-effort: remove the Google Calendar event so the rep's calendar clears.
+  if (deal.discoveryCalEventId && deal.discoveryCalId) {
+    try {
+      const cal = await resolveRepCalendar(deal.discoveryRepEmail);
+      if (cal) await deleteEvent(cal.auth, deal.discoveryCalId, deal.discoveryCalEventId);
+    } catch {
+      /* best-effort — the CANCEL .ics below still clears the lead's calendar */
+    }
+  }
+
   await db.deal.update({
     where: { id: deal.id },
     data: {
       discoveryCallStatus: "cancelled",
       discoveryCallAt: null,
       discoveryCallEndAt: null,
+      discoveryCalEventId: null,
+      discoveryCalId: null,
       discoveryReminderSentAt: null,
       // only step the pipeline back if it was sitting at discovery_scheduled
       ...(deal.stage === "discovery_scheduled" ? { stage: "new" as const } : {}),

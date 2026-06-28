@@ -102,6 +102,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Sales",
       items: [
         { href: "/sales", label: "Pipeline", icon: <IconBriefcase /> },
+        { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck /> },
       ],
     },
   ],
