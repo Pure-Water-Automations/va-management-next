@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { isSalesRep } from "@/lib/auth/roles";
 import { loadSalesRows } from "@/lib/reads/sales";
+import { loadSettings } from "@/lib/settings";
 import { SalesBoard } from "@/components/SalesBoard";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ export default async function SalesConsole() {
 
   const rows = await loadSalesRows();
   const canFinance = user.isAdmin || user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS";
+  const settings = await loadSettings();
+  const testimonials = settings.get("discovery_testimonials") || null;
   return (
     <>
       <div className="page-head">
@@ -26,7 +29,7 @@ export default async function SalesConsole() {
           </p>
         </div>
       </div>
-      <SalesBoard deals={rows} canFinance={canFinance} />
+      <SalesBoard deals={rows} canFinance={canFinance} testimonials={testimonials} />
     </>
   );
 }

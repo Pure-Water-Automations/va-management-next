@@ -18,6 +18,7 @@ export async function loadSalesRows(): Promise<DealRow[]> {
     billingType: d.billingType,
     startDate: d.startDate ? d.startDate.toISOString().slice(0, 10) : null,
     clientOrgId: d.clientOrgId,
+    accountOwnerEmail: d.accountOwnerEmail,
     source: d.source,
     leadVerdict: d.leadVerdict,
     leadScore: d.leadScore,
