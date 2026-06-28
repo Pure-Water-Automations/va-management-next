@@ -285,6 +285,8 @@ export function ClientOnboardingBoard({ rows }: { rows: OnboardingRow[] }) {
                       key={String(c.field)}
                       role="button"
                       tabIndex={0}
+                      aria-pressed={on}
+                      aria-label={c.label}
                       onClick={() => {
                         if (busy === flagKey) return;
                         run(flagKey, { op: "set_flag", orgId: r.orgId, field: c.field, value: !on }, on ? `Unchecked — ${c.label}` : `Checked — ${c.label}`);

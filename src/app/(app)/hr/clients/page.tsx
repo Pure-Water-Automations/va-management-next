@@ -119,7 +119,12 @@ export default async function HrClientsPage({
         slug: true,
         status: true,
         active: true,
-        _count: { select: { projects: true } },
+        _count: {
+          select: {
+            projects: true,
+            taskRequests: { where: { status: { in: [...OPEN_REQUEST_STATUSES] } } },
+          },
+        },
         deal: {
           select: { packageName: true, dealValue: true, billingType: true, contactName: true },
         },
@@ -128,10 +133,6 @@ export default async function HrClientsPage({
             role: true,
             user: { select: { id: true, name: true, email: true, role: true } },
           },
-        },
-        taskRequests: {
-          where: { status: { in: [...OPEN_REQUEST_STATUSES] } },
-          select: { id: true },
         },
       },
       orderBy: { name: "asc" },
@@ -216,7 +217,7 @@ export default async function HrClientsPage({
           {visible.map((org) => {
             const vas = org.assignments.filter((a) => a.role === "MEMBER");
             const vaNames = vas.map((a) => a.user.name ?? a.user.email);
-            const openReqs = org.taskRequests.length;
+            const openReqs = org._count.taskRequests;
             const planLine = org.deal?.packageName ?? "No active plan";
             const mrr = mrrLabel(org.deal?.dealValue, org.deal?.billingType);
             return (
