@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { NOTE_TEXT_FIELDS, BUYING_SIGNALS, DECISION_TYPES, type DiscoveryNotes } from "@/lib/discovery-notes";
 
@@ -63,6 +63,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   const [showNew, setShowNew] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dragStage, setDragStage] = useState<string | null>(null);
+  const dragId = useRef<string | null>(null); // the deal being dragged (own board only)
 
   async function run(key: string, body: Record<string, unknown>): Promise<boolean> {
     setBusy(key);
@@ -104,8 +105,9 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   function onDrop(e: DragEvent, stage: string) {
     e.preventDefault();
     setDragStage(null);
-    const id = e.dataTransfer.getData("text/plain");
-    const d = deals.find((x) => x.id === id);
+    const id = dragId.current; // only accept a deal dragged from THIS board
+    dragId.current = null;
+    const d = id ? deals.find((x) => x.id === id) : null;
     if (id && d && d.stage !== stage) void run(`stage-${id}`, { op: "set_stage", dealId: id, stage });
   }
 
@@ -154,7 +156,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
                     <span style={countPill}>{cards.length}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {cards.map((d) => <DealCard key={d.id} deal={d} onOpen={() => setOpenId(d.id)} />)}
+                    {cards.map((d) => <DealCard key={d.id} deal={d} onOpen={() => setOpenId(d.id)} onDragStartCard={(id) => { dragId.current = id; }} />)}
                   </div>
                 </div>
               );
@@ -224,25 +226,32 @@ function Avatar({ email }: { email: string | null }) {
 
 function callChip(d: DealRow) {
   if (!d.discoveryCallAt) return null;
-  const done = d.discoveryCallStatus === "completed";
-  const cancelled = d.discoveryCallStatus === "cancelled";
-  const color = cancelled ? "#a32d2d" : done ? "#1a7a4a" : "#0d5e7e";
+  const status = d.discoveryCallStatus;
+  const bad = status === "cancelled" || status === "no_show";
+  const done = status === "completed";
+  const color = bad ? "#a32d2d" : done ? "#1a7a4a" : "#0d5e7e";
   const when = new Date(d.discoveryCallAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const label = status && status !== "scheduled" ? status.replace(/_/g, " ") : "";
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color }}>
       <span>📅 {when}</span>
-      <span style={{ width: 5, height: 5, borderRadius: 999, background: color }} />
-      {cancelled ? "cancelled" : done ? "done" : ""}
+      {label && (<><span style={{ width: 5, height: 5, borderRadius: 999, background: color }} />{label}</>)}
     </div>
   );
 }
 
-function DealCard({ deal, onOpen }: { deal: DealRow; onOpen: () => void }) {
+function DealCard({ deal, onOpen, onDragStartCard }: { deal: DealRow; onOpen: () => void; onDragStartCard: (id: string) => void }) {
+  const dragging = useRef(false);
   return (
     <div
       draggable
-      onDragStart={(e) => e.dataTransfer.setData("text/plain", deal.id)}
-      onClick={onOpen}
+      onDragStart={(e) => { dragging.current = true; e.dataTransfer.setData("text/plain", deal.id); e.dataTransfer.effectAllowed = "move"; onDragStartCard(deal.id); }}
+      onDragEnd={() => { window.setTimeout(() => { dragging.current = false; }, 0); }}
+      onClick={() => { if (dragging.current) return; onOpen(); }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${deal.orgName}`}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
       style={card}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
@@ -350,10 +359,15 @@ function DealDrawer({ deal, canFinance, busy, run }: { deal: DealRow; canFinance
 }
 
 function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,29,95,0.35)", zIndex: 40 }} />
-      <aside style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(560px, 92vw)", background: "var(--color-surface,#fff)", boxShadow: "-8px 0 40px rgba(15,28,94,0.18)", zIndex: 41, padding: "24px 28px", overflowY: "auto" }}>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,29,95,0.35)", zIndex: 90 }} />
+      <aside role="dialog" aria-modal="true" aria-label={title} style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(560px, 92vw)", background: "var(--color-surface,#fff)", boxShadow: "-8px 0 40px rgba(15,28,94,0.18)", zIndex: 91, padding: "24px 28px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <h2 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: "var(--text-xl)", color: "var(--color-navy-900,#132272)" }}>{title}</h2>
           <button type="button" onClick={onClose} aria-label="Close" style={{ border: "none", background: "transparent", fontSize: 22, cursor: "pointer", color: "var(--color-text-tertiary,#98989d)" }}>×</button>
@@ -425,6 +439,7 @@ function NewDealForm({ onCreate, busy }: { onCreate: (b: Record<string, unknown>
         </select>
       </Field>
       <Field label="Start date"><input type="date" value={f.startDate ?? ""} onChange={set("startDate")} style={notesInput} /></Field>
+      <Field label="Notion deal URL/ID"><input value={f.notionPageId ?? ""} onChange={set("notionPageId")} style={notesInput} /></Field>
       <Field label="Stage">
         <select value={f.stage ?? "verbal_yes"} onChange={set("stage")} style={notesInput}>
           {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABEL[s] ?? s}</option>)}
