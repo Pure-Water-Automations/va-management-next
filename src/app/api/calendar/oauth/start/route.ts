@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { isSalesRep } from "@/lib/auth/roles";
-import { authorizeCalendarUrl, signCalState, calendarOauthConfigured } from "@/lib/calendar-oauth";
+import { authorizeCalendarUrl, signCalState, calendarOauthConfigured, safeReturn } from "@/lib/calendar-oauth";
 
 // Admin / HR may connect any rep's calendar; a sales rep may connect only their own.
 export async function GET(request: Request) {
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const repEmail = (url.searchParams.get("rep") || user.email).toLowerCase();
-  const ret = url.searchParams.get("return") || "/sales/calendar";
+  const ret = safeReturn(url.searchParams.get("return"));
 
   const canBindAny = user.isAdmin || user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS";
   if (!canBindAny && repEmail !== user.email.toLowerCase()) redirect(`${ret}?calendar=forbidden`);

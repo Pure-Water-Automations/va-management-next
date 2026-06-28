@@ -71,3 +71,14 @@ test("oauthClientFromToken returns null without a refresh token + client creds",
   assert.equal(oauthClientFromToken({ access_token: "x" }), null);
   assert.ok(oauthClientFromToken({ client_id: "a", client_secret: "b", refresh_token: "c" }));
 });
+
+test("safeReturn blocks open-redirects, allows local paths", async () => {
+  const { safeReturn } = await import("../src/lib/calendar-oauth");
+  assert.equal(safeReturn("/sales/calendar"), "/sales/calendar");
+  assert.equal(safeReturn("/hr"), "/hr");
+  assert.equal(safeReturn("//evil.com"), "/sales/calendar"); // protocol-relative
+  assert.equal(safeReturn("https://evil.com"), "/sales/calendar");
+  assert.equal(safeReturn("evil"), "/sales/calendar");
+  assert.equal(safeReturn(""), "/sales/calendar");
+  assert.equal(safeReturn(null), "/sales/calendar");
+});

@@ -70,8 +70,15 @@ function repLoadFrom(booked: { repEmail: string }[]): Map<string, number> {
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+  let t: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    p.finally(() => clearTimeout(t)),
+    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), ms); }),
+  ]);
 }
+
+// Cap the number of reps we'll hit Google for on a single availability build.
+const MAX_FREEBUSY_REPS = 20;
 
 /**
  * Per-rep Google Calendar busy times over the horizon. Best-effort + bounded:
@@ -90,11 +97,13 @@ async function repBusy(reps: BookingRep[], horizonDays: number): Promise<Map<str
   await Promise.all(
     reps
       .filter((r) => connected.has(r.email.toLowerCase()))
+      .slice(0, MAX_FREEBUSY_REPS)
       .map(async (r) => {
         try {
           const cal = await resolveRepCalendar(r.email);
           if (!cal) return;
-          const intervals = await withTimeout(freeBusy(cal.auth, cal.calendarId, timeMin, timeMax), 4000);
+          // gaxios timeout aborts the HTTP request; withTimeout is the outer guard.
+          const intervals = await withTimeout(freeBusy(cal.auth, cal.calendarId, timeMin, timeMax, 4000), 5000);
           busy.set(r.email.toLowerCase(), toBusyMs(intervals));
         } catch {
           /* best-effort — omit this rep's calendar busy times */
@@ -104,14 +113,36 @@ async function repBusy(reps: BookingRep[], horizonDays: number): Promise<Map<str
   return busy;
 }
 
-/** Open slots the public picker shows (union across reps, deduped by instant). */
-export async function getOpenSlots(): Promise<Slot[]> {
+// Short server-side cache + singleflight for the PUBLIC slots endpoint, so a
+// burst of unauthenticated hits can't fan out to Google freebusy on every call.
+const SLOTS_TTL_MS = 30_000;
+let slotsCache: { at: number; slots: Slot[] } | null = null;
+let slotsInflight: Promise<Slot[]> | null = null;
+
+async function computeOpenSlots(): Promise<Slot[]> {
   const settings = await loadSettings();
   const { reps, opts, horizonDays } = bookingConfig(settings);
   if (!reps.length) return [];
   const booked = await bookedSlots(horizonDays);
   const busy = await repBusy(reps, horizonDays);
   return generateSlots(reps, opts, new Date(), booked, repLoadFrom(booked), busy);
+}
+
+/**
+ * Open slots the public picker shows. Cached ~30s with singleflight so the
+ * public, unauthenticated endpoint can't trigger Google freebusy on every hit
+ * (the booking re-check still computes fresh availability per attempt).
+ */
+export async function getOpenSlots(): Promise<Slot[]> {
+  if (slotsCache && Date.now() - slotsCache.at < SLOTS_TTL_MS) return slotsCache.slots;
+  if (slotsInflight) return slotsInflight;
+  slotsInflight = computeOpenSlots()
+    .then((slots) => {
+      slotsCache = { at: Date.now(), slots };
+      return slots;
+    })
+    .finally(() => { slotsInflight = null; });
+  return slotsInflight;
 }
 
 /** A friendly wall-clock string in the configured timezone. */
@@ -208,11 +239,16 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
   let calEventId = prevEventId;
   let calId = prevCalId;
   try {
-    const cal = await resolveRepCalendar(slot.repEmail);
-    if (cal) {
+    // Outer bound so a sequence of Google calls can't hang the booking request
+    // (each call also has its own gaxios HTTP timeout).
+    await withTimeout((async () => {
+      const cal = await resolveRepCalendar(slot.repEmail);
+      if (!cal) return;
       const sameEvent = wasBooked && !!prevEventId && prevCalId === cal.calendarId && prevRepEmail?.toLowerCase() === slot.repEmail.toLowerCase();
       if (sameEvent) {
         await updateEventTime(cal.auth, cal.calendarId, prevEventId!, slot.startIso, slot.endIso);
+        // patch keeps the existing Meet link — preserve it as the video URL.
+        if (deal.discoveryCallVideoUrl) videoUrl = deal.discoveryCallVideoUrl;
       } else {
         if (wasBooked && prevEventId && prevCalId && prevRepEmail) {
           const oldCal = await resolveRepCalendar(prevRepEmail).catch(() => null);
@@ -234,7 +270,7 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
         where: { id: deal.id },
         data: { discoveryCalEventId: calEventId, discoveryCalId: calId, ...(videoUrl ? { discoveryCallVideoUrl: videoUrl } : {}) },
       });
-    }
+    })(), 12_000);
   } catch {
     /* best-effort — the .ics email is the durable invite */
   }
@@ -267,8 +303,10 @@ export async function cancelDiscoveryCall(token: string) {
   // Best-effort: remove the Google Calendar event so the rep's calendar clears.
   if (deal.discoveryCalEventId && deal.discoveryCalId) {
     try {
-      const cal = await resolveRepCalendar(deal.discoveryRepEmail);
-      if (cal) await deleteEvent(cal.auth, deal.discoveryCalId, deal.discoveryCalEventId);
+      await withTimeout((async () => {
+        const cal = await resolveRepCalendar(deal.discoveryRepEmail);
+        if (cal) await deleteEvent(cal.auth, deal.discoveryCalId!, deal.discoveryCalEventId!);
+      })(), 8000);
     } catch {
       /* best-effort — the CANCEL .ics below still clears the lead's calendar */
     }

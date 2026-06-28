@@ -48,11 +48,16 @@ function client(auth: OAuth2Client) {
 
 export type BusyInterval = { start: string; end: string };
 
+// Default per-request HTTP timeout (gaxios aborts the request, so a hung Google
+// call can never hang booking / the public slots endpoint).
+const DEFAULT_TIMEOUT_MS = 6000;
+
 /** Busy intervals on `calendarId` between the two ISO instants. */
-export async function freeBusy(auth: OAuth2Client, calendarId: string, timeMinIso: string, timeMaxIso: string): Promise<BusyInterval[]> {
-  const res = await client(auth).freebusy.query({
-    requestBody: { timeMin: timeMinIso, timeMax: timeMaxIso, items: [{ id: calendarId }] },
-  });
+export async function freeBusy(auth: OAuth2Client, calendarId: string, timeMinIso: string, timeMaxIso: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<BusyInterval[]> {
+  const res = await client(auth).freebusy.query(
+    { requestBody: { timeMin: timeMinIso, timeMax: timeMaxIso, items: [{ id: calendarId }] } },
+    { timeout: timeoutMs },
+  );
   const cals = res.data.calendars ?? {};
   const cal = cals[calendarId] ?? Object.values(cals)[0];
   return (cal?.busy ?? [])
@@ -98,13 +103,12 @@ export async function createEvent(
   auth: OAuth2Client,
   calendarId: string,
   input: { summary: string; description: string; startIso: string; endIso: string; attendees: string[]; meetRequestId: string },
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<CreatedEvent> {
-  const res = await client(auth).events.insert({
-    calendarId,
-    conferenceDataVersion: 1,
-    sendUpdates: "all",
-    requestBody: buildEventBody(input),
-  });
+  const res = await client(auth).events.insert(
+    { calendarId, conferenceDataVersion: 1, sendUpdates: "all", requestBody: buildEventBody(input) },
+    { timeout: timeoutMs },
+  );
   return { eventId: res.data.id ?? "", htmlLink: res.data.htmlLink ?? null, meetLink: meetLinkOf(res.data) };
 }
 
@@ -115,19 +119,18 @@ export async function updateEventTime(
   eventId: string,
   startIso: string,
   endIso: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<void> {
-  await client(auth).events.patch({
-    calendarId,
-    eventId,
-    sendUpdates: "all",
-    requestBody: { start: { dateTime: startIso }, end: { dateTime: endIso } },
-  });
+  await client(auth).events.patch(
+    { calendarId, eventId, sendUpdates: "all", requestBody: { start: { dateTime: startIso }, end: { dateTime: endIso } } },
+    { timeout: timeoutMs },
+  );
 }
 
 /** Cancel an event. 404/410 (already gone) is treated as success. */
-export async function deleteEvent(auth: OAuth2Client, calendarId: string, eventId: string): Promise<void> {
+export async function deleteEvent(auth: OAuth2Client, calendarId: string, eventId: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<void> {
   try {
-    await client(auth).events.delete({ calendarId, eventId, sendUpdates: "all" });
+    await client(auth).events.delete({ calendarId, eventId, sendUpdates: "all" }, { timeout: timeoutMs });
   } catch (err) {
     const code = (err as { code?: number; status?: number }).code ?? (err as { status?: number }).status;
     if (code === 404 || code === 410) return; // already cancelled/removed

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { env } from "@/lib/env";
-import { calendarOauthClient, verifyCalState } from "@/lib/calendar-oauth";
+import { calendarOauthClient, verifyCalState, safeReturn } from "@/lib/calendar-oauth";
 import { upsertCalendarConnection } from "@/lib/calendar-connection";
 import { audit } from "@/lib/activity";
 
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state") ? verifyCalState(url.searchParams.get("state")!) : null;
-  const ret = state?.ret || "/sales/calendar";
+  const ret = safeReturn(state?.ret);
 
   if (url.searchParams.get("error")) redirect(`${ret}?calendar=${encodeURIComponent(url.searchParams.get("error")!)}`);
   if (!code || !state) redirect(`${ret}?calendar=bad_state`);
@@ -33,6 +33,11 @@ export async function GET(request: Request) {
       email = info.email ?? "";
     } catch {
       email = "";
+    }
+
+    // A non-admin rep may only bind their OWN Google account to their own rep row.
+    if (!canBindAny && email.toLowerCase() !== user.email.toLowerCase()) {
+      redirect(`${ret}?calendar=forbidden`);
     }
 
     await upsertCalendarConnection({

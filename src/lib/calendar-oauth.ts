@@ -24,6 +24,12 @@ export function calendarRedirectUri(): string {
   return `${base}/api/calendar/oauth/callback`;
 }
 
+/** Only allow same-origin relative redirects (blocks //evil.com open-redirects). */
+export function safeReturn(ret: string | null | undefined): string {
+  const r = (ret || "").trim();
+  return /^\/(?!\/)/.test(r) ? r : "/sales/calendar";
+}
+
 export function calendarOauthClient(): OAuth2Client | null {
   if (!calendarOauthConfigured()) return null;
   return new OAuth2Client(env.GOOGLE_OAUTH_CLIENT_ID!.trim(), env.GOOGLE_OAUTH_CLIENT_SECRET!.trim(), calendarRedirectUri());
