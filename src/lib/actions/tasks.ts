@@ -76,7 +76,7 @@ async function sendTaskAssignmentEmail(opts: {
     opts.instructions ? `Instructions:\n${opts.instructions}` : null,
     opts.links ? `\nLinks: ${opts.links}` : null,
     ``,
-    `View task: https://team.pwasecondbrain.uk/va/tasks/${opts.taskId}`,
+    `View task: https://dev-team.pwasecondbrain.uk/va/tasks/${opts.taskId}`,
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
@@ -182,7 +182,7 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
         : null;
       await sendWhatsApp({
         to: waNumber,
-        text: `📋 New task: ${task.title}\nPriority: ${task.priority}${due ? ` · Due: ${due}` : ""}\nFrom: ${task.assignedBy.name ?? "Team"}\nhttps://team.pwasecondbrain.uk/va/tasks/${task.id}`,
+        text: `📋 New task: ${task.title}\nPriority: ${task.priority}${due ? ` · Due: ${due}` : ""}\nFrom: ${task.assignedBy.name ?? "Team"}\nhttps://dev-team.pwasecondbrain.uk/va/tasks/${task.id}`,
         templateParams: [task.title],
       });
     }

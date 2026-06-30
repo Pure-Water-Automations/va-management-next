@@ -88,7 +88,7 @@ export async function startEvaluation(
 
   // Best-effort notifications: ping the VA (self-assessment) + supervisor.
   const from = await getSettingValue("system_email_from");
-  const base = env.APP_BASE_URL || "https://team.pwasecondbrain.uk";
+  const base = env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk";
   if (from) {
     if (va.email) {
       await safeEmail({

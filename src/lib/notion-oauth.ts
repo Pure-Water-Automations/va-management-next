@@ -14,7 +14,7 @@ export function notionOauthConfigured(): boolean {
 
 export function notionRedirectUri(): string {
   if (env.NOTION_OAUTH_REDIRECT_URI?.trim()) return env.NOTION_OAUTH_REDIRECT_URI.trim();
-  const base = (env.APP_BASE_URL || "https://team.pwasecondbrain.uk").replace(/\/+$/, "");
+  const base = (env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "");
   return `${base}/api/notion/oauth/callback`;
 }
 

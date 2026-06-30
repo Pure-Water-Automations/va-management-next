@@ -578,11 +578,11 @@ h3.sec-title {
   border-bottom: 1px solid var(--color-border-subtle);
 }
 .topnav-inner {
-  max-width: 1180px;
+  max-width: 1280px;
   margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 12px 24px;
 }
 .topnav .brand {
@@ -636,7 +636,7 @@ h3.sec-title {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 12px;
+  padding: 7px 11px;
   border-radius: var(--radius-nav);
   cursor: pointer;
   color: var(--color-text-secondary);
@@ -687,6 +687,16 @@ h3.sec-title {
   border-radius: 50%;
   background: var(--color-success);
 }
+/* Below ~1240px the full VA label set can collide with the role pill, and the hidden
+   scrollbar then clips the last nav item mid-pill (the "half button" bug). Collapse the
+   items to icon-only (title tooltips intact) so nothing is ever cut off; full labels
+   return on wider screens where everything fits. */
+@media (min-width: 1025px) and (max-width: 1239px) {
+  .topnav-item { padding: 8px 10px; gap: 0; }
+  .topnav-item .nav-label { display: none; }
+  .topnav-item .nav-icon { opacity: 0.85; }
+}
+
 .topnav-content {
   max-width: 920px;
   margin: 0 auto;

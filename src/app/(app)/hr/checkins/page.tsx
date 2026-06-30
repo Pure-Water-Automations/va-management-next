@@ -14,7 +14,7 @@ const td: React.CSSProperties = { padding: "11px 16px", borderBottom: "1px solid
 export default async function CheckinsPage() {
   const rows = await getCheckins();
   const done = rows.filter((r) => r.thisMonth).length;
-  const applyUrl = `${(env.APP_BASE_URL ?? "https://team.pwasecondbrain.uk").replace(/\/+$/, "")}/apply`;
+  const applyUrl = `${(env.APP_BASE_URL ?? "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "")}/apply`;
   return (
     <>
       <div className="page-head">

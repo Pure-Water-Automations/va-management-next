@@ -14,7 +14,7 @@ import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str } from "@/lib/settings";
 
 const DAY = 24 * 60 * 60 * 1000;
-const BASE_URL = "https://team.pwasecondbrain.uk";
+const BASE_URL = "https://dev-team.pwasecondbrain.uk";
 
 function dueLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

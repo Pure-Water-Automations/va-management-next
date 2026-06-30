@@ -1,6 +1,6 @@
 # Pure Water VA Console — Demo Script (VA View + Supervisor View)
 
-**URL:** https://team.pwasecondbrain.uk — log in with your Pure Water Google account
+**URL:** https://dev-team.pwasecondbrain.uk — log in with your Pure Water Google account
 **Test run:** 2026-06-18 · **Go-live:** 2026-06-19 (after wipe)
 
 ## Presenter pre-flight

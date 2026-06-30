@@ -90,10 +90,11 @@ export function VaTopNav({
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               className={`topnav-item${isActivePath(pathname, item.href) ? " active" : ""}`}
             >
               <span className="nav-icon">{item.icon}</span>
-              {item.label}
+              <span className="nav-label">{item.label}</span>
               {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
             </Link>
           ))}

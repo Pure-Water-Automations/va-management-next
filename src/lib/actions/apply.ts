@@ -69,7 +69,7 @@ async function notifyTeamLead(
     const from = map.get("system_email_from");
     const to = map.get("team_lead_email") || map.get("recruiter_email");
     if (!from || !to) return;
-    const base = env.APP_BASE_URL || "https://team.pwasecondbrain.uk";
+    const base = env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk";
     await sendSystemEmail({
       from,
       to,

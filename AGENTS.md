@@ -3,7 +3,7 @@
 The **cloud replacement** for the Google Apps Script (GAS) VA Management System.
 A Next.js + PostgreSQL web app where **Postgres is the source of truth**; the
 Google Sheet is kept only as a **read-only mirror** of the DB for easy human
-inspection. Live at **https://team.pwasecondbrain.uk**, gated by **in-app Google
+inspection. Live at **https://dev-team.pwasecondbrain.uk**, gated by **in-app Google
 login (NextAuth)** — there is **no Cloudflare Access** on the hostname (removed
 2026-06; see Auth below).
 
@@ -196,7 +196,7 @@ reusing `createProject`/`createTask`/`updateTaskStatus` + reads (so audit logs,
   (tunnel ingress → same app :8796) with **NO Cloudflare Access**, because AI clients
   can't do the Google-login flow. The **bearer token is the gate** instead. Added via
   `tools/cloudflare-tunnel/expose.js team-mcp 8796` (no emails = public). Separate
-  from the human app's NextAuth login on `team.pwasecondbrain.uk` and unaffected by it.
+  from the human app's NextAuth login on `dev-team.pwasecondbrain.uk` and unaffected by it.
 - **Auth:** `Authorization: Bearer <MCP_API_TOKEN>` (in `shared/.env.production`, root-only).
   Acts as one admin **service identity** = `MCP_ACTOR_EMAIL` (default `okamotomiak@gmail.com`).
   Missing/invalid token → 401; unset token → 503 (endpoint disabled). Rotate by changing

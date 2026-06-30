@@ -9,7 +9,7 @@ import { viewForRole } from "@/lib/auth/roles";
  * helpful static message if no key is configured.
  */
 
-const APPLY_URL = `${(env.APP_BASE_URL ?? "https://team.pwasecondbrain.uk").replace(/\/+$/, "")}/apply`;
+const APPLY_URL = `${(env.APP_BASE_URL ?? "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "")}/apply`;
 
 const CONSOLE_GUIDE = `
 You are **Purii**, the friendly built-in guide for the Pure Water Automations (PWA)

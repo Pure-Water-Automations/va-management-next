@@ -5,6 +5,7 @@
  */
 import { db } from "@/lib/db";
 import { fetchAttendance } from "@/lib/desklog";
+import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str } from "@/lib/settings";
 
 function ymd(d: Date): string {
@@ -49,35 +50,43 @@ async function main() {
           fromDate: from,
           toDate: from,
         });
-        await db.deskLogHours.create({
-          data: {
-            date: dateOnly,
-            vaId: va.vaId,
-            desklogUserId: va.desklogUserId,
-            project: r.project,
-            task: r.task,
-            billable: r.billable,
-            timeAtWorkHrs: r.timeAtWorkHrs,
-            focusTimeHrs: r.focusTimeHrs,
-            idleTimeHrs: r.idleTimeHrs,
-            taskSpentHrs: r.taskSpentHrs,
-            taskAssignedHrs: r.taskAssignedHrs,
-            payRule: r.payRule,
-          },
-        });
-        await db.deskLogEfficiency.create({
-          data: {
-            date: dateOnly,
-            vaId: va.vaId,
-            desklogUserId: va.desklogUserId,
-            activityPct: r.activityPct,
-            efficiencyPct: r.efficiencyPct,
-            productiveTimeHrs: r.productiveTimeHrs,
-            focusTimeHrs: r.focusTimeHrs,
-            idleTimeHrs: r.idleTimeHrs,
-            nonProductiveTimeHrs: r.nonProductiveTimeHrs,
-          },
-        });
+        // Idempotent: atomically replace any existing rows for this VA+day so a
+        // re-run (or a double-fire) can't duplicate — the cause of the earlier
+        // DeskLog inflation. Inside the try (after a successful fetch), so a failed
+        // pull falls to the catch below and never wipes good data.
+        await db.$transaction([
+          db.deskLogHours.deleteMany({ where: { vaId: va.vaId, date: dateOnly } }),
+          db.deskLogEfficiency.deleteMany({ where: { vaId: va.vaId, date: dateOnly } }),
+          db.deskLogHours.create({
+            data: {
+              date: dateOnly,
+              vaId: va.vaId,
+              desklogUserId: va.desklogUserId,
+              project: r.project,
+              task: r.task,
+              billable: r.billable,
+              timeAtWorkHrs: r.timeAtWorkHrs,
+              focusTimeHrs: r.focusTimeHrs,
+              idleTimeHrs: r.idleTimeHrs,
+              taskSpentHrs: r.taskSpentHrs,
+              taskAssignedHrs: r.taskAssignedHrs,
+              payRule: r.payRule,
+            },
+          }),
+          db.deskLogEfficiency.create({
+            data: {
+              date: dateOnly,
+              vaId: va.vaId,
+              desklogUserId: va.desklogUserId,
+              activityPct: r.activityPct,
+              efficiencyPct: r.efficiencyPct,
+              productiveTimeHrs: r.productiveTimeHrs,
+              focusTimeHrs: r.focusTimeHrs,
+              idleTimeHrs: r.idleTimeHrs,
+              nonProductiveTimeHrs: r.nonProductiveTimeHrs,
+            },
+          }),
+        ]);
         ingested++;
       } catch (e) {
         const msg = String(e);
@@ -86,15 +95,46 @@ async function main() {
       }
     }
 
+    const allAuthFailed = authFailures === vas.length && vas.length > 0;
     await db.syncRun.update({
       where: { id: run.id },
       data: {
-        status: authFailures === vas.length && vas.length > 0 ? "FAILED" : "SUCCESS",
+        status: allAuthFailed ? "FAILED" : "SUCCESS",
         finishedAt: new Date(),
+        // Record WHY it failed so the failure isn't silent in SyncRun (it previously left
+        // firstErrorLine null on this branch, hiding the expired-token cause).
+        firstErrorLine: allAuthFailed
+          ? `All ${vas.length} VA(s) returned 401/403 — desklog_bearer_token is likely expired/invalid. No hours ingested.`
+          : null,
         detailsJson: { ingested, authFailures, vas: vas.length },
       },
     });
     console.log(`desklog-ingest: ingested ${ingested}/${vas.length} (auth failures: ${authFailures})`);
+
+    // Alert the admin ONCE when ingestion starts failing on auth (only on the transition, so it
+    // doesn't email daily). A silent multi-day failure is how utilization quietly decayed to 0%
+    // for everyone before a VA noticed and reported it.
+    if (allAuthFailed) {
+      const prev = await db.syncRun.findFirst({
+        where: { worker: "desklog-ingest", id: { not: run.id } },
+        orderBy: { startedAt: "desc" },
+      });
+      const from = str(settings, "system_email_from", "");
+      if (prev?.status !== "FAILED" && from) {
+        const latest = await db.deskLogHours.aggregate({ _max: { date: true } });
+        const asOf = latest._max.date ? latest._max.date.toISOString().slice(0, 10) : "never";
+        await sendSystemEmail({
+          from,
+          to: from,
+          subject: "DeskLog ingest is failing — token likely expired",
+          body:
+            `The daily desklog-ingest worker just failed: all ${vas.length} VA(s) returned 401/403, so no hours were imported. ` +
+            `The DeskLog bearer token (desklog_bearer_token) is most likely expired — refresh it in Admin → settings. ` +
+            `Hours are stale as of ${asOf}; until this is fixed, VA utilization will read 0% across the board.`,
+        }).catch((e) => console.error("desklog-ingest alert email failed:", String(e).split("\n")[0]));
+        console.log("desklog-ingest: sent admin alert (ingestion started failing)");
+      }
+    }
   } catch (err) {
     await db.syncRun.update({ where: { id: run.id }, data: { status: "FAILED", finishedAt: new Date(), firstErrorLine: String(err).split("\n")[0] } });
     throw err;
