@@ -5,6 +5,7 @@ import { createProject } from "@/lib/actions/projects";
 import { createTask, updateTaskStatus } from "@/lib/actions/tasks";
 import { createDeal, convertDealToClient, DEAL_STAGES } from "@/lib/sales/deal";
 import { sendClientAgreement } from "@/lib/sales/agreement";
+import { filterProjectsByClientOrg, taskClientOrgWhere } from "./scoping";
 
 export type McpCtx = { actorId: string; actorRole: Role };
 
@@ -50,18 +51,19 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
   switch (name) {
     case "list_projects": {
       const status = str(args, "status");
+      const clientOrgId = str(args, "clientOrgId");
       const all = await getProjectsList();
-      const rows = all
-        .filter((p) => !status || p.status === status)
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          status: p.status,
-          client: p.client,
-          owner: p.owner.name ?? p.owner.email,
-          openTasks: p.openTaskCount,
-          totalTasks: p.taskCount,
-        }));
+      const statusFiltered = all.filter((p) => !status || p.status === status);
+      const rows = filterProjectsByClientOrg(statusFiltered, clientOrgId).map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        client: p.client,
+        clientOrganizationId: p.clientOrganizationId,
+        owner: p.owner.name ?? p.owner.email,
+        openTasks: p.openTaskCount,
+        totalTasks: p.taskCount,
+      }));
       return json({ count: rows.length, projects: rows });
     }
 
@@ -82,13 +84,28 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
     case "list_tasks": {
       const ref = str(args, "project");
       const status = str(args, "status");
+      const clientOrgId = str(args, "clientOrgId");
       const projectId = ref ? await resolveProjectId(ref) : undefined;
       if (ref && !projectId) return fail(`No project matched "${ref}"`);
       const tasks = await db.task.findMany({
-        where: { ...(projectId ? { projectId } : {}), ...(status && VALID_STATUS.has(status) ? { status: status as TaskStatus } : {}) },
+        where: {
+          ...(projectId ? { projectId } : {}),
+          ...(status && VALID_STATUS.has(status) ? { status: status as TaskStatus } : {}),
+          ...taskClientOrgWhere(clientOrgId),
+        },
         orderBy: { createdAt: "desc" },
         take: 100,
-        select: { id: true, title: true, status: true, priority: true, dueDate: true, client: true, assignedTo: { select: { name: true, email: true } }, project: { select: { name: true } } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          client: true,
+          clientOrganizationId: true,
+          assignedTo: { select: { name: true, email: true } },
+          project: { select: { name: true } },
+        },
       });
       return json({
         count: tasks.length,
@@ -99,6 +116,7 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
           priority: t.priority,
           dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
           client: t.client,
+          clientOrganizationId: t.clientOrganizationId,
           assignee: t.assignedTo.name ?? t.assignedTo.email,
           project: t.project?.name ?? null,
         })),
