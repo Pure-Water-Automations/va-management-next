@@ -40,3 +40,9 @@ test("list_projects and list_tasks tool schemas declare clientOrgId as an option
   assert.ok(projectsProps.clientOrgId, "list_projects schema must declare clientOrgId");
   assert.ok(tasksProps.clientOrgId, "list_tasks schema must declare clientOrgId");
 });
+
+test("filterProjectsByClientOrg/taskClientOrgWhere: an empty string is a real filter, never treated as 'no filter'", () => {
+  const rows = [{ id: "a", clientOrganizationId: "c1" }, { id: "b", clientOrganizationId: null }];
+  assert.deepEqual(filterProjectsByClientOrg(rows, ""), []);
+  assert.deepEqual(taskClientOrgWhere(""), { clientOrganizationId: "" });
+});
