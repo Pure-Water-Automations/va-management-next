@@ -86,6 +86,67 @@ export async function sendClientAgreement(dealId: string) {
   return agreement;
 }
 
+export type AgreementPreview = {
+  ok: true;
+  alreadySent: boolean;
+  summary: {
+    client: string;
+    contact: string;
+    email: string;
+    package: string;
+    price: string;
+    billing: string;
+    startDate: string;
+    deadline: string;
+    company: string;
+  };
+  contractHtml: string;
+};
+
+/**
+ * Render exactly what `sendClientAgreement` would send the client — the deal
+ * summary plus the full contract HTML — without creating a token, emailing, or
+ * touching the deal. Backs the "review before send" confirmation step.
+ */
+export async function getAgreementPreview(dealId: string): Promise<AgreementPreview> {
+  const deal = await db.deal.findUnique({ where: { id: dealId }, include: { agreement: true } });
+  if (!deal) throw new Error("Deal not found.");
+
+  const settings = await loadSettings();
+  const deadlineDays = Math.max(0, Math.trunc(settingNum(settings, "client_agreement_deadline_days", 14)));
+  const now = new Date();
+  // Use the live deadline if an agreement exists, else the deadline a fresh send would set.
+  const previewDeadline = deal.agreement?.deadline ?? addDays(now, deadlineDays);
+  const vars = agreementVarsForDeal(
+    deal,
+    {
+      packageName: deal.agreement?.packageName ?? null,
+      priceLabel: deal.agreement?.priceLabel ?? null,
+      billingType: deal.agreement?.billingType ?? null,
+      deadline: previewDeadline,
+    },
+    settings,
+    now,
+  );
+
+  return {
+    ok: true as const,
+    alreadySent: !!deal.agreement?.sentAt,
+    summary: {
+      client: vars.client,
+      contact: vars.contact,
+      email: deal.contactEmail?.trim() || "",
+      package: vars.package,
+      price: vars.price,
+      billing: vars.billing,
+      startDate: vars.start_date,
+      deadline: vars.deadline,
+      company: vars.company,
+    },
+    contractHtml: renderAgreement(templateHtml(settings), vars),
+  };
+}
+
 /** Public read for the sign page (same shape the candidate signer returns). */
 export async function getAgreementSignState(token: string) {
   const agreement = await db.clientAgreement.findUnique({ where: { signToken: token }, include: { deal: true } });

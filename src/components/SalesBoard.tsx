@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { NOTE_TEXT_FIELDS, BUYING_SIGNALS, DECISION_TYPES, type DiscoveryNotes } from "@/lib/discovery-notes";
+import { AgreementPreviewModal } from "@/components/AgreementPreviewModal";
 
 export type DealRow = {
   id: string;
@@ -94,6 +95,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   const [openId, setOpenId] = useState<string | null>(null);
   const [dragStage, setDragStage] = useState<string | null>(null);
   const dragId = useRef<string | null>(null); // the deal being dragged (own board only)
+  const [preview, setPreview] = useState<{ dealId: string; isResend: boolean } | null>(null);
 
   async function run(key: string, body: Record<string, unknown>): Promise<boolean> {
     setBusy(key);
@@ -146,6 +148,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
   // The contextual closing action on a card/drawer (existing ops only).
   function doNextAction(deal: DealRow, a: NextAction) {
     if (a.href) { router.push(a.href); return; }
+    if (a.op === "send_agreement") { setPreview({ dealId: deal.id, isResend: !!deal.agreement?.sent }); return; }
     if (a.op) void run(`act-${deal.id}`, { op: a.op, dealId: deal.id });
   }
 
@@ -226,8 +229,27 @@ export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: 
 
       {current && (
         <Drawer title={current.orgName} onClose={() => setOpenId(null)}>
-          <DealDrawer deal={current} canFinance={canFinance} busy={busy} run={run} />
+          <DealDrawer
+            deal={current}
+            canFinance={canFinance}
+            busy={busy}
+            run={run}
+            onPreview={() => setPreview({ dealId: current.id, isResend: !!current.agreement?.sent })}
+          />
         </Drawer>
+      )}
+
+      {preview && (
+        <AgreementPreviewModal
+          dealId={preview.dealId}
+          isResend={preview.isResend}
+          onClose={() => setPreview(null)}
+          onSent={() => {
+            setPreview(null);
+            setMsg("Agreement sent.");
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );
@@ -365,7 +387,7 @@ function DealList({ deals, onOpen }: { deals: DealRow[]; onOpen: (id: string) =>
 }
 
 /** Right-side detail panel holding every deal action (stage, agreement, finance, call notes). */
-function DealDrawer({ deal, canFinance, busy, run }: { deal: DealRow; canFinance: boolean; busy: string | null; run: (key: string, body: Record<string, unknown>) => Promise<boolean> }) {
+function DealDrawer({ deal, canFinance, busy, run, onPreview }: { deal: DealRow; canFinance: boolean; busy: string | null; run: (key: string, body: Record<string, unknown>) => Promise<boolean>; onPreview: () => void }) {
   const a = deal.agreement;
   const signedPaid = !!a?.signed && !!a?.paid;
   const inDiscovery = ["discovery_scheduled", "discovery_completed"].includes(deal.stage) || !!deal.discoveryCallAt || !!deal.discoveryNotesJson;
@@ -403,7 +425,7 @@ function DealDrawer({ deal, canFinance, busy, run }: { deal: DealRow; canFinance
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <button type="button" disabled={!deal.contactEmail || busy === `send-${deal.id}`} onClick={() => run(`send-${deal.id}`, { op: "send_agreement", dealId: deal.id })} style={drawerBtn}>
+        <button type="button" disabled={!deal.contactEmail || busy === `send-${deal.id}`} onClick={onPreview} style={drawerBtn}>
           {a?.sent ? "Resend agreement" : "Send agreement"}
         </button>
         {canFinance && (

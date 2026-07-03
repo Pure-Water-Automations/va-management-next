@@ -1,7 +1,7 @@
 import type { DealStage } from "@prisma/client";
 import { action, str, optStr, optNum } from "@/lib/api";
 import { createDeal, setDealStage, convertDealToClient } from "@/lib/sales/deal";
-import { sendClientAgreement } from "@/lib/sales/agreement";
+import { sendClientAgreement, getAgreementPreview } from "@/lib/sales/agreement";
 import { markAgreementPaid } from "@/lib/sales/payment";
 import { saveDiscoveryNotes, setCallStatus } from "@/lib/actions/discovery-notes";
 
@@ -35,6 +35,8 @@ export const POST = action(
         });
       case "set_stage":
         return setDealStage(str(body, "dealId"), str(body, "stage") as DealStage, optStr(body, "note"));
+      case "preview_agreement":
+        return getAgreementPreview(str(body, "dealId"));
       case "send_agreement":
         return sendClientAgreement(str(body, "dealId"));
       case "mark_paid":
