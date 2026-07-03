@@ -10,3 +10,7 @@ next-env.d.ts
 
 # superpowers session scratch
 .superpowers/
+
+# on-box hotfix rollback artifacts (pre-git-checkout era)
+*.bak-*
+.next.bak*

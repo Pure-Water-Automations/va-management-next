@@ -1,5 +1,3 @@
-import { gmail as gmailApi } from "@googleapis/gmail";
-import { OAuth2Client } from "google-auth-library";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { currentActorEmail } from "@/lib/request-context";
@@ -85,16 +83,62 @@ export async function sendSystemEmail(opts: SystemEmailOptions): Promise<SystemE
       }
     : opts;
 
-  const auth = oauthClientFromToken(token);
-  const gmail = gmailApi({ version: "v1", auth });
-  const response = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: {
-      raw: base64UrlEncode(buildMimeMessage(effective)),
-    },
-  });
+  // NOTE: we send via direct fetch to the Gmail REST API rather than through
+  // @googleapis/gmail + google-auth-library. On Node 24 the bundled gaxios 6.x
+  // throws "Invalid response body … Premature close" on every Google API call
+  // (token refresh AND send), while native fetch to the same endpoints works.
+  // Refreshing + sending ourselves sidesteps that broken transport entirely.
+  const accessToken = await fetchAccessToken(token);
+  if (!accessToken) {
+    return { ok: false, skipped: true, reason: "no_access_token" };
+  }
 
-  return { ok: true, id: response.data.id ?? null };
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ raw: base64UrlEncode(buildMimeMessage(effective)) }),
+  });
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Gmail send failed (${res.status}): ${detail}`);
+  }
+  const data = (await res.json().catch(() => ({}))) as { id?: string };
+  return { ok: true, id: data.id ?? null };
+}
+
+/**
+ * Get a usable access token for the Gmail send. Uses the cached token while it's
+ * still valid, otherwise refreshes via a direct POST to Google's token endpoint
+ * (native fetch — avoids the broken gaxios transport, see sendSystemEmail).
+ */
+async function fetchAccessToken(token: TokenJson): Promise<string | null> {
+  const cached = readString(token, ["access_token"]);
+  const expiry = readNumber(token, ["expiry_date"]);
+  if (cached && expiry && Date.now() < expiry - 60_000) return cached;
+
+  const clientId = readString(token, ["client_id"]) ?? readNestedString(token, "installed", "client_id");
+  const clientSecret =
+    readString(token, ["client_secret"]) ?? readNestedString(token, "installed", "client_secret");
+  const refreshToken =
+    readString(token, ["refresh_token"]) ?? readNestedString(token, "credentials", "refresh_token");
+  if (!clientId || !clientSecret || !refreshToken) return cached;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }).toString(),
+  });
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(`OAuth token refresh failed (${res.status}): ${detail}`);
+  }
+  const data = (await res.json()) as { access_token?: string };
+  return data.access_token ?? cached;
 }
 
 async function readTokenJson(tokenFile: string): Promise<TokenJson | null> {
@@ -114,24 +158,6 @@ async function readTokenJson(tokenFile: string): Promise<TokenJson | null> {
   }
 
   return null;
-}
-
-function oauthClientFromToken(token: TokenJson): OAuth2Client {
-  const clientId = readString(token, ["client_id"]) ?? readNestedString(token, "installed", "client_id");
-  const clientSecret =
-    readString(token, ["client_secret"]) ?? readNestedString(token, "installed", "client_secret");
-  const refreshToken =
-    readString(token, ["refresh_token"]) ?? readNestedString(token, "credentials", "refresh_token");
-
-  const auth = new OAuth2Client(clientId ?? undefined, clientSecret ?? undefined);
-  auth.setCredentials({
-    access_token: readString(token, ["access_token"]) ?? undefined,
-    expiry_date: readNumber(token, ["expiry_date"]) ?? undefined,
-    refresh_token: refreshToken ?? undefined,
-    scope: readString(token, ["scope"]) ?? undefined,
-    token_type: readString(token, ["token_type"]) ?? undefined,
-  });
-  return auth;
 }
 
 export function buildMimeMessage(opts: SystemEmailOptions): string {

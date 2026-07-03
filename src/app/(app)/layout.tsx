@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId, getEffectiveActor, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
-import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { canUserDelegateTasks, canVaDelegateTasks } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
@@ -56,7 +56,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // user, so HR/Payroll/Recruitment views are unchanged. Delegation authority is
   // comp-role-driven (canUserDelegateTasks reads the actor's tier flag).
   const actor = await getEffectiveActor(user);
-  const canDelegate = await canUserDelegateTasks(actor.id, actor.role);
+  let canDelegate = await canUserDelegateTasks(actor.id, actor.role);
+  // Additive fallback: when impersonating a VA with no login, getEffectiveActor
+  // sets actor.id to the admin's own id (so the user-based check is wrong), but
+  // actor.vaId still points to the impersonated VA. Some VA logins also aren't
+  // linked via User.vaId. In both cases judge delegation straight from the VA's
+  // comp tier so the All Tasks / Projects nav matches what that tier grants.
+  if (!canDelegate && actor.vaId) {
+    canDelegate = await canVaDelegateTasks(actor.vaId);
+  }
 
   // Recordings is an admin/founder feature (not a VA tier feature), so under VA
   // impersonation isRecordingsVisible(actor) is false — a real VA never sees it.

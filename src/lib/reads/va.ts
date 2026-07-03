@@ -23,13 +23,16 @@ export async function getVaDashboard(vaId: string) {
   const role = await db.compensationRole.findUnique({ where: { roleId: va.compensationRole } });
   const cutover = await baselineCutover();
 
-  const [last7, last14, deskLogCum, myReviews, myActivity, openPeriod] = await Promise.all([
+  const [last7, last14, deskLogCum, myReviews, myActivity, openPeriod, deskLogSyncedThrough] = await Promise.all([
     sumHours(vaId, 7),
     sumHours(vaId, 14),
     db.deskLogHours.aggregate({ where: { vaId, ...deskLogSinceCutover(cutover) }, _sum: { taskSpentHrs: true } }).then((r) => r._sum.taskSpentHrs ?? 0),
     db.tierReview.findMany({ where: { vaId }, orderBy: { timestamp: "desc" }, take: 3 }),
     db.activityLog.findMany({ where: { vaId }, orderBy: { timestamp: "desc" }, take: 10 }),
     db.payrollPeriod.findFirst({ where: { status: "open" }, orderBy: { periodStart: "desc" } }),
+    // Newest DeskLog date across all VAs = how fresh the hours feed is. A stale value means the
+    // ingest is behind, so a 0% utilization is "data not synced" rather than "did no work".
+    db.deskLogHours.aggregate({ _max: { date: true } }).then((r) => r._max.date),
   ]);
   const cumulative = withBaseline(va.baselineHours, deskLogCum);
 
@@ -69,5 +72,6 @@ export async function getVaDashboard(vaId: string) {
     myActivity,
     openPeriod,
     checkinDue,
+    deskLogSyncedThrough,
   };
 }
