@@ -3,9 +3,32 @@
 The **cloud replacement** for the Google Apps Script (GAS) VA Management System.
 A Next.js + PostgreSQL web app where **Postgres is the source of truth**; the
 Google Sheet is kept only as a **read-only mirror** of the DB for easy human
-inspection. Live at **https://dev-team.pwasecondbrain.uk**, gated by **in-app Google
-login (NextAuth)** — there is **no Cloudflare Access** on the hostname (removed
-2026-06; see Auth below).
+inspection. Gated by **in-app Google login (NextAuth)** — there is **no
+Cloudflare Access** on the hostname (removed 2026-06; see Auth below).
+
+## TWO environments — know which box you're touching
+
+| | dev / staging | **PRODUCTION** (the team uses this) |
+|---|---|---|
+| URL | https://dev-team.pwasecondbrain.uk | **https://team.purewaterautomations.com** |
+| Box | IONOS `root@74.208.40.108` | Hostinger `root@2.24.121.26` |
+| Branch | `main` (integration) | `production` (exactly what's live) |
+| Deploy | `./deploy.sh dev [ref]` | `./deploy.sh prod` (guarded: `production`/`v*` only) |
+| Transport | `git archive <ref>` → rsync + `DEPLOYED_VERSION` | git checkout — box `current/` is a clone of the box-local bare repo `…/repo.git`; `git log` on the box = what's live |
+| DB | `va_console` on IONOS | `va_console` on Hostinger (prod deploys auto-`pg_dump` to `…/backups/` first) |
+
+Both boxes share the same path layout (`/app/SecondBrain/va-management-console/
+{current,shared,backups}`), service name (`va-management-web`), and port (8796).
+**Rules:** features land on `main` and are proven on dev; promote by merging
+`main` → `production` and running `./deploy.sh prod`. Hotfixes branch **from
+`production`**, deploy, then merge back to `main` (invariant: **dev ⊇ prod**).
+**Never** run `npm run build`/`next dev` manually inside prod's `current/` —
+a stray dev build desynced the running server from its on-disk chunks and
+blank-paged prod for days (2026-07-03 outage; health checks stayed green
+because `/api/health` doesn't execute JS). If prod misbehaves but health
+passes: fetch `/login`, extract the `_next/static/chunks/*.js` URLs it
+references, and curl each — a 400/404 means build/runtime desync → redeploy
+with `./deploy.sh prod`.
 
 > Migrated off GAS June 2026. The original GAS project (`Documents/GAS projects/
 > VA MAanager`, deployment `@64`) and the Express `va-console` proxy are left
