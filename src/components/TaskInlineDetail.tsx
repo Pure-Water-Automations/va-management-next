@@ -28,6 +28,7 @@ export type InlineTask = {
   assignedByName: string;
   projectId: string | null;
   projectName: string | null;
+  claimable?: boolean;
 };
 
 const editorInput: React.CSSProperties = {
@@ -148,10 +149,16 @@ export function TaskInlineDetail({
 
       {/* ── meta rows ───────────────────────────────────────────── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <MetaRow label="Assigned to">
-          <ReassignControl taskId={task.id} currentAssigneeId={task.assignedToId} currentName={task.assignedToName} assignees={assignees} />
-        </MetaRow>
-        <MetaRow label="Assigned by"><span>{task.assignedByName || "—"}</span></MetaRow>
+        {task.claimable ? (
+          <MetaRow label="Posted by"><span>{task.assignedByName || "—"}</span></MetaRow>
+        ) : (
+          <>
+            <MetaRow label="Assigned to">
+              <ReassignControl taskId={task.id} currentAssigneeId={task.assignedToId} currentName={task.assignedToName} assignees={assignees} />
+            </MetaRow>
+            <MetaRow label="Assigned by"><span>{task.assignedByName || "—"}</span></MetaRow>
+          </>
+        )}
 
         <MetaRow label="Strategy">
           <FieldEditor

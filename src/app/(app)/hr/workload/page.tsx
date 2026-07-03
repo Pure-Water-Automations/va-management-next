@@ -5,7 +5,7 @@ import { getAllTasks } from "@/lib/reads/tasks";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { Stat } from "@/components/ui/Stat";
-import { Avatar, StatusBadge } from "@/components/ui/task-format";
+import { Avatar } from "@/components/ui/task-format";
 
 export const dynamic = "force-dynamic";
 
@@ -178,7 +178,9 @@ export default async function HrWorkloadPage() {
                           />
                         </div>
                         {r.open === 0 ? (
-                          <StatusBadge value="Done" />
+                          <span className="small" style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>
+                            Clear
+                          </span>
                         ) : (
                           <span className="small" style={{ color: "var(--color-text-secondary)" }}>
                             {r.open} open

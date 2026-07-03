@@ -27,10 +27,21 @@ export async function getClientTeam(clientOrganizationId: string): Promise<Clien
   }));
 }
 
-/** Active internal staff who can be assigned to a client. */
+/**
+ * Active internal staff who can be assigned to a client. Delivery roles are
+ * assignable; admins (isAdmin) are also included regardless of role so oversight
+ * accounts (e.g. a RECRUITER admin) can sit on a client team and exercise the
+ * "My Clients" views.
+ */
 export async function getAssignableStaff(): Promise<{ id: string; name: string | null; email: string; role: Role }[]> {
   return db.user.findMany({
-    where: { active: true, role: { in: ["VA", "SENIOR_VA", "TEAM_LEAD", "HR_MANAGER", "PEOPLE_OPS"] } },
+    where: {
+      active: true,
+      OR: [
+        { role: { in: ["VA", "SENIOR_VA", "TEAM_LEAD", "HR_MANAGER", "PEOPLE_OPS"] } },
+        { isAdmin: true },
+      ],
+    },
     select: { id: true, name: true, email: true, role: true },
     orderBy: [{ name: "asc" }],
   });

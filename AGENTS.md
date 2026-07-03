@@ -95,6 +95,16 @@ npm run worker:{tier-check,capacity,payroll-close,desklog,checkin}
 # Deploy (idempotent)
 ./deploy.sh                         # rsync -> npm ci -> migrate deploy -> build -> restart
 
+# Prisma migrations — non-interactive (agents can't answer `migrate dev` prompts).
+# `prisma migrate dev` is INTERACTIVE (prompts for a name / shadow-db reset) and
+# hangs a session. Create + apply a migration headlessly:
+#   npx prisma migrate diff \
+#     --from-schema-datasource prisma/schema.prisma \
+#     --to-schema-datamodel   prisma/schema.prisma \
+#     --script > prisma/migrations/$(date +%Y%m%d%H%M%S)_change/migration.sql
+#   npx prisma migrate deploy && npx prisma generate
+# Quick dev-only schema push (no migration history): npx prisma db push  (NEVER prod).
+
 # VPS ops
 ssh root@74.208.40.108 "systemctl status va-management-web --no-pager"
 ssh root@74.208.40.108 "journalctl -u va-management-web -n 50 --no-pager"

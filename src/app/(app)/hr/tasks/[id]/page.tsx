@@ -75,6 +75,7 @@ export default async function HrTaskDetailPage({ params }: { params: Promise<{ i
               assignedByName: task.assignedBy.name ?? "—",
               projectId: task.project?.id ?? null,
               projectName: task.project?.name ?? null,
+              claimable: task.claimable,
             }}
             clients={clients}
             assignees={assignees}
