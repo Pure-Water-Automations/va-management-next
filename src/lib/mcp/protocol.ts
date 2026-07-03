@@ -13,7 +13,13 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "list_projects",
     description: "List the team's projects (name, status, client, owner, open/total task counts). Call before creating to avoid duplicates.",
-    inputSchema: { type: "object", properties: { status: { type: "string", description: "Optional filter: Planning | Active | OnHold | Done" } } },
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", description: "Optional filter: Planning | Active | OnHold | Done" },
+        clientOrgId: { type: "string", description: "Optional filter: only projects belonging to this ClientOrganization id" },
+      },
+    },
   },
   {
     name: "create_project",
@@ -33,7 +39,14 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "list_tasks",
     description: "List tasks, optionally for one project. Returns title, status, assignee, priority, due date.",
-    inputSchema: { type: "object", properties: { project: { type: "string", description: "Project id or name" }, status: { type: "string" } } },
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Project id or name" },
+        status: { type: "string" },
+        clientOrgId: { type: "string", description: "Optional filter: only tasks belonging to this ClientOrganization id" },
+      },
+    },
   },
   {
     name: "create_task",
