@@ -97,12 +97,22 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       ],
     },
   ],
+  SALES: [
+    {
+      label: "Sales",
+      items: [
+        { href: "/sales", label: "Pipeline", icon: <IconBriefcase /> },
+        { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck /> },
+      ],
+    },
+  ],
 };
 
 const SUBTITLE: Record<string, string> = {
   HR: "HR Operations",
   PAYROLL: "Payroll",
   RECRUITMENT: "Recruitment",
+  SALES: "Sales",
   VA: "My Console",
 };
 
@@ -149,7 +159,7 @@ export function Sidebar({
         {/* HR managers and people ops can manage clients and client requests */}
         {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
           <NavGroup label="Clients">
-            <NavItemLink href="/hr/sales" label="Sales Pipeline" icon={<IconBriefcase />} />
+            <NavItemLink href="/sales" label="Sales Pipeline" icon={<IconBriefcase />} />
             <NavItemLink href="/hr/client-onboarding" label="Onboarding" icon={<IconHandshake />} />
             <NavItemLink href="/hr/clients" label="Organizations" icon={<IconBuilding />} />
             <NavItemLink href="/hr/requests" label="Client Requests" icon={<IconMessageSquare />} />

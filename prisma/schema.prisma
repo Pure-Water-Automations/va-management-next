@@ -19,6 +19,7 @@ enum Role {
   TEAM_LEAD
   BOOKKEEPER
   RECRUITER
+  SALES
   SENIOR_VA
   VA
   CLIENT_ADMIN
@@ -1192,6 +1193,37 @@ model Deal {
   contactName       String?
   contactEmail      String?
   source            String?
+  // ── Native discovery funnel: public intake (Phase 1) ──────────────────
+  discoveryJson      Json?     // full raw /discover answers (source of truth)
+  teamSize           String?
+  missionStatement   String?
+  hoursPerWeek       String?   // band: "Under 5" | "5–10" | "10–20" | "20+"
+  budgetAvailable    String?   // "yes" | "unsure" | "no"
+  timeline           String?
+  painTags           Json?     // string[]
+  triedBefore        String?
+  heardAbout         String?
+  estimatedAdminCost Int?      // computed cost-of-inaction figure ($/yr)
+  fitVerdict         String?   // pre-AI heuristic: "hot" | "warm" | "cold"
+  // ── AI lead scoring (mirrors Candidate.screen*) ───────────────────────
+  leadVerdict        String?   // "hot" | "warm" | "cold"
+  leadScore          Int?      // 0–100
+  leadSummary        String?
+  leadFlags          Json?     // string[]
+  scoredAt           DateTime?
+  // ── Native discovery-call booking (Phase 2) ───────────────────────────
+  discoveryCallAt       DateTime?
+  discoveryCallEndAt    DateTime?
+  discoveryCallToken    String?   @unique // magic link: book / reschedule / cancel
+  discoveryCallStatus   String?   // "scheduled" | "completed" | "no_show" | "cancelled"
+  discoveryCallVideoUrl String?
+  discoveryRepEmail     String?   // rep whose slot was chosen (= accountOwnerEmail)
+  discoveryReminderSentAt DateTime? // set once the pre-call reminder has gone out
+  // ── Discovery-call notes (Phase 3): structured capture from the call ──
+  discoveryNotesJson    Json?
+  // ── Google Calendar event (gcal integration) ─────────────────────────
+  discoveryCalEventId   String?   // GCal event id — patch on reschedule, delete on cancel
+  discoveryCalId        String?   // which calendar the event lives on (rep's calendarId)
   accountOwnerEmail String?
   stage             DealStage           @default(new)
   packageName       String?
@@ -1215,6 +1247,28 @@ model Deal {
 
   @@index([stage])
   @@index([nextFollowUpAt])
+  @@index([discoveryCallStatus, discoveryCallAt])
+}
+
+/// Per-rep Google Calendar credential for discovery-call booking (freebusy +
+/// event create/update/delete). Tokens stored in-DB like NotionConnection; the
+/// google-auth-library OAuth2 client auto-refreshes from refreshToken.
+model CalendarConnection {
+  id           String    @id @default(cuid())
+  repEmail     String    @unique // lowercased rep identity (= Deal.discoveryRepEmail)
+  calendarId   String    @default("primary")
+  clientId     String
+  clientSecret String
+  refreshToken String
+  accessToken  String?
+  tokenUri     String?
+  expiryDate   BigInt? // ms epoch
+  scope        String?
+  email        String? // authorizing Google account (from userinfo)
+  active       Boolean   @default(true)
+  createdByEmail String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 enum ClientAgreementStatus {

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
+import { viewForRole } from "@/lib/auth/roles";
 import { getHrDashboard } from "@/lib/reads/hr";
 import { Stat } from "@/components/ui/Stat";
 import { Badge } from "@/components/ui/Badge";
@@ -46,7 +48,10 @@ type Decision = {
 };
 
 export default async function HrDashboard() {
-  await getCurrentUser();
+  const user = await getCurrentUser();
+  // Guard the HR console: only HR-view roles (and admins) land here — others
+  // (SALES, RECRUITER, VA …) go to their own home.
+  if (viewForRole(user.role) !== "HR" && !user.isAdmin) redirect("/");
   const d = await getHrDashboard();
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });

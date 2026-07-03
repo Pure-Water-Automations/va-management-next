@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type View = "HR" | "PAYROLL" | "RECRUITMENT" | "VA";
+type View = "HR" | "PAYROLL" | "RECRUITMENT" | "SALES" | "VA";
 const VIEWS: { key: View; label: string; home: string }[] = [
   { key: "HR", label: "HR", home: "/hr" },
   { key: "PAYROLL", label: "Payroll", home: "/payroll" },
   { key: "RECRUITMENT", label: "Recruitment", home: "/recruitment" },
+  { key: "SALES", label: "Sales", home: "/sales" },
   { key: "VA", label: "VA", home: "/va" },
 ];
 

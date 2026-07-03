@@ -70,7 +70,7 @@ export function isRecordingsVisible(user: CurrentUser): boolean {
 }
 
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
-const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "VA"];
+const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
 
 /**
  * The console an admin is currently viewing. Admins can switch consoles via the
