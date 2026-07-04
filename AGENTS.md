@@ -245,8 +245,41 @@ reusing `createProject`/`createTask`/`updateTaskStatus` + reads (so audit logs,
   JSON responses; `GET` → 405 (no server-initiated SSE). To add a tool: extend `MCP_TOOLS`
   + `executeTool`.
 
+## Demo mode (seeded fake data for screen-recording tutorials)
+
+A throwaway, entirely-fake instance for recording tutorials (via the local
+`tutorial-factory` tool) so no real VA / candidate / payroll data is ever on
+screen. **It never touches the real `va_console` DB or any prod box.**
+
+- **`prisma/seed-demo.ts`** wipes + populates a demo database with fake data across
+  every tutorial surface (VAs, payroll period + calcs, capacity flags, recruitment
+  candidates, evaluations, tier reviews, onboarding, client orgs/deals, activity
+  feed → HR dashboard shows a real "decisions" count). It is **HARD-GUARDED**: it
+  refuses to run unless the `DATABASE_URL` database name contains `demo` (no override
+  flag). It also seeds `email_redirect_to` so no system email can reach a real inbox.
+- **`DEMO_MODE=1`** renders a sticky "Demo data — not real" banner (`DemoBanner`,
+  `data-demo-banner="1"`) in the app shell — a safety indicator AND the recording
+  tool's preflight marker.
+- **`DEV_AUTH_EMAIL`** (non-prod only) bypasses Google login → set it to the seeded
+  demo HR manager `hr.demo@example.com`.
+
+Run it locally (one-time DB, then app on a demo port distinct from real dev's 3032):
+```bash
+createdb va_console_demo
+DEMO_DB="postgresql://va_console@localhost:5432/va_console_demo"
+DATABASE_URL="$DEMO_DB" npx prisma migrate deploy
+DATABASE_URL="$DEMO_DB" npm run seed:demo          # guarded — refuses non-demo DBs
+DATABASE_URL="$DEMO_DB" DEV_AUTH_EMAIL="hr.demo@example.com" \
+  NEXTAUTH_SECRET="demo-secret-not-for-prod" DEMO_MODE=1 npx next dev -p 3055
+# → http://localhost:3055/hr (banner shown, seeded data, no login prompt)
+```
+The `tutorial-factory` target `targets/va-manager.json` points at this demo instance.
+
 ## Constraints
 
+- **Demo seed is demo-only** — `prisma/seed-demo.ts` refuses any DB without `demo`
+  in the name; never weaken that guard, and never point `DEMO_MODE`/the demo seed at
+  `va_console` or a prod box.
 - **Never write to the original VA workbook** — it's read-only (import + parity
   only). The mirror sheet is the only Google write target.
 - Edit GAS logic only if you're maintaining the *rollback*; new work goes here.
