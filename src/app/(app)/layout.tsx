@@ -10,6 +10,7 @@ import { Topbar } from "@/components/Topbar";
 import { VaTopNav } from "@/components/VaTopNav";
 import { AdminBar } from "@/components/AdminBar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { DemoBanner } from "@/components/DemoBanner";
 import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
 
@@ -103,6 +104,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     return (
       <>
         <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
+        <DemoBanner />
         <div style={{ minHeight: "100vh", background: "var(--color-bg-secondary)" }}>
           {adminBar}
           <VaTopNav
@@ -127,6 +129,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
+      <DemoBanner />
       {/* Mobile nav: hamburger toggles the sidebar drawer (CSS-only). */}
       <input type="checkbox" id="nav-toggle" className="nav-toggle-cb" aria-hidden="true" defaultChecked={false} />
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
