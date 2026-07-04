@@ -111,6 +111,8 @@ async function main() {
     db.deskLogHours.deleteMany({}),
     db.onboarding.deleteMany({}),
     db.activityLog.deleteMany({}),
+    db.notification.deleteMany({}),
+    db.task.deleteMany({}), // must precede User (assignedToId/assignedById FKs)
     // Base tables.
     db.setting.deleteMany({}),
     db.user.deleteMany({}),
@@ -163,16 +165,72 @@ async function main() {
   }
 
   // Logins: a demo HR manager (used via DEV_AUTH_EMAIL to bypass Google login for
-  // recording) + a VA login for the "My Console" perspective.
-  await db.user.create({
+  // recording) + VA logins for the "My Console" perspective. Casey Tan (TRAINEE,
+  // low baseline hours) is the "new VA just joining" persona — a plain VA role
+  // (not SENIOR_VA) so the nav matches what a brand-new hire actually sees (no
+  // delegation/All Tasks/Projects items).
+  const hrUser = await db.user.create({
     data: { email: DEMO_HR_EMAIL, name: "Dana Morgan (Demo HR)", role: "HR_MANAGER", isAdmin: true, active: true },
   });
   await db.user.create({
     data: { email: "robin.reyes@example.com", name: "Robin Reyes", role: "SENIOR_VA", active: true, vaId: "DVA001" },
   });
+  const caseyUser = await db.user.create({
+    data: { email: "casey.tan@example.com", name: "Casey Tan", role: "VA", active: true, vaId: "DVA005" },
+  });
 
   const activeVaIds = vas.filter((v) => v.status === "active" || v.status === "training").map((v) => v.vaId);
   const vaByIdName = new Map(vas.map((v) => [v.vaId, v.name] as const));
+
+  // ── Tasks (My Tasks for Casey + the Available claim pool) ──────────────────
+  // Casey's plate: one done (history), one due TODAY, two upcoming — populates
+  // the Overview hero + My Tasks without looking overdue/overwhelming for a
+  // just-joined VA. Strategy/priority vary so the badges look real.
+  await db.task.create({
+    data: {
+      title: "Welcome check-in with your supervisor", strategy: "Communicate", priority: "Medium",
+      status: "Done", assignedToId: caseyUser.id, assignedById: hrUser.id, dueDate: daysFromNow(-6),
+      instructions: "30-min intro call with Sam Cruz to walk through your first two weeks.",
+    },
+  });
+  await db.task.create({
+    data: {
+      title: "Update your profile photo & bio", strategy: "Create", priority: "Medium",
+      status: "NotStarted", assignedToId: caseyUser.id, assignedById: hrUser.id, dueDate: daysFromNow(0),
+      instructions: "Add a headshot and a two-line bio so the team recognizes you in Slack/WhatsApp.",
+    },
+  });
+  await db.task.create({
+    data: {
+      title: "Complete Module 2: Client Communication Basics", strategy: "Research", priority: "Medium",
+      status: "InProgress", assignedToId: caseyUser.id, assignedById: hrUser.id, dueDate: daysFromNow(3),
+      instructions: "PWA Academy — finish the module quiz before your next check-in.",
+    },
+  });
+  await db.task.create({
+    data: {
+      title: "Shadow a client call recap", strategy: "Plan", priority: "Low",
+      status: "NotStarted", assignedToId: caseyUser.id, assignedById: hrUser.id, dueDate: daysFromNow(6),
+      instructions: "Sit in on Sam's Friday client recap to see how deliverables get summarized.",
+    },
+  });
+  // Open pool (claimable): non-urgent work anyone can pick up. Held by their
+  // creator (hrUser) until claimed, per the claimable-task contract.
+  await db.task.createMany({
+    data: [
+      { title: "Proofread the onboarding welcome email template", strategy: "Fix", priority: "Low", claimable: true, assignedToId: hrUser.id, assignedById: hrUser.id, dueDate: daysFromNow(5) },
+      { title: "Tag stock photos for the knowledge base", strategy: "Simplify", priority: "Low", claimable: true, assignedToId: hrUser.id, assignedById: hrUser.id, dueDate: daysFromNow(8) },
+    ],
+  });
+
+  // ── Notifications (the bell in the top nav) ─────────────────────────────────
+  await db.notification.createMany({
+    data: [
+      { userId: caseyUser.id, type: "task_assigned", body: "You were assigned: Update your profile photo & bio", link: "/va/tasks", read: false, createdAt: daysFromNow(0) },
+      { userId: caseyUser.id, type: "task_assigned", body: "You were assigned: Complete Module 2: Client Communication Basics", link: "/va/tasks", read: false, createdAt: daysFromNow(-1) },
+      { userId: caseyUser.id, type: "reminder", body: "Your monthly check-in is ready whenever you are.", link: "/va/checkin", read: true, createdAt: daysFromNow(-3) },
+    ],
+  });
 
   // ── DeskLog hours + efficiency ─────────────────────────────────────────────
   // Realistic daily hours over the last ~16 days so 14-day utilization + efficiency
@@ -349,11 +407,12 @@ async function main() {
       combinedScore: 3.7, autoRecommendation: "hold",
     },
   });
+  // Left genuinely PENDING (selfSubmittedAt: null) — this is the new-VA tutorial's
+  // "here's what completing your first evaluation looks like" beat.
   await db.evaluation.create({
     data: {
       tierReviewId: tr3.id, vaId: "DVA005", vaName: "Casey Tan", rubric: "TRAINEE", stage: "40h",
-      status: "self_submitted", supervisorVaId: "DVA002",
-      selfSubmittedAt: daysFromNow(-1), selfScore: 3.9,
+      status: "forms_sent", supervisorVaId: "DVA002",
     },
   });
 
@@ -438,7 +497,8 @@ async function main() {
     `seed-demo: full slice done — ${compensationRoles.length} tiers, ${vas.length} VAs, ` +
       `${hoursRows.length} desklog-hour rows, payroll (1 open + 2 past), 4 tier reviews, ` +
       `3 evaluations, 3 capacity flags, 8 candidates, 2 onboarding, 2 client orgs, 2 deals, ` +
-      `3 client task requests, 7 activity-log rows. Email redirected to demo-sink@example.com.`,
+      `3 client task requests, 7 activity-log rows, 6 tasks (4 Casey + 2 pool), ` +
+      `3 notifications. Email redirected to demo-sink@example.com.`,
   );
   void vaByIdName;
 }
