@@ -112,7 +112,9 @@ async function main() {
     db.onboarding.deleteMany({}),
     db.activityLog.deleteMany({}),
     db.notification.deleteMany({}),
-    db.task.deleteMany({}), // must precede User (assignedToId/assignedById FKs)
+    db.projectComment.deleteMany({}),
+    db.task.deleteMany({}), // must precede User/Project (assignedToId/projectId FKs)
+    db.project.deleteMany({}), // must precede User (ownerId/createdById FKs)
     // Base tables.
     db.setting.deleteMany({}),
     db.user.deleteMany({}),
@@ -172,11 +174,27 @@ async function main() {
   const hrUser = await db.user.create({
     data: { email: DEMO_HR_EMAIL, name: "Dana Morgan (Demo HR)", role: "HR_MANAGER", isAdmin: true, active: true },
   });
-  await db.user.create({
+  const robinUser = await db.user.create({
     data: { email: "robin.reyes@example.com", name: "Robin Reyes", role: "SENIOR_VA", active: true, vaId: "DVA001" },
   });
   const caseyUser = await db.user.create({
     data: { email: "casey.tan@example.com", name: "Casey Tan", role: "VA", active: true, vaId: "DVA005" },
+  });
+  // Non-admin logins for role-specific tutorials (isAdmin:false so nav gating is
+  // accurate — an admin login bypasses role checks and would show every section
+  // regardless of role, which is NOT what a real HR_MANAGER/TEAM_LEAD/RECRUITER/
+  // BOOKKEEPER teammate sees).
+  await db.user.create({
+    data: { email: "hr.manager@example.com", name: "Morgan Reyes", role: "HR_MANAGER", isAdmin: false, active: true },
+  });
+  await db.user.create({
+    data: { email: "team.lead@example.com", name: "Jordan Silva", role: "TEAM_LEAD", isAdmin: false, active: true },
+  });
+  await db.user.create({
+    data: { email: "recruiter@example.com", name: "Avery Chen", role: "RECRUITER", isAdmin: false, active: true },
+  });
+  await db.user.create({
+    data: { email: "bookkeeper@example.com", name: "Sam Okafor", role: "BOOKKEEPER", isAdmin: false, active: true },
   });
 
   const activeVaIds = vas.filter((v) => v.status === "active" || v.status === "training").map((v) => v.vaId);
@@ -220,6 +238,29 @@ async function main() {
     data: [
       { title: "Proofread the onboarding welcome email template", strategy: "Fix", priority: "Low", claimable: true, assignedToId: hrUser.id, assignedById: hrUser.id, dueDate: daysFromNow(5) },
       { title: "Tag stock photos for the knowledge base", strategy: "Simplify", priority: "Low", claimable: true, assignedToId: hrUser.id, assignedById: hrUser.id, dueDate: daysFromNow(8) },
+    ],
+  });
+
+  // ── Projects (for the HR Manager / Team Lead Projects + Workload views) ─────
+  const websiteProject = await db.project.create({
+    data: {
+      name: "Client Onboarding Refresh", description: "Streamline the intake-to-kickoff flow for new clients.",
+      status: "Active", type: "Project", priority: "High", ownerId: hrUser.id, createdById: hrUser.id,
+      dueDate: daysFromNow(21),
+    },
+  });
+  await db.project.create({
+    data: {
+      name: "Q3 Team Training Refresh", description: "Refresh the PWA Academy modules for Q3.",
+      status: "Planning", type: "Project", priority: "Medium", ownerId: hrUser.id, createdById: hrUser.id,
+      dueDate: daysFromNow(35),
+    },
+  });
+  // A couple of team tasks under the project (distinct from Casey's My-Tasks set).
+  await db.task.createMany({
+    data: [
+      { title: "Draft the new intake questionnaire", strategy: "Create", priority: "High", status: "InProgress", assignedToId: robinUser.id, assignedById: hrUser.id, projectId: websiteProject.id, dueDate: daysFromNow(4) },
+      { title: "Review kickoff-call script", strategy: "Research", priority: "Medium", status: "NotStarted", assignedToId: robinUser.id, assignedById: hrUser.id, projectId: websiteProject.id, dueDate: daysFromNow(9) },
     ],
   });
 
@@ -497,8 +538,9 @@ async function main() {
     `seed-demo: full slice done — ${compensationRoles.length} tiers, ${vas.length} VAs, ` +
       `${hoursRows.length} desklog-hour rows, payroll (1 open + 2 past), 4 tier reviews, ` +
       `3 evaluations, 3 capacity flags, 8 candidates, 2 onboarding, 2 client orgs, 2 deals, ` +
-      `3 client task requests, 7 activity-log rows, 6 tasks (4 Casey + 2 pool), ` +
-      `3 notifications. Email redirected to demo-sink@example.com.`,
+      `3 client task requests, 7 activity-log rows, 8 tasks (4 Casey + 2 pool + 2 project), ` +
+      `2 projects, 3 notifications, 4 role logins (HR/Team Lead/Recruiter/Bookkeeper). ` +
+      `Email redirected to demo-sink@example.com.`,
   );
   void vaByIdName;
 }
