@@ -1,10 +1,45 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
+import type { Role, CompRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth/nextauth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { viewForRole, type ConsoleView } from "@/lib/auth/roles";
+import { flagsForCompRole } from "@/lib/auth/delegation";
+
+/**
+ * Delegation / meeting-actions capabilities, precomputed once per request so guards
+ * read a plain flag instead of doing role math. Tier-driven for VAs; all-on for
+ * all-access users; off for specialized roles (HR, Recruiter, Sales, Bookkeeper).
+ */
+export type Caps = { manageTasks: boolean; manageProjects: boolean; reviewMeetingActions: boolean };
+
+/** All-access = platform admin OR the QA `TESTER` role. Sees and does everything. */
+export function isAllAccess(user: { isAdmin: boolean; role: Role }): boolean {
+  return user.isAdmin || user.role === "TESTER";
+}
+
+async function capsFor(
+  user: { isAdmin: boolean; role: Role; va: { compensationRole: CompRole } | null },
+  email: string,
+): Promise<Caps> {
+  if (isAllAccess(user)) return { manageTasks: true, manageProjects: true, reviewMeetingActions: true };
+  let va: { compensationRole: CompRole } | null = user.va;
+  if (!va) {
+    va = await db.va.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { compensationRole: true },
+    });
+  }
+  if (!va) return { manageTasks: false, manageProjects: false, reviewMeetingActions: false };
+  const f = await flagsForCompRole(va.compensationRole);
+  return {
+    manageTasks: f.canDelegateTasks,
+    manageProjects: f.canDelegateProjects,
+    reviewMeetingActions: f.canReviewMeetingActions,
+  };
+}
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -26,7 +61,8 @@ export async function getCurrentUser() {
     throw new Error(`No active VA Management account for ${email}`);
   }
 
-  return user;
+  const caps = await capsFor(user, email);
+  return { ...user, caps };
 }
 
 export type CurrentUser = Awaited<ReturnType<typeof getCurrentUser>>;
@@ -66,7 +102,7 @@ export async function isBetaVisible(email: string | null | undefined): Promise<b
  * so regular VAs never see it regardless.
  */
 export function isRecordingsVisible(user: CurrentUser): boolean {
-  return user.isAdmin || isFounder(user.email);
+  return isAllAccess(user) || isFounder(user.email);
 }
 
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
@@ -77,7 +113,7 @@ const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
  * `va_view` cookie; everyone else gets the view their role implies.
  */
 export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> {
-  if (user.isAdmin) {
+  if (isAllAccess(user)) {
     const picked = (await cookies()).get("va_view")?.value as ConsoleView | undefined;
     if (picked && VIEWS.includes(picked)) return picked;
   }
@@ -91,7 +127,7 @@ export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> 
  */
 export async function getEffectiveVaId(user: CurrentUser): Promise<string | null> {
   if (user.vaId) return user.vaId;
-  if (!user.isAdmin) return null;
+  if (!isAllAccess(user)) return null;
   const picked = (await cookies()).get("va_as_va")?.value;
   if (picked) return picked;
   const first = await db.va.findFirst({

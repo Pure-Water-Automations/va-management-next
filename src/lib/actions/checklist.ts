@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { canUserActOnTask } from "@/lib/services/tasks";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import type { Role } from "@prisma/client";
 
 export async function addChecklistItem(
@@ -17,7 +18,7 @@ export async function addChecklistItem(
     select: { assignedToId: true, assignedById: true, title: true },
   });
 
-  if (!canUserActOnTask(actorId, actorRole, task)) {
+  if (!canUserActOnTask(actorId, await canUserDelegateTasks(actorId, actorRole), task)) {
     throw new AuthorizationError("You are not allowed to edit this task's checklist");
   }
 
@@ -43,7 +44,7 @@ export async function toggleChecklistItem(actorId: string, actorRole: Role, item
     include: { task: { select: { assignedToId: true, assignedById: true, title: true } } },
   });
 
-  if (!canUserActOnTask(actorId, actorRole, item.task)) {
+  if (!canUserActOnTask(actorId, await canUserDelegateTasks(actorId, actorRole), item.task)) {
     throw new AuthorizationError("You are not allowed to edit this task's checklist");
   }
 
@@ -68,7 +69,7 @@ export async function deleteChecklistItem(actorId: string, actorRole: Role, item
     include: { task: { select: { assignedToId: true, assignedById: true, title: true } } },
   });
 
-  if (!canUserActOnTask(actorId, actorRole, item.task)) {
+  if (!canUserActOnTask(actorId, await canUserDelegateTasks(actorId, actorRole), item.task)) {
     throw new AuthorizationError("You are not allowed to edit this task's checklist");
   }
 

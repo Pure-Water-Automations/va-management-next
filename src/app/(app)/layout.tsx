@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
-import { canUserDelegateTasks, canVaDelegateTasks } from "@/lib/auth/delegation";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible, isAllAccess } from "@/lib/auth/access";
+import { canUserDelegateTasks, canVaDelegateTasks, canUserReviewMeetingActions, canVaReviewMeetingActions } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
@@ -21,8 +20,16 @@ const EYEBROW: Record<string, string> = {
   VA: "My Console",
 };
 
-function vaRoleLabel(role: string): string {
-  if (role === "SENIOR_VA") return "Senior VA";
+// A VA's console pill shows their TIER (seniority), not their role — "Senior VA" is
+// Tier 3, "Lead VA" is Tier 4. Non-VA logins fall back to a humanized role.
+const VA_TIER_LABEL: Record<string, string> = {
+  TRAINEE: "Trainee",
+  TIER_1: "Tier 1 VA",
+  TIER_2: "Tier 2 VA",
+  TIER_3: "Senior VA",
+  TIER_4: "Lead VA",
+};
+function humanizeRole(role: string): string {
   if (role === "VA") return "Virtual Assistant";
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -38,7 +45,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (view === "CLIENT") redirect("/client");
   let adminVas: { vaId: string; name: string }[] = [];
   let impersonatedVaId: string | null = null;
-  if (user.isAdmin) {
+  if (isAllAccess(user)) {
     [adminVas, impersonatedVaId] = await Promise.all([
       db.va.findMany({
         where: { status: { in: ["active", "training"] } },
@@ -54,8 +61,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // When an admin uses "View as → as VA", reflect the IMPERSONATED VA's own authority so
   // the preview matches what that VA actually sees — otherwise the admin's always-allowed
   // authority wrongly shows the Delegation nav for a plain VA (e.g. a trainee).
+  // Delegation + meeting-actions authority are comp-tier-driven (a senior-tier VA, or
+  // any tier flagged on the Compensation Roles screen), so the VA-console nav follows
+  // the tier, not the role. When an all-access user uses "View as → a VA", reflect the
+  // IMPERSONATED VA's own authority so the preview matches what that VA actually sees.
   let canDelegate: boolean;
-  if (user.isAdmin && view === "VA" && impersonatedVaId && impersonatedVaId !== user.vaId) {
+  let showMeetingActions: boolean;
+  if (isAllAccess(user) && view === "VA" && impersonatedVaId && impersonatedVaId !== user.vaId) {
     // Map the impersonated VA → its login by EMAIL (Va.email is unique and matches
     // User.email). Keying on User.vaId is unreliable — some logins aren't linked to
     // their VA row (e.g. Aira), which would wrongly hide the Delegation nav.
@@ -67,13 +79,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       ? await db.user.findUnique({ where: { email: impVa.email.toLowerCase() }, select: { id: true, role: true } })
       : null;
     // If the impersonated VA has a linked login, use its full authority; otherwise
-    // (many VAs have no User account yet) judge delegation straight from the VA's
-    // comp tier so the preview still reflects what that tier grants.
-    canDelegate = impUser
-      ? await canUserDelegateTasks(impUser.id, impUser.role)
-      : await canVaDelegateTasks(impersonatedVaId);
+    // (many VAs have no User account yet) judge straight from the VA's comp tier so
+    // the preview still reflects what that tier grants.
+    if (impUser) {
+      canDelegate = await canUserDelegateTasks(impUser.id, impUser.role);
+      showMeetingActions = await canUserReviewMeetingActions(impUser.id, impUser.role);
+    } else {
+      canDelegate = await canVaDelegateTasks(impersonatedVaId);
+      showMeetingActions = await canVaReviewMeetingActions(impersonatedVaId);
+    }
   } else {
-    canDelegate = await canUserDelegateTasks(user.id, user.role);
+    canDelegate = user.caps.manageTasks;
+    showMeetingActions = user.caps.reviewMeetingActions;
   }
 
   // Enhance / Discover stay founder-only + runtime-toggleable (hidden during VA
@@ -83,13 +100,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
-  const showMeetingActions = user.isAdmin || canReviewMeetingActions(user.role);
   const meetingActionsCount = showMeetingActions
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
 
   const userName = user.name ?? user.email;
-  const adminBar = user.isAdmin ? (
+  const roleLabel = user.va
+    ? (VA_TIER_LABEL[user.va.compensationRole] ?? "Virtual Assistant")
+    : humanizeRole(user.role);
+  const adminBar = isAllAccess(user) ? (
     <AdminBar
       currentView={view}
       vas={adminVas}
@@ -109,7 +128,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           {adminBar}
           <VaTopNav
             name={userName}
-            roleLabel={vaRoleLabel(user.role)}
+            roleLabel={roleLabel}
             canDelegate={canDelegate}
             showMeetingActions={showMeetingActions}
             meetingActionsCount={meetingActionsCount}
@@ -120,7 +139,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <div className="topnav-content">{children}</div>
         </div>
         <CommandPalette />
-        <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
+        <Purii tour={tourForView(view)} canBypass={isAllAccess(user)} />
       </>
     );
   }
@@ -139,7 +158,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           view={view}
           role={user.role}
           name={userName}
-          isAdmin={user.isAdmin}
+          isAdmin={isAllAccess(user)}
           showRecordings={showRecordings}
           showMeetingActions={showMeetingActions}
           meetingActionsCount={meetingActionsCount}
@@ -151,7 +170,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </main>
       </div>
       <CommandPalette />
-      <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
+      <Purii tour={tourForView(view)} canBypass={isAllAccess(user)} />
     </>
   );
 }

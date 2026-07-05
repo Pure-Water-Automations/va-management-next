@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageProjects } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { ProjectForm } from "@/components/ProjectForm";
 import { getClients } from "@/lib/reads/clients";
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function EditProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageProjects(user.role)) {
+  if (!user.caps.manageProjects) {
     redirect(`/hr/projects/${id}`);
   }
 

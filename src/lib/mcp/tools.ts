@@ -166,7 +166,7 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         }
       }
       const vas = await db.user.findMany({
-        where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+        where: { role: "VA", active: true },
         select: {
           id: true, name: true, email: true, role: true,
           va: { select: { compensationRole: true, skillSpecs: true, availabilityNotes: true, targetHoursWeekly: true } },

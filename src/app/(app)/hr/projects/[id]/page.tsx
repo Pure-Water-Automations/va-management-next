@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
-import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { computeProjectProgress } from "@/lib/services/tasks";
@@ -21,10 +20,10 @@ export const dynamic = "force-dynamic";
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  if (!user.caps.manageTasks) {
     redirect("/hr/projects");
   }
-  const canEdit = user.isAdmin || canManageProjects(user.role);
+  const canEdit = user.caps.manageProjects;
 
   // Auto-suggest: VAs assigned to this project's client float to the top of the picker.
   const projectClientId = (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))?.clientOrganizationId ?? null;

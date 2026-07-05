@@ -19,8 +19,12 @@ describe("viewForRole", () => {
     assert.equal(viewForRole("PEOPLE_OPS"), "HR");
   });
 
-  it("TEAM_LEAD → HR", () => {
-    assert.equal(viewForRole("TEAM_LEAD"), "HR");
+  it("TEAM_LEAD (retired) → VA fall-through", () => {
+    assert.equal(viewForRole("TEAM_LEAD"), "VA");
+  });
+
+  it("TESTER → HR (all-access landing)", () => {
+    assert.equal(viewForRole("TESTER"), "HR");
   });
 
   it("VA → VA", () => {

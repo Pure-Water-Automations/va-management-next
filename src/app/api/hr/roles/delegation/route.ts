@@ -19,6 +19,7 @@ export const POST = action(
       roleId: normalizeCompRole(str(body, "roleId"), "roleId"),
       canDelegateTasks: optBool(body, "canDelegateTasks"),
       canDelegateProjects: optBool(body, "canDelegateProjects"),
+      canReviewMeetingActions: optBool(body, "canReviewMeetingActions"),
     });
   },
   { allow: (r) => r === "HR_MANAGER" || r === "PEOPLE_OPS" },

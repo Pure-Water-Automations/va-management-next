@@ -1,6 +1,5 @@
 import { action } from "@/lib/api";
 import { bulkUpdateTasks } from "@/lib/actions/tasks";
-import { canManageTasks } from "@/lib/auth/roles";
 
 export const POST = action(
   async ({ user, body }) =>
@@ -10,5 +9,5 @@ export const POST = action(
       assignedToId: body.assignedToId,
       dueDate: body.dueDate,
     }),
-  { allow: (r) => canManageTasks(r) },
+  { allowUser: (u) => u.caps.manageTasks },
 );

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
@@ -22,13 +21,17 @@ type VaRow = {
 
 export default async function HrWorkloadPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
-    redirect("/hr/tasks");
+  // Workload is a read-only capacity view: delegators (senior-tier VAs) + all-access
+  // get it, and HR / People-Ops keep it for oversight even though they don't delegate.
+  const canSeeWorkload =
+    user.caps.manageTasks || user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS";
+  if (!canSeeWorkload) {
+    redirect("/");
   }
 
   const [vas, tasks] = await Promise.all([
     db.user.findMany({
-      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+      where: { role: "VA", active: true },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),

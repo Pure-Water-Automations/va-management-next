@@ -67,16 +67,16 @@ test("computeProjectProgress: rounds to nearest integer", () => {
 
 // ── canUserActOnTask ───────────────────────────────────────────────────────
 
-test("canUserActOnTask: HR_MANAGER can act on any task", () => {
-  assert.equal(canUserActOnTask("user1", "HR_MANAGER", { assignedToId: "other", assignedById: "other2" }), true);
+test("canUserActOnTask: a delegator can act on any task", () => {
+  assert.equal(canUserActOnTask("user1", true, { assignedToId: "other", assignedById: "other2" }), true);
 });
 
-test("canUserActOnTask: VA can act on their own assigned task", () => {
-  assert.equal(canUserActOnTask("user1", "VA", { assignedToId: "user1", assignedById: "other" }), true);
+test("canUserActOnTask: a non-delegator can act on their own assigned task", () => {
+  assert.equal(canUserActOnTask("user1", false, { assignedToId: "user1", assignedById: "other" }), true);
 });
 
-test("canUserActOnTask: VA cannot act on someone else's task", () => {
-  assert.equal(canUserActOnTask("user1", "VA", { assignedToId: "other", assignedById: "also-other" }), false);
+test("canUserActOnTask: a non-delegator cannot act on someone else's task", () => {
+  assert.equal(canUserActOnTask("user1", false, { assignedToId: "other", assignedById: "also-other" }), false);
 });
 
 // ── inheritTaskClient ──────────────────────────────────────────────────────

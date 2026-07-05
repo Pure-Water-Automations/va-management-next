@@ -12,7 +12,7 @@ export function RoleDelegationToggle({
   label,
 }: {
   roleId: string;
-  field: "canDelegateTasks" | "canDelegateProjects";
+  field: "canDelegateTasks" | "canDelegateProjects" | "canReviewMeetingActions";
   checked: boolean;
   label: string;
 }) {

@@ -200,13 +200,28 @@ export async function saveRole(input: SaveRoleInput, actorEmail: string) {
 
 export async function setRoleDelegation(
   actorEmail: string,
-  input: { roleId: CompRole; canDelegateTasks?: boolean; canDelegateProjects?: boolean },
+  input: {
+    roleId: CompRole;
+    canDelegateTasks?: boolean;
+    canDelegateProjects?: boolean;
+    canReviewMeetingActions?: boolean;
+  },
 ) {
   const roleId = normalizeCompRole(input.roleId, "roleId");
-  const data: { canDelegateTasks?: boolean; canDelegateProjects?: boolean } = {};
+  const data: {
+    canDelegateTasks?: boolean;
+    canDelegateProjects?: boolean;
+    canReviewMeetingActions?: boolean;
+  } = {};
   if (input.canDelegateTasks !== undefined) data.canDelegateTasks = input.canDelegateTasks;
   if (input.canDelegateProjects !== undefined) data.canDelegateProjects = input.canDelegateProjects;
-  if (data.canDelegateTasks === undefined && data.canDelegateProjects === undefined) {
+  if (input.canReviewMeetingActions !== undefined)
+    data.canReviewMeetingActions = input.canReviewMeetingActions;
+  if (
+    data.canDelegateTasks === undefined &&
+    data.canDelegateProjects === undefined &&
+    data.canReviewMeetingActions === undefined
+  ) {
     throw new Error("No delegation flags provided.");
   }
 
@@ -216,7 +231,7 @@ export async function setRoleDelegation(
     source: "hr_action",
     eventType: "role_delegation_set",
     severity: "info",
-    summary: `Delegation authority for ${roleId} updated (tasks=${role.canDelegateTasks}, projects=${role.canDelegateProjects}) by ${actorEmail}`,
+    summary: `Delegation authority for ${roleId} updated (tasks=${role.canDelegateTasks}, projects=${role.canDelegateProjects}, meetings=${role.canReviewMeetingActions}) by ${actorEmail}`,
   });
   return role;
 }

@@ -12,7 +12,7 @@ export type DelegationAssignee = { id: string; name: string | null; email: strin
 export async function getDelegationAssignees(clientOrganizationId?: string | null): Promise<DelegationAssignee[]> {
   const [users, counts, assigned] = await Promise.all([
     db.user.findMany({
-      where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+      where: { role: "VA", active: true },
       select: { id: true, name: true, email: true },
     }),
     db.task.groupBy({ by: ["assignedToId"], where: { status: { not: "Done" }, claimable: false }, _count: { _all: true } }),

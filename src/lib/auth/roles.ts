@@ -7,7 +7,7 @@ export function viewForRole(role: Role): ConsoleView {
   switch (role) {
     case "HR_MANAGER":
     case "PEOPLE_OPS":
-    case "TEAM_LEAD":
+    case "TESTER": // all-access; lands in HR but gets the View-as switcher via isAllAccess
       return "HR";
     case "BOOKKEEPER":
       return "PAYROLL";
@@ -18,7 +18,8 @@ export function viewForRole(role: Role): ConsoleView {
     case "CLIENT_ADMIN":
     case "CLIENT_MEMBER":
       return "CLIENT";
-    case "SENIOR_VA":
+    // SENIOR_VA / TEAM_LEAD are retired (deprecated enum values); they fall through
+    // to the VA console. Seniority is tier-driven, not role-driven.
     case "VA":
     default:
       return "VA";
@@ -30,58 +31,27 @@ export function isSalesRep(role: Role): boolean {
   return role === "SALES" || role === "HR_MANAGER" || role === "PEOPLE_OPS";
 }
 
-/** Team Lead sees the HR console read-only; HR mutations are server-blocked. */
-export function isReadOnly(role: Role): boolean {
-  return role === "TEAM_LEAD";
-}
-
-/** Roles allowed to review the 10-hr gate, contracts, and onboarding. */
+/**
+ * Roles allowed to review the 10-hr gate, contracts, and onboarding. Recruitment is
+ * consolidated under the Recruiter role; HR Manager / People-Ops keep access for the
+ * final hire decision.
+ */
 export function isGateReviewer(role: Role): boolean {
-  return role === "HR_MANAGER" || role === "PEOPLE_OPS" || role === "TEAM_LEAD";
+  return (
+    role === "HR_MANAGER" ||
+    role === "PEOPLE_OPS" ||
+    role === "RECRUITER"
+  );
 }
 
 /** Roles allowed to read/score/recommend in the recruitment pipeline. */
 export function isRecruiter(role: Role): boolean {
-  return (
-    role === "RECRUITER" ||
-    role === "HR_MANAGER" ||
-    role === "PEOPLE_OPS" ||
-    role === "TEAM_LEAD"
-  );
+  return role === "RECRUITER" || role === "HR_MANAGER" || role === "PEOPLE_OPS";
 }
 
-/** Only HR Manager makes the final hire/reject decision. */
+/** Only HR Manager / People-Ops make the final hire/reject decision. */
 export function canDecideHire(role: Role): boolean {
   return role === "HR_MANAGER" || role === "PEOPLE_OPS";
-}
-
-/** Roles that can create tasks and assign them to VAs. */
-export function canManageTasks(role: Role): boolean {
-  return (
-    role === "HR_MANAGER" ||
-    role === "PEOPLE_OPS" ||
-    role === "TEAM_LEAD" ||
-    role === "SENIOR_VA"
-  );
-}
-
-/** Alias for canManageTasks — used in delegation-specific contexts. */
-export function isTaskDelegator(role: Role): boolean {
-  return canManageTasks(role);
-}
-
-/**
- * Roles allowed to review the Meeting Actions queue (Zoom transcript → tasks).
- * Intentionally excludes PEOPLE_OPS — the spec scopes this to HR Manager, Team
- * Lead, and Senior VA (admins bypass via the route's isAdmin check).
- */
-export function canReviewMeetingActions(role: Role): boolean {
-  return role === "HR_MANAGER" || role === "TEAM_LEAD" || role === "SENIOR_VA";
-}
-
-/** Roles that can create, edit, and delete projects. SENIOR_VA is excluded. */
-export function canManageProjects(role: Role): boolean {
-  return role === "HR_MANAGER" || role === "PEOPLE_OPS" || role === "TEAM_LEAD";
 }
 
 export class AuthorizationError extends Error {

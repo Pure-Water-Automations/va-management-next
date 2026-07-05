@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str as settingStr } from "@/lib/settings";
-import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
 import { canUserDelegateTasks, getActorTier } from "@/lib/auth/delegation";
 import { createNotification, supervisorUserId } from "@/lib/inbox";
 import { inheritTaskClient } from "@/lib/services/tasks";
@@ -208,8 +208,8 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
     );
   }
 
-  // In-console supervisor ping when a VA (non-manager) added the task (card #24).
-  if (actorRole === "VA" || actorRole === "SENIOR_VA") {
+  // In-console supervisor ping when a VA added the task (card #24).
+  if (actorRole === "VA") {
     const supId = await supervisorUserId(actorId);
     if (supId && supId !== actorId) {
       await createNotification(
@@ -235,9 +235,9 @@ export async function updateTaskStatus(
     select: { assignedToId: true, assignedById: true, title: true, projectId: true },
   });
 
-  const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(actorRole);
+  const canDelegate = await canUserDelegateTasks(actorId, actorRole);
   const isParticipant = task.assignedToId === actorId || task.assignedById === actorId;
-  if (!isManager && !isParticipant) throw new AuthorizationError("You are not allowed to update this task");
+  if (!canDelegate && !isParticipant) throw new AuthorizationError("You are not allowed to update this task");
 
   const updated = await db.task.update({
     where: { id: taskId },
@@ -278,7 +278,7 @@ export async function updateTaskStatus(
 
 /** Reassign a task to a different VA (managers only). Notifies the new assignee. */
 export async function reassignTask(actorId: string, actorRole: Role, taskId: string, newAssigneeId: string) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can reassign tasks");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Only team leads and senior VAs can reassign tasks");
   const id = requireText(newAssigneeId, "assigneeId");
   const newAssignee = await db.user.findUniqueOrThrow({ where: { id }, select: { id: true, name: true, email: true } });
   const task = await db.task.update({
@@ -325,7 +325,7 @@ export async function claimTask(actorId: string, taskId: string) {
 
 /** Manager approves (assigns to the claimer) or rejects (reopens) a pending claim. */
 export async function resolveClaim(actorId: string, actorRole: Role, taskId: string, approve: boolean) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can approve claims");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Only team leads and senior VAs can approve claims");
   const id = requireText(taskId, "taskId");
   const task = await db.task.findUniqueOrThrow({ where: { id }, select: { id: true, title: true, claimRequestedById: true } });
   if (!task.claimRequestedById) throw new Error("There's no pending claim on that task.");
@@ -345,7 +345,7 @@ export async function resolveClaim(actorId: string, actorRole: Role, taskId: str
 
 /** Delete a task (managers only). Comments/checklist/dependencies cascade. */
 export async function deleteTask(actorId: string, actorRole: Role, taskId: string) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can delete tasks");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Only team leads and senior VAs can delete tasks");
   const id = requireText(taskId, "taskId");
   const task = await db.task.findUniqueOrThrow({ where: { id }, select: { title: true } });
   await db.task.delete({ where: { id } });
@@ -364,7 +364,7 @@ export async function updateTask(
   taskId: string,
   input: UpdateTaskInput,
 ) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can edit tasks");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Only team leads and senior VAs can edit tasks");
 
   const task = await db.task.update({
     where: { id: taskId },
@@ -409,7 +409,7 @@ export async function bulkUpdateTasks(
   taskIds: string[],
   patch: BulkUpdateTaskPatch,
 ) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Not allowed to update tasks");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Not allowed to update tasks");
   const ids = Array.isArray(taskIds) ? taskIds.filter((x): x is string => typeof x === "string" && !!x) : [];
   if (ids.length === 0) throw new Error("No tasks selected");
 

@@ -59,9 +59,9 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
-  // Notify team leads / HR
+  // Notify whoever triages client requests (sales/client managers)
   const teamUsers = await db.user.findMany({
-    where: { role: { in: ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD"] }, active: true },
+    where: { role: { in: ["SALES", "HR_MANAGER", "PEOPLE_OPS"] }, active: true },
     select: { id: true },
   });
   await db.notification.createMany({

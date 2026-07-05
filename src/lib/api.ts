@@ -1,5 +1,5 @@
 import type { Role } from "@prisma/client";
-import { getCurrentUser, type CurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess, type CurrentUser } from "@/lib/auth/access";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { audit } from "@/lib/activity";
 import { runWithActor } from "@/lib/request-context";
@@ -7,10 +7,17 @@ import { runWithActor } from "@/lib/request-context";
 type Handler = (ctx: { user: CurrentUser; body: Record<string, unknown> }) => Promise<unknown>;
 
 /**
- * Wrap a POST route handler: resolves the Cloudflare-Access identity, optionally
- * enforces a role predicate, parses JSON, audits the call, and normalizes errors.
+ * Wrap a POST route handler: resolves the login identity, optionally enforces an
+ * authorization predicate, parses JSON, audits the call, and normalizes errors.
+ *
+ * `allow` gates by role (specialized-function routes). `allowUser` gates by the
+ * precomputed capability set (tier-driven delegation routes, e.g. `(u) => u.caps.manageTasks`).
+ * All-access users (admin / Tester) bypass both.
  */
-export function action(handler: Handler, opts?: { allow?: (role: Role) => boolean }) {
+export function action(
+  handler: Handler,
+  opts?: { allow?: (role: Role) => boolean; allowUser?: (user: CurrentUser) => boolean },
+) {
   return async (request: Request): Promise<Response> => {
     let user: CurrentUser;
     try {
@@ -19,10 +26,14 @@ export function action(handler: Handler, opts?: { allow?: (role: Role) => boolea
       return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
     }
 
-    // Admins bypass role guards so they can test every console's actions.
-    if (opts?.allow && !user.isAdmin && !opts.allow(user.role)) {
-      await audit({ actorEmail: user.email, action: "denied", ok: false });
-      return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
+    // All-access (admin / Tester) bypass guards so they can test every console's actions.
+    if (!isAllAccess(user)) {
+      const roleOk = opts?.allow ? opts.allow(user.role) : true;
+      const userOk = opts?.allowUser ? opts.allowUser(user) : true;
+      if (!roleOk || !userOk) {
+        await audit({ actorEmail: user.email, action: "denied", ok: false });
+        return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
+      }
     }
 
     let body: Record<string, unknown> = {};

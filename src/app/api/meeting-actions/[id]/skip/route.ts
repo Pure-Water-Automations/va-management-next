@@ -1,5 +1,4 @@
 import { getCurrentUser } from "@/lib/auth/access";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { runWithActor } from "@/lib/request-context";
 import { skipMeetingActionItems } from "@/lib/actions/meeting-actions";
 
@@ -12,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch {
     return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
-  if (!user.isAdmin && !canReviewMeetingActions(user.role)) {
+  if (!user.caps.reviewMeetingActions) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
   const { id } = await params;

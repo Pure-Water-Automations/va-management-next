@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { matchAssignee } from "@/lib/services/meeting-actions";
@@ -10,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function MeetingActionsPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canReviewMeetingActions(user.role)) redirect("/");
+  if (!user.caps.reviewMeetingActions) redirect("/");
 
   // Mirror the exact check createTask uses — shows ✓ Add iff the server will accept it.
   const canConfirm = await canUserDelegateTasks(user.id, user.role);
@@ -37,7 +36,7 @@ export default async function MeetingActionsPage() {
 
   // Assignable users for the dropdowns (active VAs + delegators).
   const assignees = await db.user.findMany({
-    where: { active: true, role: { in: ["VA", "SENIOR_VA", "TEAM_LEAD", "HR_MANAGER", "PEOPLE_OPS"] } },
+    where: { active: true, role: { in: ["VA", "HR_MANAGER", "PEOPLE_OPS"] } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, email: true },
   });

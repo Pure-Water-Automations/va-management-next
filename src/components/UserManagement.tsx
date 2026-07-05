@@ -10,26 +10,29 @@ import {
 } from "@/lib/actions/users";
 import type { Role } from "@prisma/client";
 
+// Assignable roles = specialized job functions + the all-access Tester. Seniority
+// (Senior VA / Lead) is tier-driven, so SENIOR_VA / TEAM_LEAD are retired and no
+// longer offered; their labels stay in ROLE_LABELS only to render any legacy rows.
 const ROLES: Role[] = [
   "HR_MANAGER",
   "PEOPLE_OPS",
-  "TEAM_LEAD",
   "BOOKKEEPER",
   "RECRUITER",
   "SALES",
-  "SENIOR_VA",
   "VA",
+  "TESTER",
 ];
 
 const ROLE_LABELS: Record<Role, string> = {
   HR_MANAGER: "HR Manager",
   PEOPLE_OPS: "People Ops",
-  TEAM_LEAD: "Team Lead",
+  TEAM_LEAD: "Team Lead (legacy)",
   BOOKKEEPER: "Bookkeeper",
   RECRUITER: "Recruiter",
   SALES: "Sales",
-  SENIOR_VA: "Senior VA",
+  SENIOR_VA: "Senior VA (legacy)",
   VA: "VA",
+  TESTER: "Tester",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_MEMBER: "Client Member",
 };

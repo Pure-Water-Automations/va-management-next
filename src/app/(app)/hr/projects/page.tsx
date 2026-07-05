@@ -1,5 +1,4 @@
 import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
-import { canManageTasks, canManageProjects } from "@/lib/auth/roles";
 import { getProjectsList } from "@/lib/reads/projects";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -10,12 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function HrProjectsPage() {
   const user = await getCurrentUser();
-  if (!canManageTasks(user.role)) {
+  if (!user.caps.manageTasks) {
     return <p style={{ padding: 32 }}>Not authorized.</p>;
   }
 
   const projects = await getProjectsList();
-  const canCreate = user.isAdmin || canManageProjects(user.role);
+  const canCreate = user.caps.manageProjects;
   const betaVisible = await isBetaVisible(user.email);
 
   const activeCount = projects.filter((p) => p.status === "Active").length;

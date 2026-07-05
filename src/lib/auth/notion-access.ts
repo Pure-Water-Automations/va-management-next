@@ -3,14 +3,14 @@ import { db } from "@/lib/db";
 
 /**
  * Who may connect/manage a client org's Notion sync:
- *  - Staff who manage delegation work: HR_MANAGER, PEOPLE_OPS, TEAM_LEAD, admins.
+ *  - Staff who manage clients: HR_MANAGER, PEOPLE_OPS, all-access (admin/Tester).
  *  - The client themselves: a CLIENT_ADMIN whose membership is that org.
  * (Beta: the staff-side UI is additionally founder-gated via isBetaVisible; the
  * client portal shows it to that org's CLIENT_ADMIN.)
  */
 export async function canManageNotionForOrg(user: CurrentUser, clientOrganizationId: string): Promise<boolean> {
-  if (user.isAdmin) return true;
-  if (user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS" || user.role === "TEAM_LEAD") return true;
+  if (user.isAdmin || user.role === "TESTER") return true;
+  if (user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS") return true;
   if (user.role === "CLIENT_ADMIN") {
     const membership = await db.clientMembership.findFirst({
       where: { userId: user.id, clientOrganizationId },

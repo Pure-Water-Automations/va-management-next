@@ -33,11 +33,11 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
   }
 
   // A VA may view their own task in full, or read a task from the open/claimable
-  // pool (so they can decide whether to claim it from Available). Managers, senior
-  // VAs, and admins can view any task; everything else stays private.
-  const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(user.role);
+  // pool (so they can decide whether to claim it from Available). Delegators (senior-
+  // tier VAs) and all-access users can view any task; everything else stays private.
+  const isManager = user.caps.manageTasks;
   const isOwn = task.assignedToId === user.id;
-  if (!isManager && !user.isAdmin && !isOwn && !task.claimable) {
+  if (!isManager && !isOwn && !task.claimable) {
     return (
       <div className="page-head">
         <div>
@@ -47,9 +47,9 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
       </div>
     );
   }
-  // Only the assignee (or a manager/admin) can change status or comment. A VA
-  // previewing an unclaimed pool task sees it read-only.
-  const canAct = isManager || user.isAdmin || isOwn;
+  // Only the assignee (or a delegator/all-access user) can change status or comment.
+  // A VA previewing an unclaimed pool task sees it read-only.
+  const canAct = isManager || isOwn;
   const poolPreview = !canAct && task.claimable;
 
   const sops = (task.relatedSops as { title: string; url: string }[] | null) ?? [];

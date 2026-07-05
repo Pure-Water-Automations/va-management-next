@@ -38,7 +38,7 @@ export async function getAssignableStaff(): Promise<{ id: string; name: string |
     where: {
       active: true,
       OR: [
-        { role: { in: ["VA", "SENIOR_VA", "TEAM_LEAD", "HR_MANAGER", "PEOPLE_OPS"] } },
+        { role: { in: ["VA", "HR_MANAGER", "PEOPLE_OPS"] } },
         { isAdmin: true },
       ],
     },

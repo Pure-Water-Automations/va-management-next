@@ -16,12 +16,13 @@ datasource db {
 enum Role {
   HR_MANAGER
   PEOPLE_OPS
-  TEAM_LEAD
+  TEAM_LEAD // deprecated — retired as assignable; seniority is tier-driven. Kept for legacy rows.
   BOOKKEEPER
   RECRUITER
   SALES
-  SENIOR_VA
+  SENIOR_VA // deprecated — retired as assignable; seniority is tier-driven. Kept for legacy rows.
   VA
+  TESTER // all-access QA role (behaves like admin via isAllAccess), labeled distinctly
   CLIENT_ADMIN
   CLIENT_MEMBER
 }
@@ -198,6 +199,7 @@ model CompensationRole {
   notes                    String?
   canDelegateTasks         Boolean          @default(false)
   canDelegateProjects      Boolean          @default(false)
+  canReviewMeetingActions  Boolean          @default(false) // tier unlocks the Meeting Actions queue
   updatedAt                DateTime         @updatedAt
 }
 

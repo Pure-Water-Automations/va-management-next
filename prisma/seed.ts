@@ -15,7 +15,6 @@ const users = [
     role: "HR_MANAGER" as const,
   },
   // Add known operators here when their production emails are confirmed:
-  // { email: "teamlead@example.com", name: "Team Lead", role: "TEAM_LEAD" as const },
   // { email: "bookkeeper@example.com", name: "Bookkeeper", role: "BOOKKEEPER" as const },
   // { email: "recruiter@example.com", name: "Recruiter", role: "RECRUITER" as const },
 ];
@@ -68,6 +67,11 @@ const compensationRoles = [
     nextRoleId: "TIER_4" as const,
     additionalRequirements: "Senior ownership, quality review, and leadership readiness.",
     notes: "Dev default hourly rate.",
+    // Tier 3+ are the default delegators — this is what unlocks the VA-console
+    // delegation surface (All Tasks/Projects/Workload/Templates + Meeting Actions).
+    canDelegateTasks: true,
+    canDelegateProjects: true,
+    canReviewMeetingActions: true,
   },
   {
     roleId: "TIER_4" as const,
@@ -80,6 +84,9 @@ const compensationRoles = [
     nextRoleId: null,
     additionalRequirements: "Leadership role. Production salary should be confirmed by HR.",
     notes: "Dev default salary per payroll period.",
+    canDelegateTasks: true,
+    canDelegateProjects: true,
+    canReviewMeetingActions: true,
   },
 ];
 

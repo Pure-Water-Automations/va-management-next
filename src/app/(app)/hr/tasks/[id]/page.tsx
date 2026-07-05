@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
 import { getTaskDetail, getAllTasks } from "@/lib/reads/tasks";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getClients } from "@/lib/reads/clients";
@@ -16,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function HrTaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  if (!user.caps.manageTasks) {
     // VAs/clients don't have the manager task view. Several VA-reachable surfaces
     // still link here (the Available pool, ⌘K search, "Blocked by" dependencies),
     // so route them to their own detail view instead of bouncing to the dashboard —

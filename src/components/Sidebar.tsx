@@ -14,11 +14,8 @@ import {
   IconCalendarCheck,
   IconFileText,
   IconMail,
-  IconFolder,
   IconListChecks,
-  IconInbox,
   IconBarChart,
-  IconTemplate,
   IconUserPlus,
   IconGraduationCap,
   IconShieldCheck,
@@ -47,34 +44,15 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       ],
     },
     {
+      // People-ops only. Delegation (Projects/Tasks/Templates) is tier-driven and
+      // lives in the VA console; app config moved to the admin-only Settings group.
+      // Workload stays here read-only for capacity oversight.
       label: "Manage",
       items: [
         { href: "/hr/registry", label: "VA Registry", icon: <IconUsers /> },
         { href: "/hr/roles", label: "Compensation Roles", icon: <IconWallet /> },
         { href: "/hr/checkins", label: "Forms & Check-ins", icon: <IconCalendarCheck /> },
-        { href: "/admin/contract", label: "Contract template", icon: <IconFileText /> },
-        { href: "/admin/client-agreement", label: "Client agreement", icon: <IconFileText /> },
-        { href: "/admin/email", label: "Email sender", icon: <IconMail /> },
-        { href: "/admin/whatsapp", label: "WhatsApp", icon: <IconMessageSquare /> },
-      ],
-    },
-    {
-      label: "Projects",
-      items: [
-        { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
-        { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
-        { href: "/hr/tasks/available", label: "Available", icon: <IconInbox /> },
         { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },
-        { href: "/hr/templates", label: "Templates", icon: <IconTemplate /> },
-      ],
-    },
-    {
-      label: "Recruitment",
-      items: [
-        { href: "/recruitment", label: "Pipeline", icon: <IconUserPlus /> },
-        { href: "/recruitment/training", label: "Training Log", icon: <IconGraduationCap /> },
-        { href: "/recruitment/gate", label: "Gate Review", icon: <IconShieldCheck /> },
-        { href: "/recruitment/tasks", label: "Training Module", icon: <IconListChecks /> },
         { href: "/recruitment/onboarding", label: "Onboarding", icon: <IconClipboardCheck /> },
       ],
     },
@@ -90,10 +68,13 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
   ],
   RECRUITMENT: [
     {
+      // The recruiter owns the full funnel (consolidated out of HR).
       label: "Recruitment",
       items: [
         { href: "/recruitment", label: "Pipeline", icon: <IconUserPlus /> },
         { href: "/recruitment/training", label: "Training Log", icon: <IconGraduationCap /> },
+        { href: "/recruitment/gate", label: "Gate Review", icon: <IconShieldCheck /> },
+        { href: "/recruitment/tasks", label: "Training Module", icon: <IconListChecks /> },
       ],
     },
   ],
@@ -103,6 +84,15 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       items: [
         { href: "/sales", label: "Pipeline", icon: <IconBriefcase /> },
         { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck /> },
+      ],
+    },
+    {
+      // Client management moved here from HR.
+      label: "Clients",
+      items: [
+        { href: "/hr/client-onboarding", label: "Onboarding", icon: <IconHandshake /> },
+        { href: "/hr/clients", label: "Organizations", icon: <IconBuilding /> },
+        { href: "/hr/requests", label: "Client Requests", icon: <IconMessageSquare /> },
       ],
     },
   ],
@@ -156,26 +146,21 @@ export function Sidebar({
           </NavGroup>
         ))}
 
-        {/* HR managers and people ops can manage clients and client requests */}
-        {view === "HR" && (role === "HR_MANAGER" || role === "PEOPLE_OPS" || isAdmin) && (
-          <NavGroup label="Clients">
-            <NavItemLink href="/sales" label="Sales Pipeline" icon={<IconBriefcase />} />
-            <NavItemLink href="/hr/client-onboarding" label="Onboarding" icon={<IconHandshake />} />
-            <NavItemLink href="/hr/clients" label="Organizations" icon={<IconBuilding />} />
-            <NavItemLink href="/hr/requests" label="Client Requests" icon={<IconMessageSquare />} />
-          </NavGroup>
-        )}
-
-        {/* Meeting Actions — Zoom transcript → tasks queue. Shown to task
-            reviewers (HR Manager / Team Lead / Senior VA). */}
+        {/* Meeting Actions — Zoom transcript → tasks queue. Tier-driven (senior-tier
+            VAs) + all-access; specialized roles (incl. HR) no longer review these. */}
         {showMeetingActions && (
           <NavGroup label="Meetings">
             <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} />
           </NavGroup>
         )}
 
+        {/* App config + user admin — all-access only (routes are already isAdmin-gated). */}
         {isAdmin && (
-          <NavGroup label="Admin">
+          <NavGroup label="Settings">
+            <NavItemLink href="/admin/contract" label="Contract template" icon={<IconFileText />} />
+            <NavItemLink href="/admin/client-agreement" label="Client agreement" icon={<IconFileText />} />
+            <NavItemLink href="/admin/email" label="Email sender" icon={<IconMail />} />
+            <NavItemLink href="/admin/whatsapp" label="WhatsApp" icon={<IconMessageSquare />} />
             <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
           </NavGroup>
         )}
