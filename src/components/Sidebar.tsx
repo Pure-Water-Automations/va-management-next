@@ -161,6 +161,7 @@ export function Sidebar({
             <NavItemLink href="/admin/client-agreement" label="Client agreement" icon={<IconFileText />} />
             <NavItemLink href="/admin/email" label="Email sender" icon={<IconMail />} />
             <NavItemLink href="/admin/whatsapp" label="WhatsApp" icon={<IconMessageSquare />} />
+            <NavItemLink href="/admin/zoom" label="Zoom" icon={<IconVideo />} />
             <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
           </NavGroup>
         )}

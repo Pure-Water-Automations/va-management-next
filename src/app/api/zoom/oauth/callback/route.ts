@@ -12,7 +12,7 @@ function appBase(): string {
 }
 // Only allow same-site absolute paths (guards against //evil.com open redirects).
 function safePath(p: string | undefined): string {
-  return p && p.startsWith("/") && !p.startsWith("//") ? p : "/admin";
+  return p && p.startsWith("/") && !p.startsWith("//") ? p : "/admin/zoom";
 }
 
 // OAuth redirect target: exchange the code for tokens, look up the Zoom account

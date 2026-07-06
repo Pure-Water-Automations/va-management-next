@@ -8,7 +8,7 @@ function appBase(): string {
   return (env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "");
 }
 function safePath(p: string | null): string {
-  return p && p.startsWith("/") && !p.startsWith("//") ? p : "/admin";
+  return p && p.startsWith("/") && !p.startsWith("//") ? p : "/admin/zoom";
 }
 
 // Kick off the "Connect Zoom" install flow. Admin-gated. ?return=<path>.
