@@ -140,14 +140,25 @@ Gotchas:
 
 ### Phase 2 deploy steps (dev box)
 
-1. `./deploy.sh dev <ref>` (npm ci installs the optional `@zoom/rtms` linux-x64 binary;
-   `prisma migrate deploy` applies `zoom_rtms_live`).
-2. Install + start the worker service (one-time):
+1. `./deploy.sh dev <ref>` (`prisma migrate deploy` applies `zoom_rtms_live`).
+2. **SDK install (one-time).** `@zoom/rtms` needs **Node ≥ 22**; the box's system node
+   (v20) makes `npm ci` silently skip the optional dep. Install it once into the
+   deploy-persistent shared dir using the box's isolated `/opt/node22` (the wiser.service
+   pattern):
+   ```
+   mkdir -p /app/SecondBrain/va-management-console/shared/rtms-sdk && \
+   cd /app/SecondBrain/va-management-console/shared/rtms-sdk && \
+   ([ -f package.json ] || echo '{"private":true}' > package.json) && \
+   /opt/node22/bin/npm install @zoom/rtms@^1.1.0 --save --no-audit --no-fund
+   ```
+   The worker finds it via `RTMS_SDK_DIR` (set in the unit) and runs on `/opt/node22`
+   via the unit's `PATH` — the web app stays on system node.
+3. Install + start the worker service (one-time):
    `cp deploy/systemd/va-management-rtms.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now va-management-rtms`
    (later deploys auto-restart it via `systemctl try-restart` in deploy.sh).
-3. Smoke: `npx tsx worker/rtms-live.ts --smoke` (checks config + SDK, sweeps, exits) and
-   `journalctl -u va-management-rtms -n 20`.
-4. Verify the panel is publicly reachable (Zoom's webview must pass CF Access):
+4. Smoke: `PATH=/opt/node22/bin:$PATH RTMS_SDK_DIR=/app/SecondBrain/va-management-console/shared/rtms-sdk npx tsx worker/rtms-live.ts --smoke`
+   (checks config + SDK, sweeps, exits) and `journalctl -u va-management-rtms -n 20`.
+5. Verify the panel is publicly reachable (Zoom's webview must pass CF Access):
    `curl -s https://dev-team.pwasecondbrain.uk/api/zoom/panel | head -3` → should be our
    "Open this inside Zoom" HTML, **not** a Cloudflare Access login page.
 

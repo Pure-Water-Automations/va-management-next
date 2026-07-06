@@ -75,17 +75,27 @@ type RtmsClient = {
 type RtmsSdk = { Client: new () => RtmsClient; SESSION_EVENT_STOP?: number };
 
 function loadRtmsSdk(): RtmsSdk | null {
-  try {
-    const req =
-      typeof require !== "undefined"
-        ? require
-        : createRequire(path.join(process.cwd(), "package.json"));
-    const mod = req("@zoom/rtms") as { default?: unknown } & Record<string, unknown>;
-    const sdk = (mod?.default ?? mod) as RtmsSdk;
-    return typeof sdk?.Client === "function" ? sdk : null;
-  } catch {
-    return null;
+  // @zoom/rtms needs Node >= 22, so on boxes whose system node is older it can't
+  // live in the app's node_modules (npm ci under node 20 silently skips the
+  // optional dep). RTMS_SDK_DIR points at a deploy-persistent install (e.g.
+  // shared/rtms-sdk, installed once with /opt/node22) used as a fallback.
+  const bases = [path.join(process.cwd(), "package.json")];
+  const extra = process.env.RTMS_SDK_DIR?.trim();
+  if (extra) bases.push(path.join(extra, "package.json"));
+  for (const base of bases) {
+    try {
+      const req = createRequire(base);
+      const mod = req("@zoom/rtms") as { default?: unknown } & Record<string, unknown>;
+      const sdk = (mod?.default ?? mod) as RtmsSdk;
+      if (typeof sdk?.Client === "function") {
+        log(`@zoom/rtms loaded from ${path.dirname(base)}`);
+        return sdk;
+      }
+    } catch {
+      /* try the next base */
+    }
   }
+  return null;
 }
 
 // ── Session state ────────────────────────────────────────────────────────────
