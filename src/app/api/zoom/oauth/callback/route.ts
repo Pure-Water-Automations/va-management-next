@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
     await logActivity({
       source: "zoom",
       eventType: "zoom_oauth_error",
-      severity: "warn",
+      severity: "warning",
       summary: `Zoom OAuth callback rejected: ${oauthError ? `provider error "${oauthError}"` : !code ? "no code" : "bad/expired state"}`,
     }).catch(() => {});
     return back("error");
