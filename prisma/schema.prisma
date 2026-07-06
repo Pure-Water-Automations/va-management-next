@@ -22,6 +22,11 @@ enum Role {
   SALES
   SENIOR_VA
   VA
+  // Added to match the dev DB, whose Postgres Role enum already carries TESTER
+  // (from the unmerged role-taxonomy branch that was previously deployed here).
+  // Kept enum-only, NO migration: the DB already has the value, and the
+  // role-taxonomy branch owns the migration that adds it — avoids a merge clash.
+  TESTER
   CLIENT_ADMIN
   CLIENT_MEMBER
 }
