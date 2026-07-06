@@ -947,6 +947,11 @@ model MeetingAction {
   meetingTitle String
   meetingDate  DateTime?
   zoomAccount  String?
+  // Provenance of this extraction. null / "HARVESTER" = the VPS Meetings/*.md
+  // file scanner (worker/transcript-to-tasks.ts). "ZOOM_APP_RECORDING" = pushed
+  // by the Zoom Marketplace app's recording webhook (see src/lib/zoom). Lets the
+  // review UI badge where an item came from without a second review surface.
+  source       String?
   status       MeetingActionStatus @default(PENDING)
   items        MeetingActionItem[]
   createdAt    DateTime            @default(now())
@@ -972,6 +977,66 @@ model MeetingActionItem {
   meetingAction MeetingAction @relation(fields: [meetingActionId], references: [id], onDelete: Cascade)
 
   @@index([meetingActionId])
+  @@index([status])
+}
+
+// ── Zoom Meeting App (Marketplace app: client/VA installs via OAuth) ───────────
+// Phase 1 captures post-meeting recording transcripts pushed by Zoom webhooks and
+// feeds them into the SAME MeetingAction pipeline above — no second review surface.
+// The webhook only writes a ZoomMeetingCapture (fast ack); a systemd-timer worker
+// (worker/zoom-capture-process.ts) drains PENDING rows into MeetingActions, mirroring
+// how transcript-to-tasks.ts drains unprocessed Meetings/*.md files. Phase 2 (live
+// RTMS) reuses these tables with source=RTMS. All inert until ZOOM_* env is set.
+
+enum ZoomCaptureSource {
+  RECORDING // post-meeting cloud recording transcript (Phase 1)
+  RTMS // live realtime media stream (Phase 2)
+}
+
+enum ZoomCaptureStatus {
+  PENDING // received; awaiting extraction by the worker
+  PROCESSED // extraction ran; a MeetingAction was created (or resolved-empty)
+  SKIPPED // no transcript available (host lacked cloud recording + transcription)
+  FAILED // download/extraction error — retried up to a cap, then parked
+}
+
+// One row per installed Zoom account (client or VA). Holds the OAuth tokens used
+// to download that account's recording transcripts. Tokens live in the DB like
+// CalendarConnection/NotionConnection — never returned to the browser.
+model ZoomConnection {
+  id           String   @id @default(cuid())
+  userId       String? // linked app User (the installer), resolved at the OAuth callback
+  zoomUserId   String   @unique // Zoom account user id (matches recording webhook host_id)
+  email        String
+  accessToken  String
+  refreshToken String
+  tokenExpiry  DateTime
+  scopes       String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Ingest cursor / work queue for the timer-drain worker. meetingUuid is the webhook
+// idempotency key; the raw payload (recording_files, download_token, host_id, …) is
+// kept so the worker has everything it needs without re-hitting Zoom.
+model ZoomMeetingCapture {
+  id              String            @id @default(cuid())
+  meetingUuid     String            @unique
+  topic           String
+  hostZoomId      String
+  source          ZoomCaptureSource @default(RECORDING)
+  status          ZoomCaptureStatus @default(PENDING)
+  meetingActionId String? // set once extraction produces a MeetingAction (soft ref)
+  attempts        Int               @default(0)
+  error           String?
+  payload         Json? // raw webhook event payload
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  processedAt     DateTime?
+
   @@index([status])
 }
 
