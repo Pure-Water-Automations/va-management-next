@@ -26,6 +26,7 @@
     "worker:mirror": "tsx worker/sheet-mirror-export.ts",
     "worker:recordings": "tsx worker/recordings-process.ts",
     "worker:transcript": "tsx worker/transcript-to-tasks.ts",
+    "worker:zoom-capture": "tsx worker/zoom-capture-process.ts",
     "worker:sales-followup": "tsx worker/sales-followup.ts",
     "worker:notion": "tsx worker/notion-sync.ts",
     "worker:discovery-reminders": "tsx worker/discovery-reminders.ts"
