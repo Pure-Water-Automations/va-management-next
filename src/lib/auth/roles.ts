@@ -1,14 +1,15 @@
 import type { Role } from "@prisma/client";
 
 /** Top-level console a role lands in (mirrors the va-console view routing). */
-export type ConsoleView = "HR" | "PAYROLL" | "VA" | "RECRUITMENT" | "SALES" | "CLIENT";
+export type ConsoleView = "ADMIN" | "HR" | "PAYROLL" | "VA" | "RECRUITMENT" | "SALES" | "CLIENT";
 
 export function viewForRole(role: Role): ConsoleView {
   switch (role) {
     case "HR_MANAGER":
     case "PEOPLE_OPS":
-    case "TESTER": // all-access; lands in HR but gets the View-as switcher via isAllAccess
       return "HR";
+    case "TESTER": // all-access; lands in the Admin console (all-access default view)
+      return "ADMIN";
     case "BOOKKEEPER":
       return "PAYROLL";
     case "RECRUITER":

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible, isAllAccess } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isAllAccess } from "@/lib/auth/access";
 import { canUserDelegateTasks, canVaDelegateTasks, canUserReviewMeetingActions, canVaReviewMeetingActions } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
@@ -14,9 +14,11 @@ import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
 
 const EYEBROW: Record<string, string> = {
+  ADMIN: "Administration",
   HR: "HR Operations",
   PAYROLL: "Payroll",
   RECRUITMENT: "Recruitment",
+  SALES: "Sales",
   VA: "My Console",
 };
 
@@ -93,10 +95,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     showMeetingActions = user.caps.reviewMeetingActions;
   }
 
-  // Enhance / Discover stay founder-only + runtime-toggleable (hidden during VA
-  // demos). Recordings is broader — open to admins (isRecordingsVisible) so trusted
-  // staff (e.g. Aira) can record / review / test.
-  const showRecordings = isRecordingsVisible(user);
+  // Recordings + all app config now live in the dedicated Admin view (NAV.ADMIN),
+  // reachable only by all-access users — so no per-view recordings flag is needed.
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
@@ -132,7 +132,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             canDelegate={canDelegate}
             showMeetingActions={showMeetingActions}
             meetingActionsCount={meetingActionsCount}
-            showRecordings={showRecordings}
             notifications={notifications}
             unreadCount={unread}
           />
@@ -158,8 +157,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           view={view}
           role={user.role}
           name={userName}
-          isAdmin={isAllAccess(user)}
-          showRecordings={showRecordings}
           showMeetingActions={showMeetingActions}
           meetingActionsCount={meetingActionsCount}
         />

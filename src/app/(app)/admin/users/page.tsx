@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { UserManagement } from "@/components/UserManagement";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin) redirect("/");
+  if (!isAllAccess(user)) redirect("/");
 
   const users = await db.user.findMany({
     select: { id: true, email: true, name: true, role: true, isAdmin: true, active: true },

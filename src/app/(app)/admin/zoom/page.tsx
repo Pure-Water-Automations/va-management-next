@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { zoomOauthConfigured, zoomRedirectUri } from "@/lib/zoom/oauth";
@@ -27,7 +27,7 @@ const h2Style: CSSProperties = {
 
 export default async function ZoomAdminPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await getCurrentUser();
-  if (!user.isAdmin) redirect("/");
+  if (!isAllAccess(user)) redirect("/");
   const sp = await searchParams;
 
   const connections = await db.zoomConnection.findMany({

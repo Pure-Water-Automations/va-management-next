@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveView } from "@/lib/auth/access";
 
 const HOME: Record<string, string> = {
+  ADMIN: "/admin/users",
   HR: "/hr",
   PAYROLL: "/payroll",
   RECRUITMENT: "/recruitment",

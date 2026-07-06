@@ -33,6 +33,28 @@ import {
 type NavItem = { href: string; label: string; icon: ReactNode };
 
 const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
+  ADMIN: [
+    {
+      // The Admin console — every admin-only surface lives here (and nowhere else).
+      // Only all-access users (admin / Tester) ever land in this view.
+      label: "Settings",
+      items: [
+        { href: "/admin/contract", label: "Contract template", icon: <IconFileText /> },
+        { href: "/admin/client-agreement", label: "Client agreement", icon: <IconFileText /> },
+        { href: "/admin/email", label: "Email sender", icon: <IconMail /> },
+        { href: "/admin/whatsapp", label: "WhatsApp", icon: <IconMessageSquare /> },
+        { href: "/admin/zoom", label: "Zoom", icon: <IconVideo /> },
+        { href: "/admin/users", label: "Users", icon: <IconUsers /> },
+      ],
+    },
+    {
+      label: "Recordings",
+      items: [
+        { href: "/record", label: "Record", icon: <IconVideo /> },
+        { href: "/recordings", label: "Recordings", icon: <IconFilm /> },
+      ],
+    },
+  ],
   HR: [
     {
       label: "Daily",
@@ -99,6 +121,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
 };
 
 const SUBTITLE: Record<string, string> = {
+  ADMIN: "Administration",
   HR: "HR Operations",
   PAYROLL: "Payroll",
   RECRUITMENT: "Recruitment",
@@ -110,16 +133,12 @@ export function Sidebar({
   view,
   role,
   name,
-  isAdmin = false,
-  showRecordings = false,
   showMeetingActions = false,
   meetingActionsCount = 0,
 }: {
   view: ConsoleView;
   role: Role;
   name: string;
-  isAdmin?: boolean;
-  showRecordings?: boolean;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
 }) {
@@ -147,30 +166,11 @@ export function Sidebar({
         ))}
 
         {/* Meeting Actions — Zoom transcript → tasks queue. Tier-driven (senior-tier
-            VAs) + all-access; specialized roles (incl. HR) no longer review these. */}
+            VAs) + all-access; specialized roles (incl. HR) no longer review these.
+            (Admin-only config + Recordings now live in the dedicated Admin view.) */}
         {showMeetingActions && (
           <NavGroup label="Meetings">
             <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} />
-          </NavGroup>
-        )}
-
-        {/* App config + user admin — all-access only (routes are already isAdmin-gated). */}
-        {isAdmin && (
-          <NavGroup label="Settings">
-            <NavItemLink href="/admin/contract" label="Contract template" icon={<IconFileText />} />
-            <NavItemLink href="/admin/client-agreement" label="Client agreement" icon={<IconFileText />} />
-            <NavItemLink href="/admin/email" label="Email sender" icon={<IconMail />} />
-            <NavItemLink href="/admin/whatsapp" label="WhatsApp" icon={<IconMessageSquare />} />
-            <NavItemLink href="/admin/zoom" label="Zoom" icon={<IconVideo />} />
-            <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
-          </NavGroup>
-        )}
-
-        {/* Recordings (Loom-style recorder + library) — open to admins. */}
-        {showRecordings && (
-          <NavGroup label="Recordings">
-            <NavItemLink href="/record" label="Record" icon={<IconVideo />} />
-            <NavItemLink href="/recordings" label="Recordings" icon={<IconFilm />} />
           </NavGroup>
         )}
       </nav>

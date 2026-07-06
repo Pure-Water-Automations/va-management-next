@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { senderStatus, redirectUri, oauthClient } from "@/lib/email-oauth";
 import { Card } from "@/components/ui/Card";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EmailSenderPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await getCurrentUser();
-  if (!user.isAdmin) redirect("/");
+  if (!isAllAccess(user)) redirect("/");
   const sp = await searchParams;
 
   const [status, fromSetting, redirectRow, digestRow] = await Promise.all([

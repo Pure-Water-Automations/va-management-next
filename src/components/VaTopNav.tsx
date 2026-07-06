@@ -16,8 +16,6 @@ import {
   IconBarChart,
   IconTemplate,
   IconMessageSquare,
-  IconVideo,
-  IconFilm,
   IconLogOut,
 } from "./icons";
 
@@ -34,7 +32,6 @@ export function VaTopNav({
   canDelegate = false,
   showMeetingActions = false,
   meetingActionsCount = 0,
-  showRecordings = false,
   notifications,
   unreadCount,
 }: {
@@ -43,7 +40,6 @@ export function VaTopNav({
   canDelegate?: boolean;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
-  showRecordings?: boolean;
   notifications: NotificationItem[];
   unreadCount: number;
 }) {
@@ -70,12 +66,6 @@ export function VaTopNav({
   }
   if (showMeetingActions) {
     items.push({ href: "/meeting-actions", label: "Meetings", icon: <IconMessageSquare />, badge: meetingActionsCount });
-  }
-  if (showRecordings) {
-    items.push(
-      { href: "/record", label: "Record", icon: <IconVideo /> },
-      { href: "/recordings", label: "Recordings", icon: <IconFilm /> },
-    );
   }
 
   return (

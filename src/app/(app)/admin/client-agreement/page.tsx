@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { DEFAULT_CLIENT_AGREEMENT_TEMPLATE_HTML } from "@/lib/sales/client-template";
 import { AgreementTemplateEditor } from "@/components/AgreementTemplateEditor";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientAgreementTemplatePage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin) redirect("/");
+  if (!isAllAccess(user)) redirect("/");
   const row = await db.setting.findUnique({ where: { key: "client_agreement_template_html" } });
   return (
     <>

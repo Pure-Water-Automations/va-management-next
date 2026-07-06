@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { redirect } from "next/navigation";
 import { loadSettings, str } from "@/lib/settings";
 import { Card } from "@/components/ui/Card";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function WhatsAppAdminPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin) redirect("/");
+  if (!isAllAccess(user)) redirect("/");
 
   const s = await loadSettings();
   const phoneNumberId = str(s, "whatsapp_phone_number_id", "");

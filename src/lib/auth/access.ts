@@ -106,16 +106,19 @@ export function isRecordingsVisible(user: CurrentUser): boolean {
 }
 
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
-const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
+const VIEWS: ConsoleView[] = ["ADMIN", "HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
 
 /**
- * The console an admin is currently viewing. Admins can switch consoles via the
- * `va_view` cookie; everyone else gets the view their role implies.
+ * The console an all-access user is currently viewing. They can switch consoles via
+ * the `va_view` cookie and default to the Admin console; everyone else gets the view
+ * their role implies. ADMIN is only ever reachable by all-access users (the cookie
+ * check lives inside the isAllAccess branch).
  */
 export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> {
   if (isAllAccess(user)) {
     const picked = (await cookies()).get("va_view")?.value as ConsoleView | undefined;
     if (picked && VIEWS.includes(picked)) return picked;
+    return "ADMIN";
   }
   return viewForRole(user.role);
 }
