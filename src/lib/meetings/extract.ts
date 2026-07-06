@@ -81,16 +81,37 @@ export function isRecentEnough(date: Date | null, now: Date, maxAgeDays: number)
   return date.getTime() >= cutoff;
 }
 
+// Precision matters more than recall here: a human confirms every item, so a missed
+// task is cheaper than a queue full of noise. The hard part is teaching the model that
+// an "action item" is POST-meeting work — not something already handled on the call
+// (a file shared, a screen shown) and not in-meeting mechanics ("share your screen").
 const EXTRACTION_SYSTEM = [
-  "You extract concrete, assignable action items from a virtual-assistant team's meeting transcript.",
+  "You extract action items from a meeting transcript for a virtual-assistant team.",
+  "An action item is work that STILL NEEDS TO BE DONE AFTER THIS MEETING ENDS — a future",
+  "deliverable, follow-up, or commitment with a clear owner.",
+  "",
   "Return ONLY a JSON array (no prose, no markdown fence). Each element:",
   '{ "title": string (imperative, <=80 chars), "description"?: string (1-2 sentences of context),',
-  '  "suggestedAssignee"?: string (a person\'s name explicitly tasked in the transcript),',
+  '  "suggestedAssignee"?: string (a person\'s name explicitly tasked),',
   '  "suggestedDueDate"?: string (YYYY-MM-DD, only if a clear deadline was stated),',
   '  "clientContext"?: string (client/org the item is about, if clear) }',
-  "Rules: only real follow-ups, deliverables, or commitments — not routine chatter.",
-  "Ground every item in something actually said. If there are no clear action items, return [].",
-  "Never invent assignees, dates, or clients. Omit a field rather than guessing.",
+  "",
+  "DO capture: a promise to send/build/prepare/follow up on something later; a decision that",
+  "requires someone to act after the call; a deliverable due by a date.",
+  "",
+  "DO NOT capture (these are NOT action items):",
+  "- Anything already done or resolved DURING the meeting. If a request is handled on the call",
+  "  (a file shared, a doc pulled up, a question answered, a screen shown), it is NOT an item.",
+  '- In-meeting mechanics / real-time facilitation: "share your screen", "can you see this",',
+  '  "can you see my screen", "unmute", "let me present/share", "scroll down", "next slide",',
+  '  "pull that up", "one second".',
+  "- Discussion, opinions, status updates, FYIs, or hypotheticals with no owner or next step.",
+  "",
+  'Test each candidate: "Does this still need doing after everyone hangs up?" If it could be',
+  "fully satisfied within the call, or you're unsure it carries past the meeting, OMIT it.",
+  "",
+  "Ground every item in something actually said. Never invent assignees, dates, or clients —",
+  "omit a field rather than guess. If there are no real post-meeting action items, return [].",
 ].join("\n");
 
 /** Build the chat messages for the extraction call. `maxBodyChars` trims long transcripts. */
