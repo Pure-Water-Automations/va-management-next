@@ -37,7 +37,18 @@ export default async function ZoomAdminPage({ searchParams }: { searchParams: Pr
   });
   const configured = zoomOauthConfigured();
   const redirectUrl = zoomRedirectUri();
-  const webhookUrl = `${(env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "")}/api/zoom/webhook`;
+  const base = (env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "");
+  const webhookUrl = `${base}/api/zoom/webhook`;
+  const panelUrl = `${base}/api/zoom/panel`;
+
+  // Phase 2 — recent live (RTMS) sessions, newest first.
+  const rtmsSessions = await db.zoomMeetingCapture.findMany({
+    where: { source: "RTMS" },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { meetingUuid: true, topic: true, status: true, createdAt: true, payload: true, error: true },
+  });
+  const liveCount = rtmsSessions.filter((s) => s.status === "LIVE").length;
 
   return (
     <>
@@ -100,6 +111,40 @@ export default async function ZoomAdminPage({ searchParams }: { searchParams: Pr
         )}
       </Card>
 
+      <Card style={{ marginBottom: 16 }}>
+        <h2 style={h2Style}>Live capture (Phase 2)</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          {liveCount > 0 ? (
+            <Badge variant="success" dot>{liveCount} live now</Badge>
+          ) : rtmsSessions.length > 0 ? (
+            <Badge variant="info" dot>{rtmsSessions.length} recent session(s)</Badge>
+          ) : (
+            <Badge variant="warning" dot>No live sessions yet</Badge>
+          )}
+        </div>
+        <p className="small" style={{ marginTop: 0, marginBottom: 12 }}>
+          The in-meeting panel proposes tasks <em>during</em> the call (participants confirm or flag them before
+          hanging up) via Zoom Realtime Media Streams. Items land in the same <strong>Meeting Actions</strong> queue,
+          badged <strong>Zoom Live</strong>. The <code>va-management-rtms</code> service must be running on this box.
+        </p>
+        {rtmsSessions.length > 0 && (
+          <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
+            {rtmsSessions.map((s) => {
+              const stats = (s.payload as { stats?: { segments?: number; itemsProposed?: number } } | null)?.stats;
+              return (
+                <li key={s.meetingUuid} className="small">
+                  <strong>{s.topic}</strong> — {s.status.toLowerCase()}
+                  {stats ? ` · ${stats.segments ?? 0} segments · ${stats.itemsProposed ?? 0} proposed` : ""}
+                  {s.error ? ` · ${s.error}` : ""} · {s.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="small" style={{ marginBottom: 6 }}>Zoom App Home URL (the panel):</div>
+        <code style={codeStyle}>{panelUrl}</code>
+      </Card>
+
       <Card variant="flat">
         <h3 style={{ margin: "0 0 8px", fontSize: "var(--text-md)" }}>One-time Marketplace setup</h3>
         <p className="small" style={{ marginTop: 0 }}>
@@ -112,6 +157,15 @@ export default async function ZoomAdminPage({ searchParams }: { searchParams: Pr
         <p className="small">
           Subscribe the event <code>recording.transcript_completed</code>. Scopes:{" "}
           <code>cloud_recording:read:list_recording_files</code> + <code>user:read</code>.
+        </p>
+        <p className="small" style={{ marginBottom: 0 }}>
+          <strong>Phase 2 additions:</strong> subscribe <code>meeting.rtms_started</code> +{" "}
+          <code>meeting.rtms_stopped</code>; add scope <code>meeting:read:meeting_transcript</code>; enable the{" "}
+          <strong>Zoom App</strong> surface with the Home URL above and allow the SDK APIs{" "}
+          <code>getMeetingContext, getMeetingUUID, getMeetingParticipants, onParticipantChange, startRTMS,
+          stopRTMS</code>. RTMS is metered (Developer Pack credits). Until the app passes Marketplace review,{" "}
+          <code>startRTMS</code> from the panel can return 40316 — enable <em>RTMS auto-start</em> in the app
+          settings for dev testing.
         </p>
       </Card>
     </>

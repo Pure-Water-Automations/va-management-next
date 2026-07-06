@@ -41,6 +41,20 @@ async function capsFor(
   };
 }
 
+/**
+ * Caps for a user record loaded OUTSIDE a console session — e.g. the in-meeting
+ * Zoom panel, whose viewers authenticate via the Zoom App context instead of
+ * NextAuth/CF-Access. Same math as getCurrentUser().
+ */
+export async function capsForUser(user: {
+  isAdmin: boolean;
+  role: Role;
+  email: string;
+  va: { compensationRole: CompRole } | null;
+}): Promise<Caps> {
+  return capsFor(user, user.email);
+}
+
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
   const sessionEmail = session?.user?.email ?? undefined;

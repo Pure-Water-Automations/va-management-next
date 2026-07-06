@@ -1,0 +1,21 @@
+[Unit]
+Description=PWA VA Management RTMS live capture worker (Zoom in-meeting transcript -> proposed tasks)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+# Long-running (NOT a timer): polls for meeting.rtms_started captures, joins the
+# live transcript stream via @zoom/rtms, classifies in rolling windows.
+Type=simple
+WorkingDirectory=/app/SecondBrain/va-management-console/current
+EnvironmentFile=/app/SecondBrain/va-management-console/shared/.env.production
+# Shared OpenRouter key. Optional (-): the worker exits cleanly if absent.
+EnvironmentFile=-/etc/secondbrain/openrouter.env
+ExecStart=/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/rtms-live.ts
+# on-failure (not always): a clean exit means "disabled by config" — don't flap.
+Restart=on-failure
+RestartSec=15
+User=root
+
+[Install]
+WantedBy=multi-user.target

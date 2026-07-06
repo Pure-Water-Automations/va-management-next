@@ -32,7 +32,9 @@ async function main() {
     }
 
     const pending = await db.zoomMeetingCapture.findMany({
-      where: { status: { in: ["PENDING", "FAILED"] }, attempts: { lt: MAX_ATTEMPTS } },
+      // source=RTMS rows are live sessions owned by worker/rtms-live.ts — this
+      // worker only drains post-meeting recording captures.
+      where: { source: "RECORDING", status: { in: ["PENDING", "FAILED"] }, attempts: { lt: MAX_ATTEMPTS } },
       orderBy: { createdAt: "asc" },
       take: BATCH,
     });

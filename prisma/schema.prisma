@@ -972,6 +972,12 @@ model MeetingActionItem {
   taskId            String?                 // soft ref to Task.id (no FK, by design)
   resolvedBy        String?                 // email of who confirmed/skipped
   resolvedAt        DateTime?
+  // Live-capture provenance (Phase 2 RTMS; null for harvester/recording items).
+  kind              String? // "task" | "project" — classifier's commitment-structure call
+  confidence        Float? // classifier confidence 0..1 (live items only)
+  evidenceQuote     String? // shortest verbatim transcript quote grounding the item
+  skipReason        String? // optional reason recorded when a reviewer skips
+  liveVotes         Json? // in-call 👍/👎 endorsements: [{ by, name, vote, ts }]
   createdAt         DateTime                @default(now())
 
   meetingAction MeetingAction @relation(fields: [meetingActionId], references: [id], onDelete: Cascade)
@@ -995,6 +1001,7 @@ enum ZoomCaptureSource {
 
 enum ZoomCaptureStatus {
   PENDING // received; awaiting extraction by the worker
+  LIVE // RTMS session joined and streaming (Phase 2; owned by worker/rtms-live.ts)
   PROCESSED // extraction ran; a MeetingAction was created (or resolved-empty)
   SKIPPED // no transcript available (host lacked cloud recording + transcription)
   FAILED // download/extraction error — retried up to a cap, then parked

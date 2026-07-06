@@ -25,16 +25,42 @@ const EXTRACTION_MODEL = env.OPENROUTER_TRANSCRIPT_MODEL || "google/gemini-2.5-f
 type CapturePayload = { object: ZoomRecordingObject; download_token: string | null };
 
 /** Webhook side: idempotently enqueue a recording for the worker to process. */
-export async function recordCapture(event: ZoomWebhookEvent): Promise<"created" | "duplicate" | "ignored"> {
+export async function recordCapture(
+  event: ZoomWebhookEvent,
+): Promise<"created" | "duplicate" | "ignored" | "rtms_fallback"> {
   const obj = event.payload?.object;
   if (!obj?.uuid || !obj.host_id) return "ignored";
 
   const stored: CapturePayload = { object: obj, download_token: event.download_token ?? null };
   const existing = await db.zoomMeetingCapture.findUnique({
     where: { meetingUuid: obj.uuid },
-    select: { id: true },
+    select: { id: true, source: true, status: true },
   });
-  if (existing) return "duplicate";
+  if (existing) {
+    // Phase-2 guardrail: if a live RTMS session never delivered (worker down,
+    // join failed, stream never joined), the post-meeting recording takes the
+    // meeting over — convert the row to a RECORDING capture. LIVE/PROCESSED
+    // rows stay with the live path so one meeting never extracts twice.
+    const rtmsNeverDelivered =
+      existing.source === "RTMS" &&
+      (existing.status === "PENDING" || existing.status === "FAILED" || existing.status === "SKIPPED");
+    if (!rtmsNeverDelivered) return "duplicate";
+
+    await db.zoomMeetingCapture.update({
+      where: { id: existing.id },
+      data: {
+        topic: obj.topic || "Zoom meeting",
+        hostZoomId: obj.host_id,
+        source: "RECORDING",
+        status: "PENDING",
+        attempts: 0,
+        error: null,
+        processedAt: null,
+        payload: JSON.parse(JSON.stringify(stored)) as Prisma.InputJsonValue,
+      },
+    });
+    return "rtms_fallback";
+  }
 
   await db.zoomMeetingCapture.create({
     data: {

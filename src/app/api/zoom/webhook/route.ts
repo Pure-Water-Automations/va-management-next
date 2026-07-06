@@ -1,6 +1,7 @@
 import { env } from "@/lib/env";
 import { logActivity } from "@/lib/activity";
 import { recordCapture } from "@/lib/zoom/recordings";
+import { recordRtmsStart, recordRtmsStop } from "@/lib/zoom/rtms";
 import {
   urlValidationResponse,
   verifyZoomSignature,
@@ -40,7 +41,14 @@ export async function POST(request: Request): Promise<Response> {
     if (event.event === "recording.transcript_completed") {
       await recordCapture(event);
     }
-    // meeting.rtms_started etc. = Phase 2 — acknowledged, not yet handled.
+    // Phase 2: queue/close live RTMS sessions for worker/rtms-live.ts. Fast
+    // single-row writes only — the join + streaming happen in the worker.
+    if (event.event === "meeting.rtms_started") {
+      await recordRtmsStart(event);
+    }
+    if (event.event === "meeting.rtms_stopped") {
+      await recordRtmsStop(event);
+    }
     return Response.json({ ok: true });
   } catch (err) {
     await logActivity({
