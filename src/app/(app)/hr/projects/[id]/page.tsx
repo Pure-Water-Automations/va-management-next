@@ -4,6 +4,8 @@ import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
+import { getProjectFieldPills } from "@/lib/reads/fields";
+import { PropertyPills } from "@/components/hub/PropertyPills";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -28,10 +30,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   // Auto-suggest: VAs assigned to this project's client float to the top of the picker.
   const projectClientId = (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))?.clientOrganizationId ?? null;
-  const [project, feed, assignees] = await Promise.all([
+  const [project, feed, assignees, fieldPills] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
     getDelegationAssignees(projectClientId),
+    getProjectFieldPills(id),
   ]);
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
@@ -100,6 +103,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       {project.description && (
         <p style={{ marginBottom: 24, color: "var(--color-text-secondary)" }}>{project.description}</p>
       )}
+
+      {/* OS Hub custom-field pills (Phase 1). canManageTasks-gated writes server-side. */}
+      <PropertyPills projectId={project.id} fields={fieldPills} canEdit={user.isAdmin || canManageTasks(user.role)} />
 
       <div className="stat-grid">
         <Stat label="Progress" value={progress} unit="%" variant={progress === 100 ? "navy" : "default"} />

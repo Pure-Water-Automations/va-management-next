@@ -836,6 +836,8 @@ model Project {
   tasks              Task[]
   comments           ProjectComment[]
   clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
+  fieldDefs          FieldDef[]
+  fieldValues        FieldValue[]
 
   @@index([ownerId])
   @@index([status])
@@ -885,6 +887,7 @@ model Task {
   dependents         TaskDependency[]    @relation("DependencyTask")
   clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
   clientTaskRequest  ClientTaskRequest?  @relation("ClientTaskRequestTask")
+  fieldValues        FieldValue[]
 
   @@index([assignedToId])
   @@index([projectId])
@@ -1339,4 +1342,58 @@ model ClientOnboarding {
   notes                String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+}
+
+// ── Pure Water OS Hub: custom fields (Sprint 1, Phase 1) ────────────────────
+// A FieldDef is a user-defined property ("Phase", "Budget"): rendered as a pill
+// on the project hub AND as a column in the task table. Scoped to one project
+// (projectId set) or global (projectId null). clientVisible pills/columns are
+// the only ones projected into the client portal.
+// A FieldValue is one value per (field, task) — a task-table cell — or per
+// (field, project) — the project-level pill value. Exactly one of taskId /
+// projectId is set; the paired uniques below enforce one value per entity.
+// NULL projectId duplicates aren't caught by the composite unique (Postgres
+// treats NULLs as distinct), so createFieldDef also checks name uniqueness.
+
+enum FieldType {
+  TEXT
+  SELECT
+  DATE
+  PERSON
+}
+
+model FieldDef {
+  id            String    @id @default(cuid())
+  projectId     String?
+  name          String
+  type          FieldType @default(TEXT)
+  options       Json? // SELECT choices, e.g. ["Research","Build","Launch"]
+  clientVisible Boolean   @default(false)
+  order         Int       @default(0)
+  createdById   String
+  createdAt     DateTime  @default(now())
+
+  project Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  values  FieldValue[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model FieldValue {
+  id        String   @id @default(cuid())
+  fieldId   String
+  taskId    String?
+  projectId String?
+  value     String
+  updatedAt DateTime @updatedAt
+
+  field   FieldDef @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, taskId])
+  @@unique([fieldId, projectId])
+  @@index([taskId])
+  @@index([projectId])
 }
