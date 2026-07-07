@@ -34,6 +34,9 @@ export async function confirmMeetingActionItem(
     client: item.clientContext ?? undefined,
   });
 
+  // OS Hub provenance: powers the ✨ source badge on task rows.
+  await db.task.update({ where: { id: task.id }, data: { source: "meeting" } });
+
   await db.meetingActionItem.update({
     where: { id: item.id },
     data: { status: "CONFIRMED", taskId: task.id, resolvedBy: user.email, resolvedAt: new Date() },

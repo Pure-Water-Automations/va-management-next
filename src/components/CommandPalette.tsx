@@ -5,13 +5,22 @@ import { useRouter } from "next/navigation";
 
 type SearchProject = { id: string; name: string };
 type SearchTask = { id: string; title: string };
-type SearchResponse = { projects: SearchProject[]; tasks: SearchTask[] };
+type SearchPage = { id: string; title: string; href: string };
+type SearchScratch = { id: string; text: string; href: string };
+type SearchResponse = {
+  projects: SearchProject[];
+  tasks: SearchTask[];
+  pages: SearchPage[];
+  scratch: SearchScratch[];
+};
+
+const EMPTY_RESULTS: SearchResponse = { projects: [], tasks: [], pages: [], scratch: [] };
 
 type PaletteItem = {
   key: string;
   label: string;
   href: string;
-  group: "Quick navigation" | "Projects" | "Tasks";
+  group: "Quick navigation" | "Projects" | "Tasks" | "Pages" | "Scratchpad";
 };
 
 const QUICK_NAV: { label: string; href: string }[] = [
@@ -19,6 +28,7 @@ const QUICK_NAV: { label: string; href: string }[] = [
   { label: "Task Board", href: "/hr/tasks/board" },
   { label: "Calendar", href: "/hr/tasks/calendar" },
   { label: "Projects", href: "/hr/projects" },
+  { label: "Library", href: "/hr/library" },
   { label: "Delegate task", href: "/hr/tasks/new" },
   { label: "Templates", href: "/hr/templates" },
 ];
@@ -27,7 +37,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [results, setResults] = useState<SearchResponse>({ projects: [], tasks: [] });
+  const [results, setResults] = useState<SearchResponse>(EMPTY_RESULTS);
   const [active, setActive] = useState(0);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -37,7 +47,7 @@ export function CommandPalette() {
     setOpen(false);
     setQuery("");
     setDebouncedQuery("");
-    setResults({ projects: [], tasks: [] });
+    setResults(EMPTY_RESULTS);
     setActive(0);
   }, []);
 
@@ -93,7 +103,7 @@ export function CommandPalette() {
   useEffect(() => {
     if (!open) return;
     if (!debouncedQuery) {
-      setResults({ projects: [], tasks: [] });
+      setResults(EMPTY_RESULTS);
       return;
     }
     let cancelled = false;
@@ -106,10 +116,12 @@ export function CommandPalette() {
         setResults({
           projects: Array.isArray(data.projects) ? data.projects : [],
           tasks: Array.isArray(data.tasks) ? data.tasks : [],
+          pages: Array.isArray(data.pages) ? data.pages : [],
+          scratch: Array.isArray(data.scratch) ? data.scratch : [],
         });
       } catch {
         // Fail gracefully: only quick-nav commands show.
-        if (!cancelled) setResults({ projects: [], tasks: [] });
+        if (!cancelled) setResults(EMPTY_RESULTS);
       }
     })();
     return () => {
@@ -138,7 +150,21 @@ export function CommandPalette() {
       group: "Tasks",
     }));
 
-    return [...quick, ...projects, ...tasks];
+    const pages: PaletteItem[] = results.pages.map((p) => ({
+      key: `page:${p.id}`,
+      label: p.title,
+      href: p.href,
+      group: "Pages",
+    }));
+
+    const scratch: PaletteItem[] = results.scratch.map((s) => ({
+      key: `scratch:${s.id}`,
+      label: s.text,
+      href: s.href,
+      group: "Scratchpad",
+    }));
+
+    return [...quick, ...projects, ...tasks, ...pages, ...scratch];
   }, [query, results]);
 
   // Keep the active index within bounds when the list changes.
@@ -163,7 +189,7 @@ export function CommandPalette() {
   if (!open) return null;
 
   // Group rendering order with section labels.
-  const groups: PaletteItem["group"][] = ["Quick navigation", "Projects", "Tasks"];
+  const groups: PaletteItem["group"][] = ["Quick navigation", "Projects", "Tasks", "Pages", "Scratchpad"];
   const hasQuery = query.trim().length > 0;
   const showNoMatches = hasQuery && items.length === 0;
 
