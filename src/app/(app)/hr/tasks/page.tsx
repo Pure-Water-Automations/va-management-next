@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { canManageTasks } from "@/lib/auth/roles";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { getSavedViews } from "@/lib/reads/views";
+import { getTaskFieldColumns } from "@/lib/reads/fields";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/task-format";
@@ -71,9 +72,6 @@ export default async function HrTasksPage({
     ? (rawSort as SortKey)
     : "due";
   const dir: SortDir = rawDir === "desc" ? "desc" : "asc";
-  const group: GroupKey | undefined = GROUP_KEYS.includes(rawGroup as GroupKey)
-    ? (rawGroup as GroupKey)
-    : undefined;
 
   const [tasks, vas, views] = await Promise.all([
     getAllTasks({
@@ -88,6 +86,17 @@ export default async function HrTasksPage({
     }),
     getSavedViews(user.id, "tasks"),
   ]);
+
+  // OS Hub custom fields: the global tasks view shows global defs as columns,
+  // and each becomes a "Group by" option (group=field:<id> in the querystring,
+  // so saved views capture it like any other grouping).
+  const fieldColumns = await getTaskFieldColumns(null, tasks.map((t) => t.id));
+  const group: string | undefined =
+    GROUP_KEYS.includes(rawGroup as GroupKey) ||
+    (rawGroup?.startsWith("field:") &&
+      fieldColumns.defs.some((d) => `field:${d.id}` === rawGroup))
+      ? rawGroup
+      : undefined;
 
   // ── Server-side sort ───────────────────────────────────────────────────────
   const assigneeOf = (t: (typeof tasks)[number]) =>
@@ -255,7 +264,10 @@ export default async function HrTasksPage({
           >
             Group
           </span>
-          {GROUP_OPTIONS.map((opt) => {
+          {[
+            ...GROUP_OPTIONS,
+            ...fieldColumns.defs.map((d) => ({ value: `field:${d.id}`, label: d.name })),
+          ].map((opt) => {
             const active = (group ?? "") === opt.value;
             return (
               <a
@@ -295,6 +307,9 @@ export default async function HrTasksPage({
             dir={dir}
             baseQuery={baseQuery}
             group={group}
+            customDefs={fieldColumns.defs}
+            customValues={fieldColumns.valuesByTask}
+            canEditFields={true}
           />
         </Card>
       )}

@@ -30,6 +30,14 @@ type WorkspaceTask = {
 
 type Assignee = { id: string; name: string | null; email: string | null };
 
+// OS Hub custom fields (Phase 1): rendered as extra columns after Due.
+type CustomFieldDef = {
+  id: string;
+  name: string;
+  type: "TEXT" | "SELECT" | "DATE" | "PERSON";
+  options: string[];
+};
+
 const STATUS_OPTIONS = ["NotStarted", "InProgress", "Blocked", "Done"] as const;
 const PRIORITY_OPTIONS = ["High", "Medium", "Low"] as const;
 
@@ -53,6 +61,9 @@ export function TasksWorkspace({
   dir,
   baseQuery,
   group,
+  customDefs = [],
+  customValues = {},
+  canEditFields = false,
 }: {
   tasks: WorkspaceTask[];
   assignees: Assignee[];
@@ -60,6 +71,9 @@ export function TasksWorkspace({
   dir: SortDir;
   baseQuery: Record<string, string>;
   group?: string;
+  customDefs?: CustomFieldDef[];
+  customValues?: Record<string, Record<string, string>>;
+  canEditFields?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -156,11 +170,17 @@ export function TasksWorkspace({
     { key: "due", label: "Due" },
   ];
 
-  // Total columns in the table (checkbox + data columns) — for the group header colspan.
-  const totalColumns = columns.length + 1;
+  // Total columns in the table (checkbox + data columns + custom fields) — for
+  // the group header colspan.
+  const totalColumns = columns.length + 1 + customDefs.length;
 
   // ── Grouping: partition the (already-sorted) rows into labeled groups ─────────
   function groupLabelOf(t: WorkspaceTask): string {
+    if (group?.startsWith("field:")) {
+      const fieldId = group.slice("field:".length);
+      const def = customDefs.find((d) => d.id === fieldId);
+      return customValues[t.id]?.[fieldId] ?? `No ${def?.name ?? "value"}`;
+    }
     switch (group) {
       case "project":
         return t.project?.name ?? "No project";
@@ -247,6 +267,21 @@ export function TasksWorkspace({
         <td style={tdStyle}>
           <DueChip date={t.dueDate} status={t.status} />
         </td>
+        {customDefs.map((def) => (
+          <td
+            key={def.id}
+            style={tdStyle}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CustomFieldCell
+              def={def}
+              taskId={t.id}
+              value={customValues[t.id]?.[def.id] ?? ""}
+              canEdit={canEditFields}
+              onSaved={() => router.refresh()}
+            />
+          </td>
+        ))}
       </tr>
     );
   };
@@ -344,6 +379,11 @@ export function TasksWorkspace({
                   </a>
                 </th>
               ))}
+              {customDefs.map((def) => (
+                <th key={def.id} style={{ ...thStyle, color: "var(--color-sky-600, #1d9cc7)" }}>
+                  {def.name}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -402,6 +442,132 @@ export function TasksWorkspace({
         />
       )}
     </div>
+  );
+}
+
+// ── Custom-field cell (OS Hub Phase 1) ─────────────────────────────────────────
+// SELECT renders as a slim select; other types edit inline on click. Empty
+// commits clear the value (the API deletes the row).
+
+function CustomFieldCell({
+  def,
+  taskId,
+  value,
+  canEdit,
+  onSaved,
+}: {
+  def: CustomFieldDef;
+  taskId: string;
+  value: string;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+
+  async function save(next: string) {
+    if (next === value) {
+      setEditing(false);
+      return;
+    }
+    setBusy(true);
+    const res = await postAction("/api/hr/fields/set-value", {
+      fieldId: def.id,
+      taskId,
+      value: next,
+    });
+    setBusy(false);
+    setEditing(false);
+    if (!res.ok) {
+      window.alert(res.error ?? "Failed to save");
+      return;
+    }
+    onSaved();
+  }
+
+  if (!canEdit) {
+    return (
+      <span className="small" style={{ color: "var(--color-text-secondary)" }}>
+        {value || "—"}
+      </span>
+    );
+  }
+
+  if (def.type === "SELECT" && def.options.length > 0) {
+    return (
+      <select
+        aria-label={`${def.name} value`}
+        value={value}
+        disabled={busy}
+        onChange={(e) => void save(e.target.value)}
+        style={{
+          font: "inherit",
+          fontSize: "var(--text-sm)",
+          border: "1px solid transparent",
+          borderRadius: 6,
+          padding: "2px 4px",
+          background: "transparent",
+          color: value ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
+          cursor: "pointer",
+          maxWidth: 140,
+        }}
+      >
+        <option value="">—</option>
+        {def.options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        aria-label={`${def.name} value`}
+        type={def.type === "DATE" ? "date" : "text"}
+        value={draft}
+        disabled={busy}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void save(draft);
+          if (e.key === "Escape") setEditing(false);
+        }}
+        onBlur={() => void save(draft)}
+        style={{
+          font: "inherit",
+          fontSize: "var(--text-sm)",
+          border: "1px solid var(--color-sky-400, #4DC4E8)",
+          borderRadius: 6,
+          padding: "2px 6px",
+          width: 120,
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      title={`Edit ${def.name}`}
+      style={{
+        font: "inherit",
+        fontSize: "var(--text-sm)",
+        border: "none",
+        background: "transparent",
+        padding: 0,
+        cursor: "pointer",
+        color: value ? "var(--color-text-secondary)" : "var(--color-text-tertiary)",
+      }}
+    >
+      {value || "—"}
+    </button>
   );
 }
 
