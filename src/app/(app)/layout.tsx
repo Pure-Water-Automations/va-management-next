@@ -69,14 +69,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // IMPERSONATED VA's own authority so the preview matches what that VA actually sees.
   let canDelegate: boolean;
   let showMeetingActions: boolean;
+  // When an all-access user is previewing "as VA", the top-nav pill should read as the
+  // VA they're impersonating (their tier), not the admin's own role — otherwise the
+  // preview is misleading. Populated in the impersonation branch below.
+  let impersonatedRoleLabel: string | null = null;
   if (isAllAccess(user) && view === "VA" && impersonatedVaId && impersonatedVaId !== user.vaId) {
     // Map the impersonated VA → its login by EMAIL (Va.email is unique and matches
     // User.email). Keying on User.vaId is unreliable — some logins aren't linked to
     // their VA row (e.g. Aira), which would wrongly hide the Delegation nav.
     const impVa = await db.va.findUnique({
       where: { vaId: impersonatedVaId },
-      select: { email: true },
+      select: { email: true, compensationRole: true },
     });
+    if (impVa) impersonatedRoleLabel = VA_TIER_LABEL[impVa.compensationRole] ?? "Virtual Assistant";
     const impUser = impVa?.email
       ? await db.user.findUnique({ where: { email: impVa.email.toLowerCase() }, select: { id: true, role: true } })
       : null;
@@ -105,9 +110,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     : 0;
 
   const userName = user.name ?? user.email;
-  const roleLabel = user.va
-    ? (VA_TIER_LABEL[user.va.compensationRole] ?? "Virtual Assistant")
-    : humanizeRole(user.role);
+  const roleLabel =
+    impersonatedRoleLabel ??
+    (user.va ? (VA_TIER_LABEL[user.va.compensationRole] ?? "Virtual Assistant") : humanizeRole(user.role));
   const adminBar = isAllAccess(user) ? (
     <AdminBar
       currentView={view}
