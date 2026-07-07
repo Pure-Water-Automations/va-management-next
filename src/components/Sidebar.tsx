@@ -54,6 +54,10 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/recordings", label: "Recordings", icon: <IconFilm /> },
       ],
     },
+    {
+      label: "Team",
+      items: [{ href: "/directory", label: "Team Directory", icon: <IconUsers /> }],
+    },
   ],
   HR: [
     {
@@ -72,6 +76,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Manage",
       items: [
         { href: "/hr/registry", label: "VA Registry", icon: <IconUsers /> },
+        { href: "/directory", label: "Team Directory", icon: <IconUsers /> },
         { href: "/hr/roles", label: "Compensation Roles", icon: <IconWallet /> },
         { href: "/hr/checkins", label: "Forms & Check-ins", icon: <IconCalendarCheck /> },
         { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },
@@ -85,6 +90,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       items: [
         { href: "/payroll", label: "Active Period", icon: <IconDollar /> },
         { href: "/payroll/archive", label: "Archive", icon: <IconArchive /> },
+        { href: "/directory", label: "Team Directory", icon: <IconUsers /> },
       ],
     },
   ],
@@ -97,6 +103,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/recruitment/training", label: "Training Log", icon: <IconGraduationCap /> },
         { href: "/recruitment/gate", label: "Gate Review", icon: <IconShieldCheck /> },
         { href: "/recruitment/tasks", label: "Training Module", icon: <IconListChecks /> },
+        { href: "/directory", label: "Team Directory", icon: <IconUsers /> },
       ],
     },
   ],
@@ -115,6 +122,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/hr/client-onboarding", label: "Onboarding", icon: <IconHandshake /> },
         { href: "/hr/clients", label: "Organizations", icon: <IconBuilding /> },
         { href: "/hr/requests", label: "Client Requests", icon: <IconMessageSquare /> },
+        { href: "/directory", label: "Team Directory", icon: <IconUsers /> },
       ],
     },
   ],

@@ -167,6 +167,13 @@ model Va {
   roleStartedDate   DateTime?
   notionDisplayTier String?
   tierMismatchFlag  String?
+  photoKey          String? // R2 object key: profiles/{vaId}/photo
+  bio               String? @db.Text
+  location          String?
+  timezone          String? // IANA, e.g. Asia/Manila
+  birthdayMonth     Int? // 1-12 (no year stored — privacy)
+  birthdayDay       Int? // 1-31
+  lastBirthdayCelebratedYear Int? // birthday-worker idempotency guard
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

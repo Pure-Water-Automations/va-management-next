@@ -9,6 +9,7 @@ import {
   type CaptureSource,
 } from "@/components/recorder/useScreenRecorder";
 import { RecordingVideo } from "@/components/recorder/RecordingVideo";
+import { putToR2 } from "@/lib/upload-client";
 
 /* ── small helpers ──────────────────────────────────────────────────────── */
 
@@ -17,18 +18,6 @@ function fmt(sec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function putToR2(url: string, blob: Blob, contentType: string, onProgress?: (p: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType);
-    if (onProgress) xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
-    xhr.onerror = () => reject(new Error("Upload network error"));
-    xhr.send(blob);
-  });
-}
 
 const NAVY = "var(--color-navy-900)";
 const RED = "#f04c4c";

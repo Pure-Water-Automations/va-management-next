@@ -128,6 +128,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           {adminBar}
           <VaTopNav
             name={userName}
+            photoSrc={user.va?.photoKey ? `/api/people/photo/${user.va.vaId}?v=${user.va.updatedAt.getTime()}` : null}
             roleLabel={roleLabel}
             canDelegate={canDelegate}
             showMeetingActions={showMeetingActions}

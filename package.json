@@ -30,6 +30,7 @@
     "worker:sales-followup": "tsx worker/sales-followup.ts",
     "worker:notion": "tsx worker/notion-sync.ts",
     "worker:discovery-reminders": "tsx worker/discovery-reminders.ts",
+    "worker:birthday": "tsx worker/birthday.ts",
     "seed:demo": "tsx prisma/seed-demo.ts"
   },
   "dependencies": {
