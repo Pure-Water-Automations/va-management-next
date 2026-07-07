@@ -1,63 +1,100 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
+import { getCurrentUser } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
-import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
+import { getProjectDetail } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getProjectFieldPills } from "@/lib/reads/fields";
-import { PropertyPills } from "@/components/hub/PropertyPills";
+import { getPageTree, getPageDoc } from "@/lib/reads/pages";
+import { ensureOverviewPage } from "@/lib/actions/pages";
 import { computeProjectProgress } from "@/lib/services/tasks";
-import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge, DueChip, Avatar } from "@/components/ui/task-format";
-import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
-import { EnhanceButton } from "@/components/EnhanceButton";
-import { NotionItemControls } from "@/components/NotionItemControls";
+import { PropertyPills } from "@/components/hub/PropertyPills";
+import { PageTree } from "@/components/hub/PageTree";
+import { BlockEditor } from "@/components/hub/BlockEditor";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * OS Hub project page (Sprint 1, Phase 2): tree | doc/tasks tabs. The old
+ * detail remains at ./classic during the test period (feature-parity rule).
+ */
+export default async function ProjectHubPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
+}) {
   const { id } = await params;
+  const { tab: rawTab, page: rawPage } = await searchParams;
   const user = await getCurrentUser();
   if (!user.isAdmin && !canManageTasks(user.role)) {
     redirect("/hr/projects");
   }
-  const canEdit = user.isAdmin || canManageProjects(user.role);
+  const canEdit = user.isAdmin || canManageTasks(user.role);
+  const canShare = user.isAdmin || canManageProjects(user.role);
 
-  // Auto-suggest: VAs assigned to this project's client float to the top of the picker.
-  const projectClientId = (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))?.clientOrganizationId ?? null;
-  const [project, feed, assignees, fieldPills] = await Promise.all([
+  await ensureOverviewPage(user.id, id);
+
+  const projectClientId =
+    (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))
+      ?.clientOrganizationId ?? null;
+
+  const [project, fieldPills, tree, assignees] = await Promise.all([
     getProjectDetail(id),
-    getProjectActivityFeed(id),
-    getDelegationAssignees(projectClientId),
     getProjectFieldPills(id),
+    getPageTree("PROJECT", id),
+    getDelegationAssignees(projectClientId),
   ]);
-
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
+
+  const tab = rawTab === "tasks" ? "tasks" : "page";
+  const activePageId = rawPage && tree.some((n) => n.id === rawPage) ? rawPage : tree[0]?.id;
+  const doc = tab === "page" && activePageId ? await getPageDoc(activePageId) : null;
 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
-  const betaVisible = await isBetaVisible(user.email);
+  const base = `/hr/projects/${id}`;
 
-  // Notion sync (beta): linked-page info + whether this client has a projects connection.
-  const notionInfo = betaVisible
-    ? await db.project.findUnique({
-        where: { id },
-        select: {
-          notionUrl: true,
-          notionStatus: true,
-          clientOrganizationId: true,
-          clientOrganization: { select: { notionConnection: { select: { active: true, projectsDataSourceId: true } } } },
-        },
-      })
-    : null;
-  const notionConnected =
-    !!notionInfo?.clientOrganization?.notionConnection?.active &&
-    !!notionInfo.clientOrganization.notionConnection.projectsDataSourceId;
+  const tabLink = (t: "page" | "tasks", label: string, count?: number) => (
+    <Link
+      href={`${base}?tab=${t}${t === "page" && activePageId ? `&page=${activePageId}` : ""}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "9px 16px",
+        fontSize: "var(--text-sm)",
+        fontWeight: tab === t ? 600 : 500,
+        color: tab === t ? "var(--color-navy-900, #0f1c5e)" : "var(--color-text-tertiary)",
+        borderBottom: `2px solid ${tab === t ? "var(--color-sky-500, #2eb4dd)" : "transparent"}`,
+        marginBottom: -1,
+        textDecoration: "none",
+      }}
+    >
+      {label}
+      {count !== undefined && count > 0 && (
+        <span
+          style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: 700,
+            background: "var(--color-sky-50, #f0fafd)",
+            color: "var(--color-sky-700, #177a9c)",
+            borderRadius: 999,
+            padding: "1px 7px",
+          }}
+        >
+          {count}
+        </span>
+      )}
+    </Link>
+  );
 
   return (
     <>
@@ -73,169 +110,104 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "center", flexWrap: "wrap" }}>
           <ProjectStatusControls
             projectId={project.id}
             status={project.status}
             priority={project.priority}
-            canEdit={canEdit}
+            canEdit={canShare}
           />
-          {betaVisible && (
-            <EnhanceButton projectId={project.id} projectName={project.name} assignees={assignees} />
-          )}
-          {betaVisible && notionInfo?.clientOrganizationId && (
-            <NotionItemControls
-              kind="project"
-              id={project.id}
-              notionUrl={notionInfo.notionUrl}
-              notionStatus={notionInfo.notionStatus}
-              connected={notionConnected}
-            />
-          )}
-          {canEdit && (
-            <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">
+          <Button href={`${base}/classic`} variant="ghost" size="sm">
+            Classic view
+          </Button>
+          {canShare && (
+            <Button href={`${base}/edit`} variant="ghost" size="sm">
               Edit
             </Button>
           )}
         </div>
       </div>
 
-      {project.description && (
-        <p style={{ marginBottom: 24, color: "var(--color-text-secondary)" }}>{project.description}</p>
-      )}
+      <PropertyPills projectId={project.id} fields={fieldPills} canEdit={canEdit} />
 
-      {/* OS Hub custom-field pills (Phase 1). canManageTasks-gated writes server-side. */}
-      <PropertyPills projectId={project.id} fields={fieldPills} canEdit={user.isAdmin || canManageTasks(user.role)} />
-
-      <div className="stat-grid">
-        <Stat label="Progress" value={progress} unit="%" variant={progress === 100 ? "navy" : "default"} />
-        <Stat label="Total tasks" value={project.tasks.length} />
-        <Stat label="Open tasks" value={openTaskCount} trend={openTaskCount ? "down" : "neutral"} />
-        <Stat
-          label="Owner"
-          value={<span style={{ fontSize: "var(--text-lg)" }}>{project.owner.name ?? project.owner.email}</span>}
-        />
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--color-border-subtle)", marginBottom: 20 }}>
+        {tabLink("page", "Page")}
+        {tabLink("tasks", "Tasks", openTaskCount)}
       </div>
 
-      <div className="dash-grid">
-        {/* Task list */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>Tasks</h2>
-            <span className="small" style={{ color: "var(--color-text-tertiary)" }}>
-              {progress}% complete
-            </span>
-          </div>
-          <ProjectQuickAddTask projectId={project.id} assignees={assignees} />
-          {project.tasks.length === 0 ? (
-            <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>No tasks yet.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {project.tasks.map((t) => (
-                <Card key={t.id} padding={16}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <a
-                        href={`/hr/tasks/${t.id}`}
-                        style={{ fontWeight: 600, textDecoration: "none" }}
-                      >
-                        {t.title}
-                      </a>
-                      <div
-                        className="small"
-                        style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}
-                      >
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <Avatar name={t.assignedTo.name} size={20} />
-                          <span style={{ color: "var(--color-text-tertiary)" }}>
-                            {t.assignedTo.name ?? "Unassigned"}
-                          </span>
-                        </span>
-                        <span style={{ color: "var(--color-text-tertiary)" }}>·</span>
-                        <DueChip date={t.dueDate} status={t.status} />
-                      </div>
-                    </div>
-                    <StatusBadge value={t.status} />
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: tab === "page" ? "210px minmax(0, 1fr)" : "minmax(0, 1fr)",
+          gap: 22,
+          alignItems: "start",
+        }}
+      >
+        {tab === "page" && (
+          <PageTree
+            nodes={tree}
+            activePageId={activePageId ?? ""}
+            baseHref={base}
+            projectId={project.id}
+            canEdit={canEdit}
+          />
+        )}
 
-        {/* Activity feed + project note form */}
-        <Card padding={0} style={{ overflow: "hidden" }}>
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--color-border)",
-              background: "var(--color-bg-secondary)",
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: "var(--text-xl)" }}>Activity</h2>
-          </div>
-          <ProjectCommentForm projectId={project.id} />
-          <div style={{ padding: 8, borderTop: "1px solid var(--color-border-subtle)" }}>
-            {feed.length === 0 ? (
-              <p
-                style={{
-                  padding: 24,
-                  color: "var(--color-text-tertiary)",
-                  fontStyle: "italic",
-                }}
-              >
-                No activity yet.
-              </p>
+        {tab === "page" && doc && (
+          <BlockEditor
+            key={doc.id}
+            pageId={doc.id}
+            title={doc.title}
+            initialBlocks={doc.blocks}
+            version={doc.version}
+            canEdit={canEdit}
+            projectId={project.id}
+            meId={user.id}
+            sharing={{ published: doc.published, clientVisible: doc.clientVisible }}
+            canShare={canShare}
+          />
+        )}
+
+        {tab === "tasks" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h2 style={{ margin: 0 }}>Tasks</h2>
+              <span className="small" style={{ color: "var(--color-text-tertiary)" }}>
+                {progress}% complete
+              </span>
+            </div>
+            <ProjectQuickAddTask projectId={project.id} assignees={assignees} />
+            {project.tasks.length === 0 ? (
+              <p style={{ color: "var(--color-text-tertiary)", fontStyle: "italic" }}>No tasks yet.</p>
             ) : (
-              feed.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    padding: "10px 12px",
-                    borderBottom: "1px dashed var(--color-border-subtle)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "var(--text-sm)" }}>{item.summary}</span>
-                    {item.visibility === "CLIENT_VISIBLE" && (
-                      <span
-                        style={{
-                          fontSize: "var(--text-xs)",
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          background: "#dbeafe",
-                          color: "#1d4ed8",
-                          fontWeight: 600,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Client visible
-                      </span>
-                    )}
-                    {item.visibility === "INTERNAL_ONLY" && (
-                      <span
-                        style={{
-                          fontSize: "var(--text-xs)",
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          background: "#f3f4f6",
-                          color: "#6b7280",
-                          fontWeight: 500,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Internal
-                      </span>
-                    )}
-                  </div>
-                  <div className="small" style={{ color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                    {item.at.toLocaleDateString()}
-                  </div>
-                </div>
-              ))
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {project.tasks.map((t) => (
+                  <Card key={t.id} padding={16}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <a href={`/hr/tasks/${t.id}`} style={{ fontWeight: 600, textDecoration: "none" }}>
+                          {t.title}
+                        </a>
+                        <div className="small" style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <Avatar name={t.assignedTo.name} size={20} />
+                            <span style={{ color: "var(--color-text-tertiary)" }}>
+                              {t.assignedTo.name ?? "Unassigned"}
+                            </span>
+                          </span>
+                          <span style={{ color: "var(--color-text-tertiary)" }}>·</span>
+                          <DueChip date={t.dueDate} status={t.status} />
+                        </div>
+                      </div>
+                      <StatusBadge value={t.status} />
+                    </div>
+                  </Card>
+                ))}
+              </div>
             )}
           </div>
-        </Card>
+        )}
       </div>
     </>
   );

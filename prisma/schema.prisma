@@ -838,6 +838,7 @@ model Project {
   clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
   fieldDefs          FieldDef[]
   fieldValues        FieldValue[]
+  pages              Page[]
 
   @@index([ownerId])
   @@index([status])
@@ -1396,4 +1397,40 @@ model FieldValue {
   @@unique([fieldId, projectId])
   @@index([taskId])
   @@index([projectId])
+}
+
+// ── Pure Water OS Hub: doc pages (Sprint 1, Phase 2) ─────────────────────────
+// A Page is a Notion-style doc: per-project (scope PROJECT, hub page tree) or
+// in the shared Library (scope LIBRARY, SOPs/wiki; folders = parent pages).
+// Blocks live as one JSON array [{id, kind, text, done?, ref?}] — kinds:
+// callout|h2|p|todo|ul|ol|code|chip. `version` is an optimistic lock: saves
+// send the version they loaded; a mismatch means someone else edited (409).
+// `published` shares a LIBRARY page read-only in the client portal;
+// `clientVisible` projects a PROJECT page as the portal's Overview.
+
+enum PageScope {
+  PROJECT
+  LIBRARY
+}
+
+model Page {
+  id            String    @id @default(cuid())
+  scope         PageScope
+  projectId     String?
+  parentId      String?
+  title         String
+  order         Int       @default(0)
+  blocks        Json      @default("[]")
+  version       Int       @default(1)
+  published     Boolean   @default(false)
+  clientVisible Boolean   @default(false)
+  createdById   String
+  updatedById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, parentId])
+  @@index([scope, parentId])
 }
