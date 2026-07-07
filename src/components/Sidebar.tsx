@@ -62,6 +62,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Projects",
       items: [
         { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
+        { href: "/hr/library", label: "Library", icon: <IconArchive /> },
         { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
         { href: "/hr/tasks/available", label: "Available", icon: <IconInbox /> },
         { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },

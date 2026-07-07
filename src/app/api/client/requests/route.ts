@@ -59,6 +59,28 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
+  // OS Hub loop: the request also lands as a bullet in the org's most active
+  // project scratchpad (💬 client request). Promoting that bullet creates the
+  // task AND flips this request to ASSIGNED — the portal shows
+  // "Turned into a task ✓" without a separate triage step.
+  const hubProject = await db.project.findFirst({
+    where: { clientOrganizationId: g.orgId, status: { in: ["Active", "Planning"] } },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true },
+  });
+  if (hubProject) {
+    const order = await db.scratchItem.count({ where: { projectId: hubProject.id } });
+    await db.scratchItem.create({
+      data: {
+        projectId: hubProject.id,
+        text: parsed.data.title,
+        order,
+        clientTaskRequestId: request.id,
+        createdById: g.user.id,
+      },
+    });
+  }
+
   // Notify team leads / HR
   const teamUsers = await db.user.findMany({
     where: { role: { in: ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD"] }, active: true },

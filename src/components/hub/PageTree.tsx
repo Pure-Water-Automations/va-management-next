@@ -34,7 +34,8 @@ export function PageTree({
     const res = await postAction("/api/hr/pages", {
       scope: projectId ? "PROJECT" : "LIBRARY",
       projectId: projectId ?? undefined,
-      parentId: activePageId,
+      // Under the active page; at the root when the tree is still empty.
+      parentId: activePageId || undefined,
       title,
     });
     setBusy(false);
@@ -139,7 +140,7 @@ export function PageTree({
               cursor: "pointer",
             }}
           >
-            + Sub-page
+            {nodes.length === 0 ? "+ New page" : "+ Sub-page"}
           </button>
         ))}
     </div>
