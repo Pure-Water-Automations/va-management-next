@@ -24,8 +24,13 @@ export function verifyZoomSignature(
 ): boolean {
   if (!signature || !timestamp || !secret) return false;
   const expected = `v0=${hmacHex(secret, `v0:${timestamp}:${rawBody}`)}`;
-  if (signature.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  // Compare as bytes: `signature` is attacker-controlled, and timingSafeEqual throws
+  // on unequal BYTE lengths — a String.length guard passes for a multibyte char that
+  // yields a longer Buffer, so guard on the actual buffers to keep this from throwing.
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
 /** Build the endpoint.url_validation response body. */

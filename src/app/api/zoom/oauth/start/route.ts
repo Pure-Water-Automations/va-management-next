@@ -1,5 +1,5 @@
 import { env } from "@/lib/env";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { authorizeUrl, signState, zoomOauthConfigured } from "@/lib/zoom/oauth";
 
 // Redirects use APP_BASE_URL, not request.url (behind the tunnel the app sees
@@ -22,7 +22,7 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return Response.redirect(`${appBase()}/login`, 302);
   }
-  if (!user.isAdmin) return new Response("Not authorized", { status: 403 });
+  if (!isAllAccess(user)) return new Response("Not authorized", { status: 403 });
   if (!zoomOauthConfigured()) return Response.redirect(`${appBase()}${ret}?zoom=unconfigured`, 302);
 
   return Response.redirect(authorizeUrl(signState(user.email, ret)), 302);

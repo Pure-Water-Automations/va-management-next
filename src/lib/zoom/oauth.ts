@@ -40,7 +40,12 @@ export function verifyState(state: string): StatePayload | null {
   const [body, sig] = String(state || "").split(".");
   if (!body || !sig) return null;
   const expected = b64url(crypto.createHmac("sha256", env.NEXTAUTH_SECRET).update(body).digest());
-  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  // Compare as bytes: `sig` comes from the URL, and timingSafeEqual throws on unequal
+  // BYTE lengths — a String.length guard passes for a multibyte char whose Buffer is
+  // longer, so guard on the actual buffers so a crafted state can't throw a 500.
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
   try {
     const payload = JSON.parse(fromB64url(body).toString("utf8")) as StatePayload;
     if (Date.now() - payload.ts > 15 * 60 * 1000) return null; // 15-min window

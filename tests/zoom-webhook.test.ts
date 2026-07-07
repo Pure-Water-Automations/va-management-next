@@ -32,6 +32,15 @@ test("verifyZoomSignature: false on missing signature or timestamp", () => {
   assert.equal(verifyZoomSignature("{}", "v0=deadbeef", null, SECRET), false);
 });
 
+test("verifyZoomSignature: returns false (never throws) for a multibyte signature", () => {
+  // 67 UTF-16 code units (== a real v0=<64 hex> signature) but a longer byte length,
+  // which would make timingSafeEqual throw if guarded by String.length. Must not throw.
+  const multibyte = "v0=" + "a".repeat(63) + "€";
+  assert.equal(multibyte.length, 67);
+  assert.doesNotThrow(() => verifyZoomSignature("{}", multibyte, "1700000000", SECRET));
+  assert.equal(verifyZoomSignature("{}", multibyte, "1700000000", SECRET), false);
+});
+
 test("urlValidationResponse: encryptedToken is hex HMAC-SHA256(secret, plainToken)", () => {
   const plainToken = "abc123XYZ";
   const res = urlValidationResponse(plainToken, SECRET);
