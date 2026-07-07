@@ -6,6 +6,7 @@ import { getProjectDetail } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getProjectFieldPills } from "@/lib/reads/fields";
 import { getPageTree, getPageDoc } from "@/lib/reads/pages";
+import { getScratchItems } from "@/lib/reads/scratch";
 import { ensureOverviewPage } from "@/lib/actions/pages";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Card } from "@/components/ui/Card";
@@ -16,6 +17,7 @@ import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
 import { PropertyPills } from "@/components/hub/PropertyPills";
 import { PageTree } from "@/components/hub/PageTree";
 import { BlockEditor } from "@/components/hub/BlockEditor";
+import { Scratchpad } from "@/components/hub/Scratchpad";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -54,15 +56,16 @@ export default async function ProjectHubPage({
   ]);
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
 
-  const tab = rawTab === "tasks" ? "tasks" : "page";
+  const tab = rawTab === "tasks" ? "tasks" : rawTab === "scratch" ? "scratch" : "page";
   const activePageId = rawPage && tree.some((n) => n.id === rawPage) ? rawPage : tree[0]?.id;
   const doc = tab === "page" && activePageId ? await getPageDoc(activePageId) : null;
+  const scratch = tab === "scratch" ? await getScratchItems(id) : [];
 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
   const base = `/hr/projects/${id}`;
 
-  const tabLink = (t: "page" | "tasks", label: string, count?: number) => (
+  const tabLink = (t: "page" | "tasks" | "scratch", label: string, count?: number) => (
     <Link
       href={`${base}?tab=${t}${t === "page" && activePageId ? `&page=${activePageId}` : ""}`}
       style={{
@@ -134,6 +137,7 @@ export default async function ProjectHubPage({
       <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--color-border-subtle)", marginBottom: 20 }}>
         {tabLink("page", "Page")}
         {tabLink("tasks", "Tasks", openTaskCount)}
+        {tabLink("scratch", "Scratchpad")}
       </div>
 
       <div
@@ -167,6 +171,10 @@ export default async function ProjectHubPage({
             sharing={{ published: doc.published, clientVisible: doc.clientVisible }}
             canShare={canShare}
           />
+        )}
+
+        {tab === "scratch" && (
+          <Scratchpad projectId={project.id} items={scratch} canEdit={canEdit} meId={user.id} />
         )}
 
         {tab === "tasks" && (

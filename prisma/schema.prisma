@@ -839,6 +839,7 @@ model Project {
   fieldDefs          FieldDef[]
   fieldValues        FieldValue[]
   pages              Page[]
+  scratchItems       ScratchItem[]
 
   @@index([ownerId])
   @@index([status])
@@ -868,6 +869,9 @@ model Task {
   // in the Available Tasks pool, not as a normal assignment.
   claimable            Boolean      @default(false)
   claimRequestedById   String?
+  // OS Hub provenance: manual | meeting | scratchpad | client (drives the
+  // sparkle source badge; meeting/scratchpad rows were confirm-first AI output).
+  source               String       @default("manual")
   clientOrganizationId String?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
@@ -1433,4 +1437,25 @@ model Page {
 
   @@index([projectId, parentId])
   @@index([scope, parentId])
+}
+
+// ── Pure Water OS Hub: scratchpad (Sprint 1, Phase 3) ────────────────────────
+// Freeform per-project bullets. Promoting one creates a real Task
+// (source "scratchpad") and records the link; client portal requests also land
+// here (clientTaskRequestId set), so the client's request status can be derived
+// from whether the team promoted the bullet.
+
+model ScratchItem {
+  id                  String   @id @default(cuid())
+  projectId           String
+  text                String
+  order               Int      @default(0)
+  promotedTaskId      String?  @unique
+  clientTaskRequestId String?  @unique
+  createdById         String?
+  createdAt           DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
