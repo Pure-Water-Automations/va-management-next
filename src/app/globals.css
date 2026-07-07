@@ -650,6 +650,19 @@ h3.sec-title {
   align-items: center;
   opacity: 0.85;
 }
+/* The top nav reuses the .nav-label class, but that class is styled for the DARK
+   sidebar (white 38% text, uppercase, tiny). On the white top nav that renders as
+   invisible white-on-white. Reset it to an inline item label that inherits the
+   item's dark color. */
+.topnav-item .nav-label {
+  font-size: var(--text-sm);
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  color: inherit;
+  padding: 0;
+  white-space: nowrap;
+}
 .topnav-item:hover {
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);
