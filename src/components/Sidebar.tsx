@@ -33,7 +33,7 @@ import {
   IconLogOut,
 } from "./icons";
 
-type NavItem = { href: string; label: string; icon: ReactNode };
+type NavItem = { href: string; label: string; icon: ReactNode; tag?: string };
 
 const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
   HR: [
@@ -62,7 +62,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Projects",
       items: [
         { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
-        { href: "/hr/library", label: "Library", icon: <IconArchive /> },
+        { href: "/hr/library", label: "Library", icon: <IconArchive />, tag: "new" },
         { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
         { href: "/hr/tasks/available", label: "Available", icon: <IconInbox /> },
         { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },
@@ -152,7 +152,7 @@ export function Sidebar({
         {sections.map((section) => (
           <NavGroup key={section.label} label={section.label}>
             {section.items.map((item) => (
-              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} tag={item.tag} />
             ))}
           </NavGroup>
         ))}

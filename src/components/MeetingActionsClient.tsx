@@ -203,14 +203,52 @@ export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: 
           return (
             <Card key={card.id} padding={0}>
               {/* Card header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: isCollapsed ? "none" : "1px solid var(--color-border)" }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{card.title}</div>
-                  <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                    {[fmtDate(card.date), card.zoomAccount, lead ? `${lead} (lead)` : null].filter(Boolean).join(" · ")}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: isCollapsed ? "none" : "1px solid var(--color-border)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      flex: "none",
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      background: "var(--color-sky-50, #f0fafd)",
+                      border: "1px solid var(--color-sky-100, #c9edf8)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 16,
+                    }}
+                  >
+                    🎥
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--color-navy-900, #0f1c5e)" }}>
+                      {card.title}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                      {[fmtDate(card.date), card.zoomAccount, lead ? `${lead} (lead)` : null].filter(Boolean).join(" · ")}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "none" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      height: 22,
+                      padding: "0 10px",
+                      borderRadius: 999,
+                      background: "var(--color-sky-50, #f0fafd)",
+                      color: "var(--color-sky-700, #177a9c)",
+                      border: "1px solid var(--color-sky-100, #c9edf8)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {card.items.length} pending
+                  </span>
                   {canConfirm && (
                     <Button
                       variant="secondary"
@@ -239,66 +277,100 @@ export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: 
                 </div>
               </div>
 
-              {/* Item rows */}
-              {!isCollapsed &&
-                card.items.map((it) => (
-                  <div key={it.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 16px", borderBottom: "1px solid var(--color-border-subtle)" }}>
-                    {/* Pending dot */}
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warning)", flexShrink: 0, marginTop: 5 }} />
-                    {/* Task info */}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{it.title}</div>
+              {/* Item cards (design: bordered proposal boxes) */}
+              {!isCollapsed && (
+                <div style={{ padding: "12px 18px 14px" }}>
+                  {card.items.map((it) => (
+                    <div
+                      key={it.id}
+                      style={{
+                        border: "1px solid var(--color-border-subtle)",
+                        background: "var(--color-surface)",
+                        borderRadius: 14,
+                        padding: "10px 14px",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--color-navy-900, #0f1c5e)" }}>{it.title}</div>
                       {(it.description || it.clientContext) && (
-                        <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", margin: "2px 0 8px" }}>
                           {[it.description, it.clientContext].filter(Boolean).join(" · ")}
                         </div>
                       )}
-                    </div>
-                    {/* Controls */}
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                      <select
-                        aria-label="Assignee"
-                        value={edits[it.id]?.assigneeId ?? ""}
-                        onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], assigneeId: e.target.value } }))}
-                        style={inputStyle}
-                      >
-                        <option value="">Unassigned</option>
-                        {assignees.map((a) => (
-                          <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="date"
-                        aria-label="Due date"
-                        value={edits[it.id]?.dueDate ?? ""}
-                        onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], dueDate: e.target.value } }))}
-                        style={inputStyle}
-                      />
-                      {canConfirm && (
-                        <button
-                          aria-label={`Add task: ${it.title}`}
-                          onClick={() => confirmItem(card.id, it)}
-                          disabled={busy !== null}
-                          style={{ color: "var(--color-success)", background: "none", fontSize: 12, cursor: busy !== null ? "not-allowed" : "pointer", padding: "3px 8px", border: "1px solid var(--color-success)", borderRadius: "var(--radius-xs)", opacity: busy !== null ? 0.5 : 1 }}
+                      <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+                        <select
+                          aria-label="Assignee"
+                          value={edits[it.id]?.assigneeId ?? ""}
+                          onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], assigneeId: e.target.value } }))}
+                          style={inputStyle}
                         >
-                          ✓ Add
+                          <option value="">Unassigned</option>
+                          {assignees.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name ?? a.email}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="date"
+                          aria-label="Due date"
+                          value={edits[it.id]?.dueDate ?? ""}
+                          onChange={(e) => setEdits((s) => ({ ...s, [it.id]: { ...s[it.id], dueDate: e.target.value } }))}
+                          style={inputStyle}
+                        />
+                        {canConfirm && (
+                          <button
+                            aria-label={`Add task: ${it.title}`}
+                            onClick={() => confirmItem(card.id, it)}
+                            disabled={busy !== null}
+                            style={{
+                              height: 28,
+                              padding: "0 13px",
+                              borderRadius: 999,
+                              border: "none",
+                              background: "var(--color-navy-900, #132272)",
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: busy !== null ? "not-allowed" : "pointer",
+                              whiteSpace: "nowrap",
+                              opacity: busy !== null ? 0.5 : 1,
+                            }}
+                          >
+                            Confirm → task
+                          </button>
+                        )}
+                        <button
+                          aria-label={`Skip: ${it.title}`}
+                          onClick={() => skipItem(card.id, it.id)}
+                          disabled={busy !== null}
+                          style={{
+                            height: 28,
+                            padding: "0 13px",
+                            borderRadius: 999,
+                            border: "1px solid var(--color-border)",
+                            background: "var(--color-surface)",
+                            color: "var(--color-text-secondary)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: busy !== null ? "not-allowed" : "pointer",
+                            opacity: busy !== null ? 0.5 : 1,
+                          }}
+                        >
+                          Skip
                         </button>
-                      )}
-                      <button
-                        aria-label={`Skip: ${it.title}`}
-                        onClick={() => skipItem(card.id, it.id)}
-                        disabled={busy !== null}
-                        style={{ color: "var(--color-error)", background: "none", border: "none", fontSize: 12, cursor: busy !== null ? "not-allowed" : "pointer", opacity: busy !== null ? 0.5 : 1 }}
-                      >
-                        ✕
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
             </Card>
           );
         })}
       </div>
+
+      <p style={{ fontSize: 12.5, color: "var(--color-text-tertiary)", lineHeight: 1.5, marginTop: 16 }}>
+        Extracted hourly from Zoom transcripts — the same confirm-first pipeline the scratchpad uses.
+        Nothing becomes a task until you approve it.
+      </p>
     </>
   );
 }

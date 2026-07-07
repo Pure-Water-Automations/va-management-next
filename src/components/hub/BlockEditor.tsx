@@ -49,6 +49,8 @@ export function BlockEditor({
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [newText, setNewText] = useState("");
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "error">("clean");
+  const [puriiOpen, setPuriiOpen] = useState(false);
+  const [puriiBusy, setPuriiBusy] = useState<string | null>(null);
   const versionRef = useRef(initialVersion);
   const blocksRef = useRef(blocks);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,8 +122,39 @@ export function BlockEditor({
 
   const slash = parseSlashInput(newText);
 
-  async function runCommand(kind: BlockKind | "task", text: string) {
+  // Purii page commands: the API returns proposed blocks; they land in local
+  // state (single writer) so the user can immediately edit or delete them.
+  async function runPurii(command: "summarize" | "checklist" | "related") {
+    setPuriiOpen(false);
+    setPuriiBusy(
+      command === "summarize" ? "Summarizing…" : command === "checklist" ? "Drafting checklist…" : "Searching the Library…",
+    );
+    const res = await postAction("/api/hr/pages/purii", { pageId, command });
+    setPuriiBusy(null);
+    if (!res.ok) {
+      window.alert(res.error ?? "Purii failed");
+      return;
+    }
+    const { position, blocks: proposed, note } = res.result as {
+      position: "prepend" | "append";
+      blocks: Omit<Block, "id">[];
+      note?: string;
+    };
+    if (!proposed.length) {
+      if (note) window.alert(note);
+      return;
+    }
+    const made = proposed.map((b) => ({ ...b, id: uid() }) as Block);
+    setBlocks((prev) => (position === "prepend" ? [...made, ...prev] : [...prev, ...made]));
+    scheduleSave();
+  }
+
+  async function runCommand(kind: BlockKind | "task" | "purii", text: string) {
     setNewText("");
+    if (kind === "purii") {
+      setPuriiOpen(true);
+      return;
+    }
     if (kind === "task") {
       const taskTitle = text || window.prompt("Task title?")?.trim();
       if (!taskTitle) return;
@@ -304,7 +337,15 @@ export function BlockEditor({
         return (
           <a
             key={b.id}
-            href={b.ref?.type === "task" ? `/hr/tasks/${b.ref.id}` : undefined}
+            href={
+              b.ref?.type === "task"
+                ? `/hr/tasks/${b.ref.id}`
+                : b.ref?.type === "sop"
+                  ? `/hr/library?page=${b.ref.id}`
+                  : b.ref?.type === "video"
+                    ? `/recordings/${b.ref.id}`
+                    : undefined
+            }
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -372,7 +413,80 @@ export function BlockEditor({
             {shared ? (projectId ? "Client-visible" : "Published") : "Private"}
           </button>
         )}
-        <span style={{ marginLeft: "auto", fontSize: "var(--text-xs)", color: saveState === "error" ? "var(--color-danger, #d33)" : "var(--color-text-tertiary)" }}>
+        {canEdit && (
+          <span style={{ marginLeft: "auto", position: "relative", display: "inline-flex", alignItems: "center", gap: 10 }}>
+            {puriiBusy ? (
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--color-sky-700, #177a9c)", fontWeight: 600 }}>
+                ✨ {puriiBusy}
+              </span>
+            ) : (
+              <button
+                onClick={() => setPuriiOpen((v) => !v)}
+                title="Purii page commands"
+                style={{
+                  height: 26,
+                  padding: "0 11px",
+                  borderRadius: 999,
+                  border: "1px solid var(--color-sky-100, #c9edf8)",
+                  background: "var(--color-sky-50, #f0fafd)",
+                  color: "var(--color-sky-700, #177a9c)",
+                  fontSize: "var(--text-xs)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                ✨ Purii
+              </button>
+            )}
+            {puriiOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 32,
+                  right: 0,
+                  zIndex: 45,
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 14,
+                  boxShadow: "var(--shadow-lg)",
+                  padding: 6,
+                  width: 230,
+                }}
+              >
+                {(
+                  [
+                    ["summarize", "Summarize this page"],
+                    ["checklist", "Draft a checklist"],
+                    ["related", "Find related SOPs"],
+                  ] as const
+                ).map(([cmd, label]) => (
+                  <button
+                    key={cmd}
+                    onClick={() => void runPurii(cmd)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      border: "none",
+                      borderRadius: 9,
+                      background: "none",
+                      cursor: "pointer",
+                      fontSize: "var(--text-sm)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <div style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", padding: "6px 10px 4px" }}>
+                  Inserts blocks you can edit or delete.
+                </div>
+              </div>
+            )}
+          </span>
+        )}
+        <span style={{ marginLeft: canEdit ? 0 : "auto", fontSize: "var(--text-xs)", color: saveState === "error" ? "var(--color-danger, #d33)" : "var(--color-text-tertiary)" }}>
           {saveState === "clean" && "Saved"}
           {saveState === "dirty" && "…"}
           {saveState === "saving" && "Saving…"}

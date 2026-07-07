@@ -7,6 +7,7 @@ import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { getProjectFieldPills } from "@/lib/reads/fields";
 import { getPageTree, getPageDoc } from "@/lib/reads/pages";
 import { getScratchItems } from "@/lib/reads/scratch";
+import { getLinkedPanelData, getLinkOptions } from "@/lib/reads/links";
 import { ensureOverviewPage } from "@/lib/actions/pages";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Card } from "@/components/ui/Card";
@@ -18,6 +19,7 @@ import { PropertyPills } from "@/components/hub/PropertyPills";
 import { PageTree } from "@/components/hub/PageTree";
 import { BlockEditor } from "@/components/hub/BlockEditor";
 import { Scratchpad } from "@/components/hub/Scratchpad";
+import { LinkedPanel } from "@/components/hub/LinkedPanel";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -44,15 +46,23 @@ export default async function ProjectHubPage({
 
   await ensureOverviewPage(user.id, id);
 
-  const projectClientId =
-    (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))
-      ?.clientOrganizationId ?? null;
+  const projectMeta = await db.project.findUnique({
+    where: { id },
+    select: {
+      clientOrganizationId: true,
+      clientOrganization: { select: { notionConnection: { select: { active: true } } } },
+    },
+  });
+  const projectClientId = projectMeta?.clientOrganizationId ?? null;
+  const notionOn = !!projectMeta?.clientOrganization?.notionConnection?.active;
 
-  const [project, fieldPills, tree, assignees] = await Promise.all([
+  const [project, fieldPills, tree, assignees, linked, linkOptions] = await Promise.all([
     getProjectDetail(id),
     getProjectFieldPills(id),
     getPageTree("PROJECT", id),
     getDelegationAssignees(projectClientId),
+    getLinkedPanelData("project", id),
+    getLinkOptions(id),
   ]);
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
 
@@ -114,12 +124,43 @@ export default async function ProjectHubPage({
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", alignSelf: "center", flexWrap: "wrap" }}>
+          <span
+            title={notionOn ? "This client org still has a Notion connection — parallel run" : "The hub is the source of truth"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: "var(--text-xs)",
+              fontWeight: 600,
+              color: "var(--color-text-secondary)",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border-subtle)",
+              padding: "5px 12px",
+              borderRadius: 999,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: notionOn ? "var(--color-warning, #e8a13c)" : "var(--color-success, #30c97a)",
+              }}
+            />
+            {notionOn ? "Notion sync on — parallel run" : "Notion sync off — everything lives here"}
+          </span>
           <ProjectStatusControls
             projectId={project.id}
             status={project.status}
             priority={project.priority}
             canEdit={canShare}
           />
+          {projectClientId && canShare && (
+            <Button href={`${base}/preview`} variant="ghost" size="sm">
+              👁 View as client
+            </Button>
+          )}
           <Button href={`${base}/classic`} variant="ghost" size="sm">
             Classic view
           </Button>
@@ -143,19 +184,22 @@ export default async function ProjectHubPage({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: tab === "page" ? "210px minmax(0, 1fr)" : "minmax(0, 1fr)",
+          gridTemplateColumns: tab === "page" ? "210px minmax(0, 1fr) 250px" : "minmax(0, 1fr)",
           gap: 22,
           alignItems: "start",
         }}
+        className={tab === "page" ? "hub-grid" : undefined}
       >
         {tab === "page" && (
-          <PageTree
-            nodes={tree}
-            activePageId={activePageId ?? ""}
-            baseHref={base}
-            projectId={project.id}
-            canEdit={canEdit}
-          />
+          <div className="hub-tree">
+            <PageTree
+              nodes={tree}
+              activePageId={activePageId ?? ""}
+              baseHref={base}
+              projectId={project.id}
+              canEdit={canEdit}
+            />
+          </div>
         )}
 
         {tab === "page" && doc && (
@@ -171,6 +215,19 @@ export default async function ProjectHubPage({
             sharing={{ published: doc.published, clientVisible: doc.clientVisible }}
             canShare={canShare}
           />
+        )}
+
+        {tab === "page" && (
+          <div className="hub-linked">
+            <LinkedPanel
+              fromType="project"
+              fromId={project.id}
+              links={linked.links}
+              backlinks={linked.backlinks}
+              options={linkOptions}
+              canEdit={canEdit}
+            />
+          </div>
         )}
 
         {tab === "scratch" && (

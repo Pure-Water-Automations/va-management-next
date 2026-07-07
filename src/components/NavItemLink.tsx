@@ -14,11 +14,13 @@ export function NavItemLink({
   href,
   label,
   badge,
+  tag,
   icon,
 }: {
   href: string;
   label: string;
   badge?: number;
+  tag?: string; // text pill, e.g. "new" on Library (OS Hub design)
   icon?: ReactNode;
 }) {
   const pathname = usePathname();
@@ -40,6 +42,7 @@ export function NavItemLink({
       {icon ? <span className="nav-icon">{icon}</span> : null}
       <span className="nav-text">{label}</span>
       {badge && badge > 0 ? <span className="nav-badge">{badge}</span> : null}
+      {tag ? <span className="nav-badge">{tag}</span> : null}
     </Link>
   );
 }

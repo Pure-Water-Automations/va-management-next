@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/access";
 import { viewForRole } from "@/lib/auth/roles";
 import { getHrDashboard } from "@/lib/reads/hr";
+import { db } from "@/lib/db";
 import { Stat } from "@/components/ui/Stat";
+import { StatusBadge, DueChip } from "@/components/ui/task-format";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/Avatar";
 import {
@@ -110,6 +112,23 @@ export default async function HrDashboard() {
   const overloadedNames = d.workload.filter((w) => w.overburdened).map((w) => w.name);
   const glance = d.workload.slice(0, 6);
 
+  // OS Hub strip (design's dashboard): due-soon tasks + recent hub activity.
+  const [dueSoon, hubActivity, pendingMeeting] = await Promise.all([
+    db.task.findMany({
+      where: { status: { not: "Done" }, dueDate: { not: null } },
+      orderBy: { dueDate: "asc" },
+      take: 4,
+      select: { id: true, title: true, status: true, dueDate: true },
+    }),
+    db.activityLog.findMany({
+      where: { source: { in: ["project_action", "page_action", "scratch_action", "field_action", "link_action", "task_action"] } },
+      orderBy: { timestamp: "desc" },
+      take: 4,
+      select: { id: true, summary: true, timestamp: true },
+    }),
+    db.meetingActionItem.count({ where: { status: "PENDING" } }),
+  ]);
+
   return (
     <div className="dash-stage">
       {/* ── Triage hero + team health ─────────────────────────────── */}
@@ -168,6 +187,60 @@ export default async function HrDashboard() {
         <Stat label="Active VAs" value={d.totalActive} />
         <Stat label="Capacity flags" value={d.capacityFlags.length} trend={d.capacityFlags.length ? "down" : "neutral"} />
         <Stat label="Check-ins this month" value={d.checkinsThisMonth} changeLabel={`of ${d.totalActive} VAs`} variant="sky" />
+      </div>
+
+      {/* ── OS Hub strip: due soon + recent activity (design dashboard) ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18, alignItems: "start", margin: "18px 0" }}>
+        <div className="surface" style={{ borderRadius: "var(--radius-card)", padding: "18px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+            <h3 className="sec-title" style={{ fontSize: "var(--text-base)", margin: 0 }}>Due soon</h3>
+            <a href="/hr/tasks" style={{ marginLeft: "auto", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-sky-600)" }}>
+              View all tasks
+            </a>
+          </div>
+          {dueSoon.length === 0 && (
+            <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--color-text-tertiary)" }}>Nothing due — enjoy it.</p>
+          )}
+          {dueSoon.map((t) => (
+            <a
+              key={t.id}
+              href={`/hr/tasks/${t.id}`}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", margin: "0 -10px", borderRadius: 12, textDecoration: "none" }}
+            >
+              <span style={{ flex: 1, minWidth: 0, fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {t.title}
+              </span>
+              <StatusBadge value={t.status} />
+              <DueChip date={t.dueDate} status={t.status} />
+            </a>
+          ))}
+          {pendingMeeting > 0 && (
+            <a
+              href="/meeting-actions"
+              className="btn"
+              style={{ marginTop: 10, background: "var(--color-navy-900, #132272)", color: "#fff", borderRadius: 999 }}
+            >
+              Review meeting actions ({pendingMeeting})
+            </a>
+          )}
+        </div>
+        <div className="surface" style={{ borderRadius: "var(--radius-card)", padding: "18px 22px" }}>
+          <h3 className="sec-title" style={{ fontSize: "var(--text-base)", margin: "0 0 10px" }}>Recent activity</h3>
+          {hubActivity.length === 0 && (
+            <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--color-text-tertiary)" }}>No hub activity yet.</p>
+          )}
+          {hubActivity.map((a) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "7px 0" }}>
+              <span style={{ flex: "none", width: 26, height: 26, borderRadius: 9, background: "var(--color-sky-50, #f0fafd)", border: "1px solid var(--color-sky-100, #c9edf8)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                ⚡
+              </span>
+              <span style={{ flex: 1, fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", lineHeight: 1.45 }}>{a.summary}</span>
+              <span style={{ flex: "none", fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>
+                {a.timestamp.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Decision queue ─────────────────────────────────────────── */}

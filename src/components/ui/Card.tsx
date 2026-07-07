@@ -34,16 +34,19 @@ export function Card({
   children,
   style,
   tourEl,
+  className,
 }: {
   variant?: Variant;
   padding?: number | string;
   children?: ReactNode;
   style?: CSSProperties;
   tourEl?: string;
+  className?: string;
 }) {
   return (
     <div
       data-tour-el={tourEl}
+      className={className}
       style={{
         borderRadius: "var(--radius-card)",
         padding,

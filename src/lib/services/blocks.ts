@@ -98,11 +98,12 @@ export type SlashCommand = {
   label: string;
   hint: string;
   icon: string;
-  kind: BlockKind | "task";
+  kind: BlockKind | "task" | "purii";
 };
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   { command: "task", label: "New task", hint: "Creates a real task + inserts a live chip", icon: "✅", kind: "task" },
+  { command: "purii", label: "Ask Purii", hint: "Summarize / checklist / related SOPs", icon: "✨", kind: "purii" },
   { command: "todo", label: "To-do", hint: "Checkbox item", icon: "☑️", kind: "todo" },
   { command: "bullet", label: "Bulleted list", hint: "Simple bullet", icon: "•", kind: "ul" },
   { command: "numbered", label: "Numbered list", hint: "1. 2. 3.", icon: "🔢", kind: "ol" },

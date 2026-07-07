@@ -1461,3 +1461,25 @@ model ScratchItem {
 
   @@index([projectId])
 }
+
+// ── Pure Water OS Hub: links & backlinks (Sprint 1, Phase 5.3) ───────────────
+// Polymorphic edges between hub entities ("+ Link anything"). One row per
+// direction-less edge; the UI renders it as a Link on the from-side and a
+// Backlink on the to-side. Entity types: project | page | task | recording |
+// clientOrg. No FKs (polymorphic) — rows are cleaned up lazily when a target
+// 404s at render time.
+
+model Link {
+  id        String   @id @default(cuid())
+  fromType  String
+  fromId    String
+  toType    String
+  toId      String
+  label     String   // denormalized display label of the TARGET at link time
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([fromType, fromId, toType, toId])
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+}
