@@ -1430,6 +1430,8 @@ model Page {
   clientVisible Boolean   @default(false)
   createdById   String
   updatedById   String?
+  // Notion importer (Phase 4.6): source page id — re-import updates in place.
+  notionPageId  String?   @unique
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isFounder } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getPageTree, getPageDoc } from "@/lib/reads/pages";
 import { PageTree } from "@/components/hub/PageTree";
@@ -39,6 +39,11 @@ export default async function LibraryPage({
             SOPs and team docs — published pages show read-only in the client portal, always current
           </span>
         </div>
+        {isFounder(user.email) && (
+          <a href="/hr/library/import" className="btn" style={{ alignSelf: "center" }}>
+            Import from Notion
+          </a>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "230px minmax(0, 1fr)", gap: 22, alignItems: "start" }}>
