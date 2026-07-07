@@ -1,10 +1,15 @@
-# Zoom Meeting App — Phase 1 (post-meeting capture)
+# Zoom Meeting App — Phase 1 (post-meeting capture) + Phase 2 (live in-meeting capture)
 
-Captures **post-meeting Zoom recording transcripts** and feeds them into the existing
-Meeting Actions pipeline (`/meeting-actions` → confirm → Task). No bot joins the call;
-no VPS harvester involved. Phase 2 (live in-meeting panel + RTMS) is deferred.
+**Phase 1** captures **post-meeting Zoom recording transcripts** and feeds them into the
+existing Meeting Actions pipeline (`/meeting-actions` → confirm → Task). No bot joins the
+call; no VPS harvester involved.
 
-## How it works
+**Phase 2** adds **live capture**: a Zoom Apps panel + a Realtime Media Streams (RTMS)
+worker propose tasks *during* the call, with speaker roles resolved before classification.
+Same pipeline, same review queue — the panel and `/meeting-actions` are two views over one
+list (`MeetingAction.source = "ZOOM_APP_LIVE"`, badged **Zoom Live**).
+
+## How Phase 1 works
 
 ```
 Zoom account (client's or VA's, app installed via OAuth)
@@ -76,8 +81,105 @@ appear in `/meeting-actions` with speaker attribution. Confirming an item create
 exactly as harvested items do. **No per-meeting Zoom cost** on this path (that's a Phase-2
 RTMS concern).
 
+## How Phase 2 works (live in-meeting capture)
+
+```
+Zoom meeting (app installed; RTMS started via auto-start or the panel button)
+  ├─ meeting.rtms_started  ──▶  POST /api/zoom/webhook
+  │                               • fast idempotent write: ZoomMeetingCapture
+  │                                 (source=RTMS, status=PENDING, payload.rtms = join creds)
+  ├─ meeting.rtms_stopped  ──▶  stamps payload.stoppedAt (end signal)
+  │
+  worker/rtms-live.ts  (systemd service va-management-rtms — long-running, NOT a timer)
+    • polls PENDING RTMS rows → joins via @zoom/rtms (transcript media only) → status LIVE
+    • per segment: Zoom display name → src/lib/zoom/identity.ts (email/name → console user
+      → role) BEFORE classification — "[client] Dan: …" vs "[va] Aira: …"
+    • rolling windows (src/lib/zoom/live-classify.ts): ≥300 chars + 25s debounce → LLM →
+      strict JSON {kind, title, confidence, evidenceQuote, …} → drop <0.5 confidence +
+      duplicate titles → append MeetingActionItem rows (MeetingAction source=ZOOM_APP_LIVE)
+    • ends on: SDK close / webhook stop stamp / 30-min silence / 5-h cap → final sweep →
+      status PROCESSED
+  │
+  In-meeting panel (Zoom Apps surface)  GET /api/zoom/panel
+    • served from /api/* on purpose: page routes sit behind CF Access + NextAuth, which
+      Zoom's embedded browser can't pass; /api/* already passes (like the webhooks)
+    • auth = decrypted X-Zoom-App-Context header → meeting-scoped HMAC panel token
+    • SSE /api/zoom/panel/items streams proposed items live (DB-poll-backed)
+    • reviewer (mapped user with review+delegate caps): Confirm → the SAME
+      confirmMeetingActionItem path (task + assignment email + audit) · Skip (+reason)
+    • everyone else (guests/clients): 👍/👎 votes only — no task creation from a client
+      surface; votes show on the item for the reviewer
+```
+
+Fallback guardrail: if the live session never delivers (worker down, join failed, stream
+stopped before join), a later `recording.transcript_completed` for the same meeting
+**takes the row over** (source flips back to RECORDING) so the meeting is still captured
+post-hoc. A LIVE/PROCESSED session blocks the recording path — one meeting never extracts
+twice.
+
+### Phase 2 Marketplace additions (the human step)
+
+On the same Marketplace app:
+
+| Setting | Value |
+| --- | --- |
+| Extra **events** | `meeting.rtms_started` + `meeting.rtms_stopped` |
+| Extra **scope** | `meeting:read:meeting_transcript` |
+| **Zoom App surface** | enable it; Home URL = `https://dev-team.pwasecondbrain.uk/api/zoom/panel` (prod: `https://team.purewaterautomations.com/api/zoom/panel`) |
+| **Zoom App SDK APIs** (allow list) | `getMeetingContext`, `getMeetingUUID`, `getMeetingParticipants`, `onParticipantChange`, `startRTMS`, `stopRTMS` |
+| **RTMS** | enable Realtime Media Streams (needs Zoom Developer Pack credits — metered per meeting-hour) |
+
+Gotchas:
+- Until the app passes Marketplace review, `startRTMS()` from the panel can fail with
+  **40316** — enable **RTMS auto-start** in the app settings for dev testing (the webhook
+  path then fires without the button).
+- The host must be present in the meeting for RTMS to start.
+- RTMS is **metered** (Developer Pack credits). Get a real credit-burn number from one
+  pilot meeting before promising clients live capture. Phase 1 recording capture stays
+  free — it's the default; live is opt-in per meeting.
+
+### Phase 2 deploy steps (dev box)
+
+1. `./deploy.sh dev <ref>` (`prisma migrate deploy` applies `zoom_rtms_live`).
+2. **SDK install (one-time).** `@zoom/rtms` needs **Node ≥ 22**; the box's system node
+   (v20) makes `npm ci` silently skip the optional dep. Install it once into the
+   deploy-persistent shared dir using the box's isolated `/opt/node22` (the wiser.service
+   pattern):
+   ```
+   mkdir -p /app/SecondBrain/va-management-console/shared/rtms-sdk && \
+   cd /app/SecondBrain/va-management-console/shared/rtms-sdk && \
+   ([ -f package.json ] || echo '{"private":true}' > package.json) && \
+   /opt/node22/bin/npm install @zoom/rtms@^1.1.0 --save --no-audit --no-fund
+   ```
+   The worker finds it via `RTMS_SDK_DIR` (set in the unit) and runs on `/opt/node22`
+   via the unit's `PATH` — the web app stays on system node.
+3. Install + start the worker service (one-time):
+   `cp deploy/systemd/va-management-rtms.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now va-management-rtms`
+   (later deploys auto-restart it via `systemctl try-restart` in deploy.sh).
+4. Smoke: `PATH=/opt/node22/bin:$PATH RTMS_SDK_DIR=/app/SecondBrain/va-management-console/shared/rtms-sdk npx tsx worker/rtms-live.ts --smoke`
+   (checks config + SDK, sweeps, exits) and `journalctl -u va-management-rtms -n 20`.
+5. Verify the panel is publicly reachable (Zoom's webview must pass CF Access):
+   `curl -s https://dev-team.pwasecondbrain.uk/api/zoom/panel | head -3` → should be our
+   "Open this inside Zoom" HTML, **not** a Cloudflare Access login page.
+
+Worker tunables (env, all optional): `RTMS_POLL_MS` (3000), `RTMS_MIN_CONFIDENCE` (0.5),
+`RTMS_IDLE_END_MS` (30 min), `RTMS_MAX_SESSION_MS` (5 h), `RTMS_STALE_PENDING_MS` (2 h),
+`RTMS_MAX_JOIN_ATTEMPTS` (3).
+
+## Definition of Done (Phase 2 pilot)
+
+Open a meeting on a connected account → open the app panel → Start live capture (or
+auto-start) → talk through a real commitment ("I'll send you the contract tomorrow") →
+within ~30 s the item appears in the panel with the speaker's role attached → a reviewer
+confirms it in-call → the Task exists with the assignment email sent, and the item shows
+**Zoom Live** provenance in `/meeting-actions`. Unidentified speakers show as
+"unknown" and never auto-assign an owner.
+
 ## Not built yet (follow-ups)
 
-- A "Connect Zoom" button in the admin UI (today: hit `/api/zoom/oauth/start` directly).
-- A provenance badge on `/meeting-actions` using `MeetingAction.source`.
-- Phase 2: in-meeting panel + RTMS (`meeting.rtms_started`, live `ProposedItem`s).
+- `kind: "project"` items still confirm into Tasks (badged *project* as a hint); routing
+  them through `create_project` needs a project-shaped confirm form.
+- Marketplace review submission (required before external users can use the panel/RTMS in
+  prod) and the client-scoped review surface (`clientOrganizationId`) for client-facing
+  installs.
+- Optional: mirror live-confirmed items to Notion like other components.

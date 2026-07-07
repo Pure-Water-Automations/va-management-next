@@ -46,6 +46,7 @@ build_and_restart() { # $1 = vps
     npx prisma migrate deploy && \
     npm run build && \
     systemctl restart $SERVICE && \
+    (systemctl try-restart va-management-rtms 2>/dev/null || true) && \
     sleep 2 && echo active=\$(systemctl is-active $SERVICE) && \
     curl -sf http://127.0.0.1:$PORT/api/health"
 }

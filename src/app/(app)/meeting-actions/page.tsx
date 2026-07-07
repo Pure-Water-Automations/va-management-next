@@ -29,6 +29,9 @@ export default async function MeetingActionsPage() {
           suggestedAssignee: true,
           suggestedDueDate: true,
           clientContext: true,
+          kind: true,
+          confidence: true,
+          evidenceQuote: true,
         },
       },
     },
@@ -47,6 +50,7 @@ export default async function MeetingActionsPage() {
     title: m.meetingTitle,
     date: m.meetingDate ? m.meetingDate.toISOString() : null,
     zoomAccount: m.zoomAccount,
+    source: m.source,
     items: m.items.map((it) => ({
       id: it.id,
       title: it.title,
@@ -55,6 +59,9 @@ export default async function MeetingActionsPage() {
       suggestedAssignee: it.suggestedAssignee,
       suggestedDueDate: it.suggestedDueDate ? it.suggestedDueDate.toISOString().slice(0, 10) : null,
       matchedAssigneeId: matchAssignee(it.suggestedAssignee, nameList),
+      kind: it.kind,
+      confidence: it.confidence,
+      evidenceQuote: it.evidenceQuote,
     })),
   }));
 

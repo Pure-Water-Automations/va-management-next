@@ -71,3 +71,39 @@ export type ZoomWebhookEvent = {
   download_token?: string;
   payload: { plainToken?: string } & Partial<ZoomRecordingPayload>;
 };
+
+// ── RTMS events (Phase 2) ────────────────────────────────────────────────────
+
+/** Normalized meeting.rtms_started/stopped payload (only the fields we consume). */
+export type RtmsStreamInfo = {
+  meetingUuid: string;
+  streamId: string | null; // rtms_stream_id — required to join, absent on some stop events
+  serverUrls: string | null; // wss:// signaling endpoint(s) — required to join
+  operatorId: string | null; // Zoom user who started the stream (maps to ZoomConnection)
+  eventTs: number | null;
+};
+
+/**
+ * Parse an rtms_started/stopped event payload. Zoom documents the fields flat on
+ * `payload` ({ meeting_uuid, rtms_stream_id, server_urls, operator_id }); some
+ * event versions nest them under `payload.object` — accept both. Returns null
+ * when no meeting identity is present.
+ */
+export function parseRtmsEvent(event: ZoomWebhookEvent): RtmsStreamInfo | null {
+  const p = (event.payload ?? {}) as Record<string, unknown>;
+  const o = (p.object ?? {}) as Record<string, unknown>;
+  const pick = (key: string): string | null => {
+    const v = p[key] ?? o[key];
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  };
+  // The meeting identifier: RTMS events use meeting_uuid; recording objects use uuid.
+  const meetingUuid = pick("meeting_uuid") ?? pick("uuid");
+  if (!meetingUuid) return null;
+  return {
+    meetingUuid,
+    streamId: pick("rtms_stream_id"),
+    serverUrls: pick("server_urls"),
+    operatorId: pick("operator_id"),
+    eventTs: typeof event.event_ts === "number" ? event.event_ts : null,
+  };
+}
