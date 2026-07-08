@@ -4,6 +4,7 @@ import { logActivity } from "@/lib/activity";
 import { loadSettings } from "@/lib/settings";
 import { sendSystemEmail } from "@/lib/email";
 import { slugify, systemEmailFrom, teamRecipients, companyName } from "@/lib/sales/util";
+import { pkgByName } from "@/lib/sales/packages";
 
 export const DEAL_STAGES: DealStage[] = [
   "new",
@@ -109,6 +110,40 @@ export async function convertDealToClient(dealId: string) {
   });
 
   await db.deal.update({ where: { id: dealId }, data: { clientOrgId: org.id, stage: "won" } });
+
+  // Sales & Marketing console handoff (best-effort): the win lands as a client
+  // account on the Client Accounts screen and as a "to request" card on the
+  // marketing testimonial board.
+  try {
+    const pkg = pkgByName(deal.packageName);
+    const dateLabel = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    await db.clientAccount.upsert({
+      where: { clientOrgId: org.id },
+      update: {},
+      create: {
+        org: deal.orgName,
+        contact: deal.contactName ?? "",
+        email: deal.contactEmail ?? "",
+        pkg: deal.packageName ?? "Custom",
+        price: deal.dealValue ?? pkg?.price ?? 0,
+        ownerEmail: deal.accountOwnerEmail ?? "",
+        health: "new",
+        testimonial: "torequest",
+        clientOrgId: org.id,
+        timeline: [{ date: dateLabel, type: "note", note: "Converted from pipeline — onboarding checklist started." }],
+      },
+    });
+    await db.marketingTestimonial.create({
+      data: {
+        org: deal.orgName,
+        who: deal.contactName ?? "",
+        stage: "torequest",
+        detail: "Just won — testimonial handoff from sales.",
+      },
+    });
+  } catch (err) {
+    console.warn("convertDealToClient: sales-console handoff failed:", err instanceof Error ? err.message : err);
+  }
 
   await logActivity({
     source: "sales",
