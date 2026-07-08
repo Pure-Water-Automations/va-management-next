@@ -31,6 +31,10 @@ import {
   IconDollar,
   IconArchive,
   IconLogOut,
+  IconTarget,
+  IconCalendar,
+  IconSend,
+  IconHeart,
 } from "./icons";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
@@ -102,9 +106,41 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Sales",
       items: [
         { href: "/sales", label: "Pipeline", icon: <IconBriefcase /> },
+        { href: "/sales/followups", label: "Follow-ups", icon: <IconListChecks /> },
         { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck /> },
       ],
     },
+    {
+      label: "Clients",
+      items: [
+        { href: "/sales/clients", label: "Client Accounts", icon: <IconBuilding /> },
+        { href: "/sales/templates", label: "Email Templates", icon: <IconMail /> },
+      ],
+    },
+    {
+      label: "Marketing",
+      items: [
+        { href: "/marketing", label: "Dashboard", icon: <IconDashboard /> },
+        { href: "/marketing/campaigns", label: "Campaigns", icon: <IconTarget /> },
+        { href: "/marketing/content", label: "Content Calendar", icon: <IconCalendar /> },
+        { href: "/marketing/social", label: "Social Queue", icon: <IconSend /> },
+        { href: "/marketing/email", label: "Email Planner", icon: <IconMail /> },
+        { href: "/marketing/testimonials", label: "Testimonials", icon: <IconHeart /> },
+        { href: "/marketing/referrals", label: "Referrals", icon: <IconHandshake /> },
+      ],
+    },
+  ],
+};
+
+// Leadership screens (the team-lead persona in the sales/marketing console
+// design) — admin-only, appended after the base SALES sections.
+const SALES_LEADERSHIP: { label: string; items: NavItem[] } = {
+  label: "Leadership",
+  items: [
+    { href: "/lead", label: "The Big Picture", icon: <IconDashboard /> },
+    { href: "/lead/targets", label: "Targets", icon: <IconTarget /> },
+    { href: "/lead/goals", label: "Goals", icon: <IconAward /> },
+    { href: "/lead/team", label: "Team", icon: <IconUsers /> },
   ],
 };
 
@@ -124,6 +160,7 @@ export function Sidebar({
   showRecordings = false,
   showMeetingActions = false,
   meetingActionsCount = 0,
+  navBadges = {},
 }: {
   view: ConsoleView;
   role: Role;
@@ -132,8 +169,11 @@ export function Sidebar({
   showRecordings?: boolean;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
+  /** Per-href count badges (e.g. follow-ups due, social posts awaiting approval). */
+  navBadges?: Record<string, number>;
 }) {
-  const sections = NAV[view] ?? NAV.HR;
+  let sections = NAV[view] ?? NAV.HR;
+  if (view === "SALES" && isAdmin) sections = [...sections, SALES_LEADERSHIP];
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -151,7 +191,7 @@ export function Sidebar({
         {sections.map((section) => (
           <NavGroup key={section.label} label={section.label}>
             {section.items.map((item) => (
-              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} badge={navBadges[item.href]} />
             ))}
           </NavGroup>
         ))}

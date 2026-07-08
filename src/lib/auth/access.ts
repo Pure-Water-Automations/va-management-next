@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth/nextauth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { viewForRole, type ConsoleView } from "@/lib/auth/roles";
+import { isSalesConsoleMode } from "@/lib/mode";
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -77,6 +78,12 @@ const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
  * `va_view` cookie; everyone else gets the view their role implies.
  */
 export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> {
+  // Sales-console deployments have exactly one staff view — clients still get
+  // the client portal, everyone else lands on the Sales console regardless of
+  // role or any stale va_view cookie.
+  if (isSalesConsoleMode()) {
+    return viewForRole(user.role) === "CLIENT" ? "CLIENT" : "SALES";
+  }
   if (user.isAdmin) {
     const picked = (await cookies()).get("va_view")?.value as ConsoleView | undefined;
     if (picked && VIEWS.includes(picked)) return picked;

@@ -1,0 +1,1228 @@
+{
+ "deals": [
+  {
+   "id": "d1",
+   "org": "Grace Community Fellowship",
+   "contact": "Pastor Daniel Reyes",
+   "email": "dreyes@gracecf.org",
+   "stage": "new",
+   "pkg": null,
+   "value": null,
+   "billing": null,
+   "owner": "mark",
+   "source": "fb-pastors",
+   "verdict": "hot",
+   "score": 82,
+   "summary": "Drowning in admin after a staff transition — wants full office support before fall programs.",
+   "callAt": null,
+   "callStatus": null,
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-07-05"
+  },
+  {
+   "id": "d2",
+   "org": "Bay Area Family Church",
+   "contact": "Susan Kim",
+   "email": "skim@bayareafc.org",
+   "stage": "new",
+   "pkg": null,
+   "value": null,
+   "billing": null,
+   "owner": "lei",
+   "source": "discover",
+   "verdict": "cold",
+   "score": 31,
+   "summary": "Exploring options; budget unclear. Asked for a pricing one-pager.",
+   "callAt": null,
+   "callStatus": null,
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-07-03"
+  },
+  {
+   "id": "d3",
+   "org": "Anchor Youth Network",
+   "contact": "Jordan Lowe",
+   "email": "jordan@anchoryouth.org",
+   "stage": "discovery_scheduled",
+   "pkg": null,
+   "value": null,
+   "billing": null,
+   "owner": "lei",
+   "source": "discover",
+   "verdict": "warm",
+   "score": 58,
+   "summary": "Comparing the Spring and Stream packages.",
+   "callAt": "2026-07-09T10:00",
+   "callStatus": "scheduled",
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-07-01"
+  },
+  {
+   "id": "d4",
+   "org": "Life in the Spirit Ministries",
+   "contact": "Rev. A. Carter",
+   "email": "office@litsministries.org",
+   "stage": "discovery_completed",
+   "pkg": "Stream",
+   "value": 800,
+   "billing": "retainer",
+   "owner": "mark",
+   "source": "referral",
+   "verdict": "hot",
+   "score": 74,
+   "summary": "Wants the Google Ad Grant, grant writing, bookkeeping and admin help; rebuilding 501(c)(3) status.",
+   "callAt": "2026-07-02T14:00",
+   "callStatus": "completed",
+   "notes": {
+    "currentSituation": "Lost 501(c)(3) status after 3 years of missed paperwork.",
+    "painPoints": "No admin capacity; grant deadlines slipping.",
+    "desiredOutcome": "Status restored + steady grant pipeline.",
+    "recommendedPackage": "Stream",
+    "buyingSignals": "hot",
+    "decisionProcess": "pastor",
+    "nextStep": "Send proposal with status-restoration plan",
+    "followUpDate": "2026-07-08"
+   },
+   "agr": null,
+   "clientId": null,
+   "created": "2026-06-20"
+  },
+  {
+   "id": "d5",
+   "org": "Full Circle Basketball",
+   "contact": "Coach D. Willis",
+   "email": "info@fullcirclebball.org",
+   "stage": "proposal_needed",
+   "pkg": "Custom",
+   "value": 500,
+   "billing": "project",
+   "owner": "mark",
+   "source": "referral",
+   "verdict": "warm",
+   "score": 55,
+   "summary": "Grant-writing proposal, plus possible admin and bookkeeping package.",
+   "callAt": "2026-06-30T11:00",
+   "callStatus": "completed",
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-06-18"
+  },
+  {
+   "id": "d6",
+   "org": "Chicago Family Church",
+   "contact": "Rev. K. Nakamura",
+   "email": "office@chicagofamilychurch.org",
+   "stage": "proposal_needed",
+   "pkg": "River",
+   "value": 1400,
+   "billing": "retainer",
+   "owner": "mark",
+   "source": "client",
+   "verdict": null,
+   "score": null,
+   "summary": "Using 66 of 68 Stream hours three months running — proposing the River upgrade.",
+   "callAt": "2026-07-07T15:00",
+   "callStatus": "scheduled",
+   "notes": null,
+   "agr": null,
+   "clientId": "c3",
+   "upgrade": true,
+   "created": "2026-07-02"
+  },
+  {
+   "id": "d7",
+   "org": "Arlington ISD Texas PTA",
+   "contact": "M. Alvarez",
+   "email": "president@arlingtonisdpta.org",
+   "stage": "proposal_sent",
+   "pkg": "Custom",
+   "value": 750,
+   "billing": "project",
+   "owner": "lei",
+   "source": "referral",
+   "verdict": "warm",
+   "score": 61,
+   "summary": "Proposal around the 10k Google Search Ad Grant plus fundraising support.",
+   "callAt": "2026-06-26T13:00",
+   "callStatus": "completed",
+   "notes": null,
+   "agr": {
+    "sent": true,
+    "signed": false,
+    "paid": false
+   },
+   "clientId": null,
+   "created": "2026-06-12"
+  },
+  {
+   "id": "d8",
+   "org": "KEA — Rev. Hoon Moon Choi",
+   "contact": "Rev. Hoon Moon Choi",
+   "email": "hmchoi@kea.org",
+   "stage": "negotiation",
+   "pkg": "Stream",
+   "value": 800,
+   "billing": "retainer",
+   "owner": "justin",
+   "source": "kea-event",
+   "verdict": "warm",
+   "score": 66,
+   "summary": "Bilingual KR/EN admin team; committee wants a deliverables-based annual offer below 800/mo.",
+   "callAt": "2026-06-24T19:00",
+   "callStatus": "completed",
+   "notes": {
+    "currentSituation": "Local + national KEA coordination, bilingual needs.",
+    "painPoints": "Website, bulletins, YouTube uploads, PPTs all on the pastor.",
+    "desiredOutcome": "One secretary point-of-contact with a specialist bench.",
+    "objections": "800/mo is above current budget; committee decision.",
+    "decisionProcess": "committee",
+    "buyingSignals": "warm",
+    "nextStep": "Prepare special annual package option",
+    "followUpDate": "2026-07-07"
+   },
+   "agr": null,
+   "clientId": null,
+   "created": "2026-05-30"
+  },
+  {
+   "id": "d9",
+   "org": "Harvest Hills Church",
+   "contact": "Pastor T. Mensah",
+   "email": "tmensah@harvesthills.org",
+   "stage": "verbal_yes",
+   "pkg": "Spring",
+   "value": 200,
+   "billing": "retainer",
+   "owner": "mark",
+   "source": "discover",
+   "verdict": "warm",
+   "score": 64,
+   "summary": "Ready to start with 5 hrs/week — agreement signed, first invoice sent.",
+   "callAt": "2026-06-25T10:00",
+   "callStatus": "completed",
+   "notes": null,
+   "agr": {
+    "sent": true,
+    "signed": true,
+    "paid": false
+   },
+   "clientId": null,
+   "created": "2026-06-10"
+  },
+  {
+   "id": "d10",
+   "org": "Riverside Ministries",
+   "contact": "Pastor P. Adams",
+   "email": "padams@riversideministries.org",
+   "stage": "won",
+   "pkg": "Spring",
+   "value": 200,
+   "billing": "retainer",
+   "owner": "mark",
+   "source": "discover",
+   "verdict": "warm",
+   "score": 60,
+   "summary": "Signed and paid — onboarding started July 1.",
+   "callAt": "2026-06-18T14:00",
+   "callStatus": "completed",
+   "notes": null,
+   "agr": {
+    "sent": true,
+    "signed": true,
+    "paid": true
+   },
+   "clientId": "c9",
+   "created": "2026-06-05"
+  },
+  {
+   "id": "d11",
+   "org": "CARP Boston",
+   "contact": "Lena Ito",
+   "email": "lito@carpboston.org",
+   "stage": "nurture",
+   "pkg": null,
+   "value": null,
+   "billing": null,
+   "owner": "lei",
+   "source": "newsletter",
+   "verdict": "cold",
+   "score": 28,
+   "summary": "Student org — revisit after the fall semester begins.",
+   "callAt": null,
+   "callStatus": null,
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-05-20"
+  },
+  {
+   "id": "d12",
+   "org": "First Light Fellowship",
+   "contact": "Pastor J. Okafor",
+   "email": "jokafor@firstlightfellowship.org",
+   "stage": "nurture",
+   "pkg": null,
+   "value": null,
+   "billing": null,
+   "owner": "mark",
+   "source": "fb-pastors",
+   "verdict": "cold",
+   "score": 35,
+   "summary": "Interested but the board does not meet until September.",
+   "callAt": null,
+   "callStatus": null,
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-05-28"
+  },
+  {
+   "id": "d13",
+   "org": "New Hope Chapel",
+   "contact": "R. Douglas",
+   "email": "rdouglas@newhopechapel.org",
+   "stage": "no_show",
+   "pkg": null,
+   "value": null,
+   "billing": null,
+   "owner": "lei",
+   "source": "discover",
+   "verdict": "cold",
+   "score": 40,
+   "summary": "",
+   "callAt": "2026-07-01T15:00",
+   "callStatus": "no_show",
+   "notes": null,
+   "agr": null,
+   "clientId": null,
+   "created": "2026-06-24"
+  }
+ ],
+ "clients": [
+  {
+   "id": "c1",
+   "org": "HSA-UWC Northeast",
+   "contact": "Rev. S. Compton",
+   "email": "office@hsanortheast.org",
+   "pkg": "Ocean Plus",
+   "price": 3600,
+   "hoursUsed": 351,
+   "since": "Jan 2026",
+   "lastTouch": "2026-07-04",
+   "owner": "justin",
+   "health": "good",
+   "checkinDue": false,
+   "testimonial": "none",
+   "timeline": [
+    {
+     "date": "Jul 4",
+     "type": "call",
+     "note": "Weekly ops sync — dashboard requests on track."
+    },
+    {
+     "date": "Jun 27",
+     "type": "email",
+     "note": "Sent June hours summary (351 of 392)."
+    },
+    {
+     "date": "Jun 12",
+     "type": "checkin",
+     "note": "Monthly check-in — very satisfied, asked about event support."
+    }
+   ]
+  },
+  {
+   "id": "c2",
+   "org": "HSA-UWC HQ",
+   "contact": "D. Feldman",
+   "email": "ops@hsauwc-hq.org",
+   "pkg": "Ocean Plus",
+   "price": 3600,
+   "hoursUsed": 302,
+   "since": "Feb 2026",
+   "lastTouch": "2026-06-19",
+   "owner": "justin",
+   "health": "good",
+   "checkinDue": true,
+   "testimonial": "none",
+   "timeline": [
+    {
+     "date": "Jun 19",
+     "type": "email",
+     "note": "Confirmed July reporting calendar."
+    },
+    {
+     "date": "Jun 3",
+     "type": "checkin",
+     "note": "Monthly check-in — steady, no changes."
+    }
+   ]
+  },
+  {
+   "id": "c3",
+   "org": "Chicago Family Church",
+   "contact": "Rev. K. Nakamura",
+   "email": "office@chicagofamilychurch.org",
+   "pkg": "Stream",
+   "price": 800,
+   "hoursUsed": 66,
+   "since": "Mar 2026",
+   "lastTouch": "2026-07-02",
+   "owner": "mark",
+   "health": "growing",
+   "checkinDue": false,
+   "testimonial": "torequest",
+   "upgradeDealId": "d6",
+   "timeline": [
+    {
+     "date": "Jul 2",
+     "type": "call",
+     "note": "Upgrade conversation opened — River proposal drafted."
+    },
+    {
+     "date": "Jun 30",
+     "type": "note",
+     "note": "Hit 66 of 68 hours again — third month at the ceiling."
+    },
+    {
+     "date": "Jun 15",
+     "type": "checkin",
+     "note": "Check-in — thrilled with newsletter turnaround."
+    }
+   ]
+  },
+  {
+   "id": "c4",
+   "org": "The Healing Breaches Ministry",
+   "contact": "Pastor L. Grant",
+   "email": "contact@healingbreaches.org",
+   "pkg": "Spring",
+   "price": 200,
+   "hoursUsed": 14,
+   "since": "Apr 2026",
+   "lastTouch": "2026-06-28",
+   "owner": "mark",
+   "health": "good",
+   "checkinDue": false,
+   "testimonial": "requested",
+   "timeline": [
+    {
+     "date": "Jun 28",
+     "type": "email",
+     "note": "Sent testimonial request (template)."
+    },
+    {
+     "date": "Jun 20",
+     "type": "call",
+     "note": "Quick call — happy with bulletin support."
+    }
+   ]
+  },
+  {
+   "id": "c5",
+   "org": "Fun-telligent Play Zone",
+   "contact": "Shemika Bufford",
+   "email": "shemika@funtelligent.com",
+   "pkg": "Spring",
+   "price": 200,
+   "hoursUsed": 9,
+   "since": "Apr 2026",
+   "lastTouch": "2026-06-03",
+   "owner": "lei",
+   "health": "watch",
+   "checkinDue": true,
+   "testimonial": "none",
+   "timeline": [
+    {
+     "date": "Jun 3",
+     "type": "email",
+     "note": "Replied re: social posts — no response since."
+    },
+    {
+     "date": "May 21",
+     "type": "checkin",
+     "note": "Check-in — wants more proactive content ideas."
+    }
+   ]
+  },
+  {
+   "id": "c6",
+   "org": "DFW Family Church",
+   "contact": "M. Ogden",
+   "email": "admin@dfwfamilychurch.org",
+   "pkg": "Hourly",
+   "price": 240,
+   "hoursUsed": 24,
+   "since": "May 2026",
+   "lastTouch": "2026-07-01",
+   "owner": "mark",
+   "health": "good",
+   "checkinDue": false,
+   "testimonial": "none",
+   "timeline": [
+    {
+     "date": "Jul 1",
+     "type": "email",
+     "note": "June hours recap sent (24 hrs)."
+    }
+   ]
+  },
+  {
+   "id": "c7",
+   "org": "Nancy Jubb",
+   "contact": "Nancy Jubb",
+   "email": "nancy.jubb@gmail.com",
+   "pkg": "Hourly",
+   "price": 90,
+   "hoursUsed": 9,
+   "since": "May 2026",
+   "lastTouch": "2026-06-30",
+   "owner": "lei",
+   "health": "good",
+   "checkinDue": false,
+   "testimonial": "received",
+   "timeline": [
+    {
+     "date": "Jun 30",
+     "type": "email",
+     "note": "Received testimonial quote — sent to marketing."
+    }
+   ]
+  },
+  {
+   "id": "c8",
+   "org": "SMI — David Okamoto",
+   "contact": "David Okamoto",
+   "email": "david@smi.org",
+   "pkg": "Custom",
+   "price": 500,
+   "hoursUsed": 31,
+   "since": "Feb 2026",
+   "lastTouch": "2026-06-24",
+   "owner": "justin",
+   "health": "good",
+   "checkinDue": false,
+   "testimonial": "published",
+   "timeline": [
+    {
+     "date": "Jun 24",
+     "type": "call",
+     "note": "Referred two contacts — logged in referral program."
+    },
+    {
+     "date": "Jun 10",
+     "type": "note",
+     "note": "Case study published on the website."
+    }
+   ]
+  },
+  {
+   "id": "c9",
+   "org": "Riverside Ministries",
+   "contact": "Pastor P. Adams",
+   "email": "padams@riversideministries.org",
+   "pkg": "Spring",
+   "price": 200,
+   "hoursUsed": 3,
+   "since": "Jul 2026",
+   "lastTouch": "2026-07-01",
+   "owner": "mark",
+   "health": "new",
+   "checkinDue": false,
+   "testimonial": "torequest",
+   "timeline": [
+    {
+     "date": "Jul 1",
+     "type": "note",
+     "note": "Converted from pipeline — onboarding checklist started."
+    }
+   ]
+  }
+ ],
+ "followups": [
+  {
+   "id": "f1",
+   "due": "2026-07-05",
+   "title": "Check in with Shemika — Fun-telligent Play Zone",
+   "detail": "No touch in 34 days on a Spring plan",
+   "refType": "client",
+   "refId": "c5",
+   "kind": "check-in"
+  },
+  {
+   "id": "f2",
+   "due": "2026-07-06",
+   "title": "Send call recap to Life in the Spirit Ministries",
+   "detail": "Discovery completed Jul 2 — recap + proposal outline",
+   "refType": "deal",
+   "refId": "d4",
+   "kind": "email"
+  },
+  {
+   "id": "f3",
+   "due": "2026-07-07",
+   "title": "Send KEA the revised annual offer",
+   "detail": "Committee asked for a deliverables-based option",
+   "refType": "deal",
+   "refId": "d8",
+   "kind": "proposal"
+  },
+  {
+   "id": "f4",
+   "due": "2026-07-07",
+   "title": "Payment reminder — Harvest Hills Church",
+   "detail": "Signed Jun 30, first invoice unpaid",
+   "refType": "deal",
+   "refId": "d9",
+   "kind": "payment"
+  },
+  {
+   "id": "f5",
+   "due": "2026-07-07",
+   "title": "Upgrade call with Chicago Family Church, 3:00 PM",
+   "detail": "Walk through the River proposal (68 → 136 hrs)",
+   "refType": "deal",
+   "refId": "d6",
+   "kind": "call"
+  },
+  {
+   "id": "f6",
+   "due": "2026-07-09",
+   "title": "Discovery call — Anchor Youth Network, 10:00 AM",
+   "detail": "Jordan Lowe · comparing Spring vs Stream",
+   "refType": "deal",
+   "refId": "d3",
+   "kind": "call"
+  },
+  {
+   "id": "f7",
+   "due": "2026-07-10",
+   "title": "Nudge testimonial — The Healing Breaches Ministry",
+   "detail": "Requested Jun 28, no reply yet",
+   "refType": "client",
+   "refId": "c4",
+   "kind": "email"
+  },
+  {
+   "id": "f8",
+   "due": "2026-07-11",
+   "title": "30-day check-in — Riverside Ministries",
+   "detail": "New client onboarded Jul 1",
+   "refType": "client",
+   "refId": "c9",
+   "kind": "check-in"
+  }
+ ],
+ "templates": [
+  {
+   "id": "t1",
+   "cat": "discovery",
+   "title": "Discovery call recap",
+   "purpose": "Send within 24 hours of every discovery call.",
+   "body": "Hi [First name],\n\nThank you for sharing where things stand at [Organization]. What I heard: [pain points]. The finish line you described: [desired outcome].\n\nBased on that, I recommend our [Package] package ([hours] hrs/month) because [reason].\n\nNext step: [next step]. Does [date] work to reconnect?\n\nWith you in the mission,\n[Your name] — Pure Water Automations"
+  },
+  {
+   "id": "t2",
+   "cat": "proposal",
+   "title": "Agreement send",
+   "purpose": "Goes with the client agreement email.",
+   "body": "Hi [First name],\n\nIt was a joy to talk. As promised, here is your service agreement for the [Package] package — [hours] hours/month at $[price]/month.\n\nSign online in about two minutes: [signature link]. Once signed and the first invoice is settled, we schedule your onboarding call the same week.\n\nQuestions? Just reply — I read everything.\n\n[Your name] — Pure Water Automations"
+  },
+  {
+   "id": "t3",
+   "cat": "payment",
+   "title": "Warm payment reminder",
+   "purpose": "For signed agreements awaiting first payment.",
+   "body": "Hi [First name],\n\nWonderful to have [Organization] on board! A gentle note that the first invoice ($[price]) is still open — the payment link is here: [payment link].\n\nAs soon as it lands we lock in your onboarding call and your team gets moving.\n\nGrateful for you,\n[Your name]"
+  },
+  {
+   "id": "t4",
+   "cat": "checkin",
+   "title": "Monthly check-in",
+   "purpose": "Keep relationships warm — send monthly or after quiet stretches.",
+   "body": "Hi [First name],\n\nQuick check-in from your PWA team. This month we completed [highlights] ([hours used] of [hours] hours).\n\nTwo questions:\n1. What felt most valuable?\n2. What is one thing on your plate we should take over next?\n\nAlways in your corner,\n[Your name]"
+  },
+  {
+   "id": "t5",
+   "cat": "upgrade",
+   "title": "Package upgrade pitch",
+   "purpose": "When a client keeps hitting their hours ceiling.",
+   "body": "Hi [First name],\n\nYour team has used [hours used] of [hours] hours for the third month running — a great sign that the support is working, and a signal you may be leaving needs unmet.\n\nMoving from [Current] to [Next] ([next hours] hrs/month) adds [difference] for $[delta]/month more. Most teams use the room for [suggestions].\n\nWant me to sketch what the expanded scope would cover? No pressure either way.\n\n[Your name]"
+  },
+  {
+   "id": "t6",
+   "cat": "reengage",
+   "title": "Nurture re-engage",
+   "purpose": "For nurture-stage leads when their season changes.",
+   "body": "Hi [First name],\n\nWhen we last spoke, [timing reason] — so I set a reminder for now.\n\nSince then we have helped [similar org] free up [X] hours a week. If the season is right, I would love to pick the conversation back up. 15 minutes: [booking link].\n\nEither way, praying the work is going well.\n\n[Your name]"
+  },
+  {
+   "id": "t7",
+   "cat": "testimonial",
+   "title": "Testimonial request",
+   "purpose": "Sales or marketing sends after a strong win or milestone.",
+   "body": "Hi [First name],\n\nWatching [Organization] hand off [work area] has been a privilege. Would you be open to sharing 2–3 sentences on what changed for you since we started?\n\nWe feature a few client words on our site — and your story would encourage other leaders carrying too much.\n\nThank you for considering it!\n[Your name]"
+  },
+  {
+   "id": "t8",
+   "cat": "referral",
+   "title": "Referral thank-you",
+   "purpose": "Send the same day a referral comes in.",
+   "body": "Hi [First name],\n\nThank you for introducing us to [Referred name] — that trust means everything.\n\nWe will take wonderful care of them. I will keep you posted, and as a small thank-you, [thank-you gesture].\n\nGratefully,\n[Your name]"
+  }
+ ],
+ "campaigns": [
+  {
+   "id": "cp1",
+   "name": "Discover form (always-on)",
+   "channel": "Website",
+   "status": "active",
+   "dates": "Always on",
+   "tag": "discover",
+   "desc": "The public /discover intake — auto-scored Hot / Warm / Cold and dropped straight into the pipeline."
+  },
+  {
+   "id": "cp2",
+   "name": "Pastors Facebook outreach",
+   "channel": "Facebook",
+   "status": "active",
+   "dates": "Jun 1 – Jul 31",
+   "tag": "fb-pastors",
+   "desc": "Weekly value posts + DMs in three pastor groups, pointing at the discover form."
+  },
+  {
+   "id": "cp3",
+   "name": "KEA leaders webinar",
+   "channel": "Event",
+   "status": "planning",
+   "dates": "Jul 16",
+   "tag": "kea-event",
+   "desc": "45-minute systems workshop for KEA leaders, co-hosted with Rev. Choi. Registration page live."
+  },
+  {
+   "id": "cp4",
+   "name": "Monthly newsletter",
+   "channel": "Email",
+   "status": "active",
+   "dates": "Always on",
+   "tag": "newsletter",
+   "desc": "143 subscribers. Client stories + one practical system each month; re-engages nurture leads."
+  },
+  {
+   "id": "cp5",
+   "name": "Referral program",
+   "channel": "Partners",
+   "status": "active",
+   "dates": "Always on",
+   "tag": "referral",
+   "desc": "Clients and friends of the mission introduce leaders who need support; thank-you flow on every intro."
+  }
+ ],
+ "content": [
+  {
+   "id": "ct1",
+   "day": 2,
+   "title": "3 signs your church office needs help",
+   "type": "social",
+   "status": "published",
+   "notes": "Facebook + Instagram. 24 reactions, 3 shares, drove 2 discover-form visits."
+  },
+  {
+   "id": "ct2",
+   "day": 6,
+   "title": "July newsletter — Systems that free your summer",
+   "type": "email",
+   "status": "published",
+   "notes": "Sent to 143 subscribers. 41% open rate."
+  },
+  {
+   "id": "ct3",
+   "day": 7,
+   "title": "Meet the team — Aira",
+   "type": "social",
+   "status": "draft",
+   "notes": "Instagram carousel. Waiting on approval in the social queue."
+  },
+  {
+   "id": "ct4",
+   "day": 8,
+   "title": "Client story video — Nancy Jubb",
+   "type": "video",
+   "status": "inprogress",
+   "notes": "90-second cut. Quote approved by Nancy on Jun 30."
+  },
+  {
+   "id": "ct5",
+   "day": 9,
+   "title": "Nurture drip — step 2 send",
+   "type": "email",
+   "status": "scheduled",
+   "notes": "Goes to nurture-stage leads automatically."
+  },
+  {
+   "id": "ct6",
+   "day": 10,
+   "title": "Case study post — SMI (David Okamoto)",
+   "type": "social",
+   "status": "scheduled",
+   "notes": "Links to the published case study page."
+  },
+  {
+   "id": "ct7",
+   "day": 13,
+   "title": "Reclaim 10 Hours guide refresh",
+   "type": "doc",
+   "status": "draft",
+   "notes": "Update stats + add Chicago Family Church example."
+  },
+  {
+   "id": "ct8",
+   "day": 15,
+   "title": "Mid-month newsletter — practical tips",
+   "type": "email",
+   "status": "draft",
+   "notes": "Theme: delegating without losing the personal touch."
+  },
+  {
+   "id": "ct9",
+   "day": 16,
+   "title": "KEA leaders webinar",
+   "type": "event",
+   "status": "scheduled",
+   "notes": "7:30 PM Zoom. Run-of-show doc in Drive."
+  },
+  {
+   "id": "ct10",
+   "day": 20,
+   "title": "Testimonial graphic — Healing Breaches",
+   "type": "social",
+   "status": "idea",
+   "notes": "Blocked on testimonial being received."
+  },
+  {
+   "id": "ct11",
+   "day": 22,
+   "title": "YT short — What is Pure Water Automations?",
+   "type": "video",
+   "status": "idea",
+   "notes": "Script from the packages deck."
+  },
+  {
+   "id": "ct12",
+   "day": 27,
+   "title": "August newsletter planning",
+   "type": "doc",
+   "status": "idea",
+   "notes": "Collect client wins from the month."
+  }
+ ],
+ "socials": [
+  {
+   "id": "s1",
+   "platform": "IG",
+   "text": "Meet the team — Aira: the senior VA who keeps five ministries moving.",
+   "when": "Jul 7, 5:00 PM",
+   "status": "approval"
+  },
+  {
+   "id": "s2",
+   "platform": "YT",
+   "text": "Client story: how Nancy got her weekends back (90 sec)",
+   "when": "Jul 8, 12:00 PM",
+   "status": "production"
+  },
+  {
+   "id": "s3",
+   "platform": "FB",
+   "text": "Case study: SMI hands off operations and doubles outreach output.",
+   "when": "Jul 10, 9:00 AM",
+   "status": "scheduled"
+  },
+  {
+   "id": "s4",
+   "platform": "LI",
+   "text": "How mission-driven leaders delegate without losing the personal touch.",
+   "when": "Jul 12, 8:00 AM",
+   "status": "draft"
+  },
+  {
+   "id": "s5",
+   "platform": "FB",
+   "text": "3 signs your church office needs help (and what to do first).",
+   "when": "Jul 2, 9:00 AM",
+   "status": "posted",
+   "metrics": "24 reactions · 3 shares · 2 leads"
+  }
+ ],
+ "sequences": [
+  {
+   "id": "sq1",
+   "name": "Nurture drip",
+   "desc": "Re-engages nurture-stage leads from the sales pipeline automatically.",
+   "status": "active",
+   "audienceKind": "nurture",
+   "steps": [
+    {
+     "day": "Day 0",
+     "subject": "Still buried in admin?",
+     "state": "sent Jun 25"
+    },
+    {
+     "day": "Day 14",
+     "subject": "How Chicago Family Church freed 17 hrs/week",
+     "state": "sends Jul 9"
+    },
+    {
+     "day": "Day 30",
+     "subject": "Ready for a quick call?",
+     "state": "queued"
+    }
+   ],
+   "next": "Next send Jul 9"
+  },
+  {
+   "id": "sq2",
+   "name": "New client welcome",
+   "desc": "Every converted client gets a warm start — synced with onboarding.",
+   "status": "active",
+   "audienceKind": "newclients",
+   "steps": [
+    {
+     "day": "Day 0",
+     "subject": "Welcome to Pure Water Automations",
+     "state": "sent Jul 1"
+    },
+    {
+     "day": "Day 7",
+     "subject": "How to hand things off (without worry)",
+     "state": "sends Jul 8"
+    },
+    {
+     "day": "Day 30",
+     "subject": "Your first month — quick check-in",
+     "state": "queued"
+    }
+   ],
+   "next": "Next send Jul 8"
+  },
+  {
+   "id": "sq3",
+   "name": "Monthly newsletter",
+   "desc": "143 subscribers · one client story + one practical system each month.",
+   "status": "active",
+   "audienceKind": "subscribers",
+   "steps": [
+    {
+     "day": "Jul 6",
+     "subject": "Systems that free your summer",
+     "state": "sent · 41% open"
+    },
+    {
+     "day": "Jul 15",
+     "subject": "Mid-month practical tips",
+     "state": "draft due"
+    },
+    {
+     "day": "Aug 3",
+     "subject": "August issue",
+     "state": "planning"
+    }
+   ],
+   "next": "Draft due Jul 15"
+  }
+ ],
+ "testimonials": [
+  {
+   "id": "tm1",
+   "org": "Riverside Ministries",
+   "who": "Pastor P. Adams",
+   "stage": "torequest",
+   "detail": "Won Jul 1 — wait for the 30-day check-in glow."
+  },
+  {
+   "id": "tm2",
+   "org": "Chicago Family Church",
+   "who": "Rev. K. Nakamura",
+   "stage": "torequest",
+   "detail": "At their hours ceiling three months running — clearly getting value."
+  },
+  {
+   "id": "tm3",
+   "org": "The Healing Breaches Ministry",
+   "who": "Pastor L. Grant",
+   "stage": "requested",
+   "detail": "Requested Jun 28 using the testimonial template."
+  },
+  {
+   "id": "tm4",
+   "org": "Nancy Jubb",
+   "who": "Nancy Jubb",
+   "stage": "received",
+   "quote": "PWA gave me my weekends back — the team handles everything I used to dread.",
+   "detail": "Received Jun 30."
+  },
+  {
+   "id": "tm5",
+   "org": "SMI",
+   "who": "David Okamoto",
+   "stage": "published",
+   "detail": "Case study live on the website · social post scheduled Jul 10."
+  }
+ ],
+ "referrers": [
+  {
+   "id": "rf1",
+   "name": "David Okamoto (SMI)",
+   "kind": "Client",
+   "sent": 3,
+   "leads": 2,
+   "won": 1,
+   "last": "Jun 24",
+   "note": "Introduced Full Circle Basketball and Arlington ISD PTA."
+  },
+  {
+   "id": "rf2",
+   "name": "Rev. Hoon Moon Choi (KEA)",
+   "kind": "Champion",
+   "sent": 2,
+   "leads": 1,
+   "won": 0,
+   "last": "Jun 20",
+   "note": "Opening doors across the KEA network ahead of the webinar."
+  },
+  {
+   "id": "rf3",
+   "name": "HSA-UWC Northeast",
+   "kind": "Client",
+   "sent": 1,
+   "leads": 1,
+   "won": 1,
+   "last": "Feb 12",
+   "note": "Referred HSA-UWC HQ."
+  },
+  {
+   "id": "rf4",
+   "name": "Nancy Jubb",
+   "kind": "Client",
+   "sent": 1,
+   "leads": 1,
+   "won": 0,
+   "last": "Jul 2",
+   "note": "Introduced a homeschool co-op director."
+  }
+ ],
+ "goals": [
+  {
+   "id": "g1",
+   "title": "Grow monthly recurring revenue to $12k",
+   "owner": "justin",
+   "due": "Sep 30",
+   "status": "In progress",
+   "krs": [
+    {
+     "id": "k1",
+     "label": "Close 2 of the 3 open referral deals",
+     "done": false
+    },
+    {
+     "id": "k2",
+     "label": "Land the KEA annual package",
+     "done": false
+    },
+    {
+     "id": "k3",
+     "label": "Move Chicago Family Church to River",
+     "done": false
+    }
+   ]
+  },
+  {
+   "id": "g2",
+   "title": "Build the testimonial engine",
+   "owner": "zawadi",
+   "due": "Aug 31",
+   "status": "On track",
+   "krs": [
+    {
+     "id": "k1",
+     "label": "Publish 3 client case studies",
+     "done": false
+    },
+    {
+     "id": "k2",
+     "label": "Testimonial handoff on every won deal",
+     "done": true
+    },
+    {
+     "id": "k3",
+     "label": "Add client quotes to the discover page",
+     "done": false
+    }
+   ]
+  },
+  {
+   "id": "g3",
+   "title": "Fill the fall pipeline from the KEA webinar",
+   "owner": "mark",
+   "due": "Sep 15",
+   "status": "In progress",
+   "krs": [
+    {
+     "id": "k1",
+     "label": "30 webinar registrations",
+     "done": false
+    },
+    {
+     "id": "k2",
+     "label": "10 discovery calls booked from the event",
+     "done": false
+    },
+    {
+     "id": "k3",
+     "label": "Post-event follow-up sequence live",
+     "done": false
+    }
+   ]
+  },
+  {
+   "id": "g4",
+   "title": "Every client touched monthly",
+   "owner": "lei",
+   "due": "Jul 31",
+   "status": "At risk",
+   "krs": [
+    {
+     "id": "k1",
+     "label": "Cadence set for all 9 client accounts",
+     "done": false
+    },
+    {
+     "id": "k2",
+     "label": "No client silent for 30+ days",
+     "done": false
+    },
+    {
+     "id": "k3",
+     "label": "Check-in template adopted by both reps",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "targets": [
+  {
+   "id": "tg1",
+   "group": "Company",
+   "label": "Monthly recurring revenue",
+   "hint": "Sum of all active client packages",
+   "kind": "mrr",
+   "unit": "$",
+   "target": 12000
+  },
+  {
+   "id": "tg2",
+   "group": "Sales",
+   "label": "New leads",
+   "hint": "Deals created in July, any source",
+   "kind": "newLeads",
+   "unit": "#",
+   "target": 12
+  },
+  {
+   "id": "tg3",
+   "group": "Sales",
+   "label": "Discovery calls held",
+   "hint": "Calls completed in July",
+   "kind": "discoCalls",
+   "unit": "#",
+   "target": 8
+  },
+  {
+   "id": "tg4",
+   "group": "Sales",
+   "label": "Deals won",
+   "hint": "Moved to Won this month",
+   "kind": "won",
+   "unit": "#",
+   "target": 3
+  },
+  {
+   "id": "tg5",
+   "group": "Sales",
+   "label": "New monthly revenue closed",
+   "hint": "Value of deals won in July",
+   "kind": "newRevenue",
+   "unit": "$",
+   "target": 1500
+  },
+  {
+   "id": "tg6",
+   "group": "Sales",
+   "label": "Upgrade conversations",
+   "hint": "Open upgrade deals in the pipeline",
+   "kind": "upgrades",
+   "unit": "#",
+   "target": 2
+  },
+  {
+   "id": "tg7",
+   "group": "Marketing",
+   "label": "Discover-form leads",
+   "hint": "Submissions that became deals in July",
+   "kind": "discoverLeads",
+   "unit": "#",
+   "target": 6
+  },
+  {
+   "id": "tg8",
+   "group": "Marketing",
+   "label": "Content published",
+   "hint": "Calendar items and posts marked published",
+   "kind": "contentPublished",
+   "unit": "#",
+   "target": 10
+  },
+  {
+   "id": "tg9",
+   "group": "Marketing",
+   "label": "Case studies live",
+   "hint": "Testimonials in the Published column",
+   "kind": "testimonials",
+   "unit": "#",
+   "target": 3
+  }
+ ],
+ "notifs": [
+  {
+   "id": 1,
+   "body": "New discover-form lead: Grace Community Fellowship (scored Hot 82).",
+   "time": "2h ago",
+   "read": false,
+   "refType": "deal",
+   "refId": "d1"
+  },
+  {
+   "id": 2,
+   "body": "Arlington ISD Texas PTA opened the agreement email.",
+   "time": "5h ago",
+   "read": false,
+   "refType": "deal",
+   "refId": "d7"
+  },
+  {
+   "id": 3,
+   "body": "Reminder: KEA revised annual offer is due today.",
+   "time": "1d ago",
+   "read": false,
+   "refType": "deal",
+   "refId": "d8"
+  }
+ ]
+}

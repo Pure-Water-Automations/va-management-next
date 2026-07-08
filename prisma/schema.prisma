@@ -1237,6 +1237,9 @@ model Deal {
   // Sales-to-onboarding handoff summary (the SOP block), captured as structured JSON
   handoffSummary    Json?
   lostReason        String?
+  // Upgrade deals: set to the ClientAccount being grown to the next package
+  // tier (the sales console's "Start upgrade deal" action).
+  upgradeOfAccountId String?
   nextFollowUpAt    DateTime?
   lastContactAt     DateTime?
   clientOrgId       String?             @unique // set when Won → client org created
@@ -1339,4 +1342,171 @@ model ClientOnboarding {
   notes                String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sales & Marketing console (the sales-optimized test instance)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// One list for everything owed to a lead or client — call-note follow-ups,
+/// payment reminders, check-ins. Auto-created by discovery-notes saves,
+/// upgrade-deal starts, and client check-in scheduling; also added manually.
+model SalesFollowUp {
+  id        String    @id @default(cuid())
+  due       DateTime
+  title     String
+  detail    String    @default("")
+  kind      String    @default("email") // call | email | check-in | proposal | payment
+  refType   String? // "deal" | "client"
+  refId     String?
+  doneAt    DateTime? // Done rows are hidden, not deleted
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([due])
+}
+
+/// Copy-personalize-send email templates for every moment in the client
+/// journey (discovery recap, proposal, payment nudge, check-in, upgrade…).
+model SalesEmailTemplate {
+  id        String   @id @default(cuid())
+  cat       String // discovery | proposal | payment | checkin | upgrade | reengage | testimonial | referral
+  title     String
+  purpose   String   @default("")
+  body      String
+  sort      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// Quarterly goals with key-result checklists (the team-lead Goals screen).
+model SalesGoal {
+  id         String   @id @default(cuid())
+  title      String
+  ownerEmail String   @default("")
+  due        String   @default("") // freeform, e.g. "Sep 30"
+  status     String   @default("Not started") // Not started | In progress | On track | At risk | Done
+  krs        Json     @default("[]") // [{ id, label, done }]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// Monthly targets (the team-lead Targets screen). Actuals are computed live
+/// from deals/clients/content by `kind`; only `target` is editable.
+model SalesTarget {
+  id        String   @id // stable keys tg1…tg9
+  grp       String // Company | Sales | Marketing
+  label     String
+  hint      String   @default("")
+  unit      String   @default("#") // "$" | "#"
+  kind      String // actual-computation key (mrr, newLeads, callsHeld, …)
+  target    Int
+  sort      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// The relationship after the win — package usage, health, cadence, and a
+/// touch timeline per client account (the sales Client Accounts screen).
+/// Linked 1:1 to a ClientOrganization when one exists (pipeline conversions).
+model ClientAccount {
+  id            String   @id @default(cuid())
+  org           String
+  contact       String   @default("")
+  email         String   @default("")
+  pkg           String   @default("Custom")
+  price         Float    @default(0) // effective $/month (Hourly stores month total)
+  hoursUsed     Float    @default(0) // current month
+  since         DateTime @default(now())
+  lastTouch     DateTime @default(now())
+  ownerEmail    String   @default("")
+  health        String   @default("new") // good | growing | watch | new
+  checkinDue    Boolean  @default(false)
+  testimonial   String   @default("none") // none | torequest | requested | received | published
+  upgradeDealId String? // open upgrade Deal in the pipeline
+  clientOrgId   String?  @unique
+  timeline      Json     @default("[]") // [{ date, type: call|email|note|checkin, note }]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// Marketing campaigns. `tag` is the attribution join key — leads created by
+/// a campaign carry Deal.source === tag, so every campaign metric is a live
+/// SELECT over the same deals table sales uses (never stored separately).
+model MarketingCampaign {
+  id        String   @id @default(cuid())
+  name      String
+  channel   String   @default("Facebook") // Facebook | Email | Event | Website | Partners
+  status    String   @default("draft") // active | planning | draft
+  dates     String   @default("") // freeform: "Always on", "Jun 1 – Jul 31", "Jul 16"
+  tag       String   @unique // slug ↔ Deal.source
+  descr     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Content calendar items (July grid): posts, emails, videos, docs, events.
+model ContentItem {
+  id         String   @id @default(cuid())
+  date       DateTime
+  title      String
+  type       String   @default("social") // social | email | video | doc | event
+  status     String   @default("idea") // idea | draft | inprogress | scheduled | published
+  notes      String   @default("")
+  campaignId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([date])
+}
+
+/// Social queue posts moving draft → production → approval → scheduled → posted.
+model SocialPost {
+  id          String    @id @default(cuid())
+  platform    String    @default("FB") // IG | YT | FB | LI
+  text        String
+  scheduledAt DateTime?
+  status      String    @default("draft") // draft | production | approval | scheduled | posted
+  metrics     String    @default("") // display string once posted, e.g. "24 reactions · 2 leads"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+/// Email sequences for the planner. Audiences sync live from the pipeline:
+/// nurture → deals at stage nurture; newclients → accounts with health "new".
+model EmailSequence {
+  id           String   @id @default(cuid())
+  name         String
+  descr        String   @default("")
+  status       String   @default("active") // active | paused
+  audienceKind String   @default("subscribers") // nurture | newclients | subscribers
+  steps        Json     @default("[]") // [{ day, subject, state }]
+  next         String   @default("") // e.g. "Next send Jul 9"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// Testimonial pipeline: to request → requested → received → published.
+model MarketingTestimonial {
+  id        String   @id @default(cuid())
+  org       String
+  who       String   @default("")
+  stage     String   @default("torequest") // torequest | requested | received | published
+  quote     String   @default("")
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Referral-program referrers (clients & champions who open doors). Logging a
+/// referral creates a Deal (source "referral") and bumps these counters.
+model Referrer {
+  id        String    @id @default(cuid())
+  name      String
+  kind      String    @default("Client") // Client | Champion
+  sent      Int       @default(0)
+  leads     Int       @default(0)
+  won       Int       @default(0)
+  lastAt    DateTime?
+  note      String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }

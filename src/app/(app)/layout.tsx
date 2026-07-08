@@ -4,6 +4,7 @@ import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn
 import { canUserDelegateTasks, canVaDelegateTasks } from "@/lib/auth/delegation";
 import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { isSalesConsoleMode } from "@/lib/mode";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
@@ -17,6 +18,7 @@ const EYEBROW: Record<string, string> = {
   HR: "HR Operations",
   PAYROLL: "Payroll",
   RECRUITMENT: "Recruitment",
+  SALES: "Sales Console",
   VA: "My Console",
 };
 
@@ -87,8 +89,23 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
 
+  // Sales-console nav badges: follow-ups due today or overdue, and social
+  // posts sitting in the approval queue.
+  let navBadges: Record<string, number> = {};
+  if (view === "SALES") {
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    const [followupsDue, socialApprovals] = await Promise.all([
+      db.salesFollowUp.count({ where: { doneAt: null, due: { lte: endOfToday } } }),
+      db.socialPost.count({ where: { status: "approval" } }),
+    ]);
+    navBadges = { "/sales/followups": followupsDue, "/marketing/social": socialApprovals };
+  }
+
   const userName = user.name ?? user.email;
-  const adminBar = user.isAdmin ? (
+  // Sales-console deployments have a single staff view, so the admin
+  // view-switcher bar is pure noise there.
+  const adminBar = user.isAdmin && !isSalesConsoleMode() ? (
     <AdminBar
       currentView={view}
       vas={adminVas}
@@ -140,6 +157,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           showRecordings={showRecordings}
           showMeetingActions={showMeetingActions}
           meetingActionsCount={meetingActionsCount}
+          navBadges={navBadges}
         />
         <main className="content" style={{ padding: 0 }}>
           {adminBar}
