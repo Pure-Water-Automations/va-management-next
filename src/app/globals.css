@@ -839,3 +839,13 @@ h3.sec-title {
   .stat-grid { grid-template-columns: 1fr; }
   .topbar .search-pill { display: none; }
 }
+
+/* Sales & Marketing console — drawer/toast entrances (from the console design) */
+@keyframes drawerIn {
+  from { transform: translateX(24px); opacity: 0.5; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes toastIn {
+  from { transform: translate(-50%, 10px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
