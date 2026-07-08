@@ -14,6 +14,8 @@ import { getPayrollDashboard } from "@/lib/reads/payroll";
 import { getPipeline } from "@/lib/reads/recruitment";
 import * as tasksActions from "@/lib/actions/tasks";
 import { executeTool as mcpTaskTool } from "@/lib/mcp/tools";
+import type { McpActor } from "@/lib/mcp/access";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import type { Role, TaskStatus as TaskStatusT } from "@prisma/client";
 
 /**
@@ -36,11 +38,22 @@ export type Proposal = { tool: string; args: Record<string, unknown>; summary: s
 type Built = Proposal | { error: string };
 
 // ── Task/Project helpers (shared by the create/update/reassign/delete tools) ──
-const READONLY_CTX = { actorId: "", actorRole: "HR_MANAGER" as Role };
-async function taskActorCtx(actorEmail: string): Promise<{ actorId: string; actorRole: Role }> {
-  const u = await db.user.findUnique({ where: { email: actorEmail.toLowerCase() }, select: { id: true, role: true } });
+const READONLY_CTX: McpActor = { actorId: "", actorEmail: "", actorName: null, actorRole: "HR_MANAGER" as Role, isAdmin: false, canDelegate: false, vaId: null };
+async function taskActorCtx(actorEmail: string): Promise<McpActor> {
+  const u = await db.user.findUnique({
+    where: { email: actorEmail.toLowerCase() },
+    select: { id: true, email: true, name: true, role: true, isAdmin: true, vaId: true },
+  });
   if (!u) throw new Error("I couldn't resolve your account.");
-  return { actorId: u.id, actorRole: u.role };
+  return {
+    actorId: u.id,
+    actorEmail: u.email,
+    actorName: u.name,
+    actorRole: u.role,
+    isAdmin: u.isAdmin,
+    canDelegate: await canUserDelegateTasks(u.id),
+    vaId: u.vaId,
+  };
 }
 async function resolveTaskRef(ref: string): Promise<{ id: string; title: string } | null> {
   const r = (ref || "").trim();

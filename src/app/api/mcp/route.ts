@@ -1,7 +1,8 @@
-import { db } from "@/lib/db";
 import { runWithActor } from "@/lib/request-context";
-import { handleMcpRequest } from "@/lib/mcp/protocol";
-import { executeTool, type McpCtx } from "@/lib/mcp/tools";
+import { handleMcpRequest, MCP_TOOLS } from "@/lib/mcp/protocol";
+import { resolveMcpActor } from "@/lib/mcp/auth";
+import { visibleTools } from "@/lib/mcp/access";
+import { executeTool } from "@/lib/mcp/tools";
 
 export const dynamic = "force-dynamic";
 
@@ -17,17 +18,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const token = process.env.MCP_API_TOKEN?.trim();
-  if (!token) return rpcError(-32000, "MCP endpoint is not configured (no MCP_API_TOKEN).", 503);
-
   const provided = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  if (!provided || provided !== token) return rpcError(-32001, "Unauthorized — missing or invalid bearer token.", 401);
+  const auth = await resolveMcpActor(provided);
+  if (!auth.ok) return rpcError(-32001, auth.message, auth.status);
 
-  // The token acts as a single admin service identity (configurable).
-  const actorEmail = (process.env.MCP_ACTOR_EMAIL || "okamotomiak@gmail.com").toLowerCase();
-  const user = await db.user.findUnique({ where: { email: actorEmail }, select: { id: true, role: true, active: true } });
-  if (!user || !user.active) return rpcError(-32002, `MCP service user (${actorEmail}) not found or inactive.`, 500);
-  const ctx: McpCtx = { actorId: user.id, actorRole: user.role };
+  const actor = auth.actor;
+  // The caller only ever sees (and can call) the tools their role allows.
+  const tools = visibleTools(MCP_TOOLS, actor);
 
   let body: unknown;
   try {
@@ -36,7 +33,7 @@ export async function POST(request: Request) {
     body = {};
   }
 
-  const res = await handleMcpRequest(body, (name, args) => runWithActor(actorEmail, () => executeTool(name, args, ctx)));
+  const res = await handleMcpRequest(body, (name, args) => runWithActor(actor.actorEmail, () => executeTool(name, args, actor)), tools);
   if (res === null) return new Response(null, { status: 202 }); // notification — no response body
   return json(res, 200);
 }

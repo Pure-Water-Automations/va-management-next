@@ -118,6 +118,23 @@ model User {
   clientMemberships  ClientMembership[]
   clientTaskRequests ClientTaskRequest[] @relation("ClientTaskRequestSubmitter")
   clientAssignments  ClientAssignment[]
+  mcpTokens          McpToken[]
+}
+
+/// Per-user bearer token for the MCP endpoint (/api/mcp). Only the sha256 hash
+/// is stored — the plaintext token is shown once at mint time (admin/mcp-tokens).
+/// The MCP acts AS the token's user: their role gates which tools are exposed.
+model McpToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // sha256 hex of the bearer token
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String? // e.g. "Aira — Claude Desktop"
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────

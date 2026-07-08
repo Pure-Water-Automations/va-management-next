@@ -45,6 +45,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/admin/whatsapp", label: "WhatsApp", icon: <IconMessageSquare /> },
         { href: "/admin/zoom", label: "Zoom", icon: <IconVideo /> },
         { href: "/admin/users", label: "Users", icon: <IconUsers /> },
+        { href: "/admin/mcp-tokens", label: "MCP Tokens", icon: <IconShieldCheck /> },
       ],
     },
     {

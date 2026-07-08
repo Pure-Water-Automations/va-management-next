@@ -230,20 +230,33 @@ reusing `createProject`/`createTask`/`updateTaskStatus` + reads (so audit logs,
   can't do the Google-login flow. The **bearer token is the gate** instead. Added via
   `tools/cloudflare-tunnel/expose.js team-mcp 8796` (no emails = public). Separate
   from the human app's NextAuth login on `dev-team.pwasecondbrain.uk` and unaffected by it.
-- **Auth:** `Authorization: Bearer <MCP_API_TOKEN>` (in `shared/.env.production`, root-only).
-  Acts as one admin **service identity** = `MCP_ACTOR_EMAIL` (default `okamotomiak@gmail.com`).
-  Missing/invalid token → 401; unset token → 503 (endpoint disabled). Rotate by changing
-  the env var + `systemctl restart va-management-web`. **Never commit/print the token.**
-- **Tools (6):** `list_projects`, `create_project`, `list_tasks`, `create_task` (resolves
-  project + assignee by id/name/email; assigning a VA sends the normal email; defaults to
-  the service user), `update_task_status`, and `list_assignees` — which annotates each
-  active VA with workload (open-task count), comp role, `skillSpecs`, recent task titles,
-  clients worked with, and (given a `client` arg) a `workedWithClient` flag, **ranked best-fit**
-  (prior client experience, then lowest workload) so the AI can suggest the right VA.
+- **Auth — per-user tokens (2026-07):** `Authorization: Bearer <token>`. Admins mint
+  per-person tokens at **`/admin/mcp-tokens`** (stored sha256-hashed in the `McpToken`
+  table; plaintext shown once, prefix `vam_`; revoke from the same page). The MCP then
+  **acts as that user**: their `Role` decides which tools they see (`src/lib/mcp/access.ts`)
+  and every write is attributed to them in `ActivityLog`/comments/notifications.
+  Client-portal roles (`CLIENT_*`) are rejected. The legacy shared `MCP_API_TOKEN` env
+  var still works as the admin **service identity** (`MCP_ACTOR_EMAIL`, default
+  `okamotomiak@gmail.com`) so existing connector configs don't break; rotate by changing
+  the env var + `systemctl restart va-management-web`. **Never commit/print tokens.**
+- **Role gating** (`access.ts`, unit-tested in `tests/mcp-access.test.ts`): every tool has
+  an access group — `staff` (everyone incl. VAs), `delegator` (**tier-driven** via
+  `canUserDelegateTasks`, resolved at auth time — Senior/Lead-tier VAs), `hr` (HR Manager
+  + People Ops), `payroll` (Bookkeeper + HR Manager), `recruitment`, `sales` — all-access
+  users (`User.isAdmin` or the `TESTER` role) see everything. `tools/list` only shows
+  the caller's tools; calling a hidden tool → "not available to your role". Deeper checks
+  (e.g. a VA can only update their own tasks) come free from the shared action layer.
+- **Tools (23):** everyone — `whoami`, `my_tasks`, `get_task`, `update_task_status`,
+  `add_task_comment`, `list_available_tasks`, `claim_task`, `my_notifications`,
+  `list_projects`, `create_task` (managers assign anyone; VAs self-only onto a project,
+  Tier 1+); delegators — `list_tasks`, `list_assignees` (best-fit ranked), `reassign_task`,
+  `resolve_claim`, `create_project`; HR — `team_overview`, `get_va_profile`; payroll —
+  `payroll_summary`; recruitment — `recruitment_pipeline`; sales — `list_deals`,
+  `create_deal`, `send_client_agreement`, `convert_deal_to_client`.
 - **Protocol** is hand-rolled + pure (`protocol.ts`, unit-tested) and verified against the
   official `@modelcontextprotocol/sdk` client (same family Claude/ChatGPT use). Stateless
   JSON responses; `GET` → 405 (no server-initiated SSE). To add a tool: extend `MCP_TOOLS`
-  + `executeTool`.
+  (with an `access` group) + `executeTool`.
 
 ## Demo mode (seeded fake data for screen-recording tutorials)
 
