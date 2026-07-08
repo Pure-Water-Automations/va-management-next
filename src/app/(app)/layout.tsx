@@ -80,11 +80,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Enhance / Discover stay founder-only + runtime-toggleable (hidden during VA
   // demos). Recordings is broader — open to admins (isRecordingsVisible) so trusted
   // staff (e.g. Aira) can record / review / test.
-  const showRecordings = isRecordingsVisible(user);
+  // Sales-console deployments disable the Recordings / Meetings surfaces
+  // (middleware bounces their routes), so their nav groups must not render.
+  const salesMode = isSalesConsoleMode();
+  const showRecordings = isRecordingsVisible(user) && !salesMode;
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
-  const showMeetingActions = user.isAdmin || canReviewMeetingActions(user.role);
+  const showMeetingActions = (user.isAdmin || canReviewMeetingActions(user.role)) && !salesMode;
   const meetingActionsCount = showMeetingActions
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
@@ -105,7 +108,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const userName = user.name ?? user.email;
   // Sales-console deployments have a single staff view, so the admin
   // view-switcher bar is pure noise there.
-  const adminBar = user.isAdmin && !isSalesConsoleMode() ? (
+  const adminBar = user.isAdmin && !salesMode ? (
     <AdminBar
       currentView={view}
       vas={adminVas}
