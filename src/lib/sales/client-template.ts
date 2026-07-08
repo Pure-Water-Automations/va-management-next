@@ -76,6 +76,7 @@ export const DEFAULT_CLIENT_AGREEMENT_TEMPLATE_HTML = `
 <li>Retainer / monthly packages are billed in advance.</li>
 <li>No services begin until this Agreement is signed and the first payment (or saved payment authorization, for hourly packages) is received.</li>
 <li>Unused hours within a billing period are non-refundable and do not roll over unless otherwise agreed in writing.</li>
+<li>If any invoice or scheduled payment is not received when due, the Company may suspend services until payment is received; fees and the term continue to run during any such suspension.</li>
 </ul>
 
 <h2>3. Term and Cancellation</h2>
@@ -85,18 +86,22 @@ export const DEFAULT_CLIENT_AGREEMENT_TEMPLATE_HTML = `
 <p>Upon full payment, the Client owns all final deliverables produced specifically for the Client under this Agreement. The Company retains ownership of its own pre-existing tools, templates, and general know-how.</p>
 
 <h2>5. Confidentiality</h2>
-<p>Each Party agrees to keep the other's confidential information private and to use it solely to perform this Agreement. The Company will treat all Client materials, systems access, and data as confidential. This obligation survives termination.</p>
+<p>Each Party agrees to keep the other's confidential information private and to use it solely to perform this Agreement. The Company will treat all Client materials, systems access, and data as confidential, will maintain reasonable administrative and technical safeguards over Client data and credentials, and will notify the Client promptly upon becoming aware of any unauthorized access to Client data or systems provided under this Agreement. This obligation survives termination.</p>
 
 <h2>6. Independent Contractor</h2>
 <p>The Company provides services as an independent contractor. Nothing in this Agreement creates an employment, partnership, or joint-venture relationship between the Parties.</p>
 
-<h2>7. Limitation of Liability</h2>
-<p>The Company will perform the services with reasonable skill and care. To the extent permitted by law, the Company's total liability under this Agreement is limited to the fees paid by the Client in the one (1) month preceding the event giving rise to the claim.</p>
+<h2>7. Warranties and Limitation of Liability</h2>
+<p>The Company will perform the services with reasonable skill and care. Except as expressly stated in this Agreement, the services are provided "as is" and the Company disclaims all other warranties, express or implied, including implied warranties of merchantability and fitness for a particular purpose.</p>
+<p>To the extent permitted by law, neither Party is liable for indirect, incidental, special, or consequential damages (including lost profits or lost data) arising out of this Agreement, and the Company's total aggregate liability under this Agreement is limited to the fees paid by the Client in the one (1) month preceding the event giving rise to the claim.</p>
 
 <h2>8. Governing Law</h2>
-<p>This Agreement is governed by and construed in accordance with the laws of the State of New York, USA, without regard to its conflict-of-law principles.</p>
+<p>This Agreement is governed by and construed in accordance with the laws of the State of New York, USA, without regard to its conflict-of-law principles. The Parties consent to the exclusive jurisdiction of the state and federal courts located in the State of New York.</p>
 
-<h2>9. Entire Agreement</h2>
+<h2>9. Force Majeure</h2>
+<p>Neither Party is liable for delay or failure to perform (other than payment obligations) caused by events beyond its reasonable control, including internet or platform outages, natural disasters, or government action, provided the affected Party gives prompt notice and resumes performance as soon as reasonably possible.</p>
+
+<h2>10. Entire Agreement</h2>
 <p>This Agreement is the entire understanding between the Parties and supersedes all prior discussions. Any amendment must be in writing and agreed by both Parties.</p>
 
 <p><strong>IN WITNESS WHEREOF, the Parties agree to the terms above as of the Effective Date.</strong></p>
