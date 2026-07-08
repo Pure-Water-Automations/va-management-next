@@ -10,9 +10,12 @@ import { isSalesConsoleMode } from "@/lib/mode";
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
   const sessionEmail = session?.user?.email ?? undefined;
-  const fallbackEmail =
-    process.env.NODE_ENV !== "production" ? env.DEV_AUTH_EMAIL : undefined;
-  const email = sessionEmail ?? fallbackEmail;
+  // DEV_AUTH_EMAIL is the test-box auto-login bypass. It is honored whenever
+  // set — an explicit opt-in per deployment env file — rather than being tied
+  // to NODE_ENV, so throwaway test instances (e.g. the discovery sales-console
+  // box) can run a fast production build and still skip Google OAuth. It must
+  // NEVER be set in a real production env file (dev/prod deploys don't set it).
+  const email = sessionEmail ?? env.DEV_AUTH_EMAIL;
 
   if (!email) {
     redirect("/login");
