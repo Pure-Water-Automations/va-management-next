@@ -83,10 +83,12 @@ export const DEFAULT_CONTRACT_TEMPLATE_HTML = `
 <h2>Article 6: Restrictive Covenants</h2>
 <h3>6.1. Confidentiality</h3>
 <p>The Contractor agrees to maintain strict confidentiality regarding any Company or client information. This obligation survives termination of this Agreement.</p>
-<h3>6.2. Non-Compete</h3>
-<p>During the engagement and for two (2) years after termination, the Contractor shall not provide services that directly compete with Pure Water Assistants within any digital marketplace or region in which the Company operates.</p>
+<h3>6.2. Non-Competition with Company Clients</h3>
+<p>During the engagement and for twelve (12) months after termination, the Contractor shall not directly or indirectly provide services to any Company client with whom the Contractor worked during the engagement, except through the Company.</p>
 <h3>6.3. Non-Solicitation</h3>
-<p>The Contractor shall not solicit any clients, team members, or affiliates of the Company for employment or business engagement with a competing entity during the term and for two (2) years after termination.</p>
+<p>During the engagement and for twelve (12) months after termination, the Contractor shall not solicit or induce any client, team member, or affiliate of the Company to end or reduce their relationship with the Company, or to engage with a competing business.</p>
+<h3>6.4. Data Security</h3>
+<p>The Contractor shall access Company and client systems only through Company-approved tools and accounts, use strong passwords and multi-factor authentication where available, and shall not store, copy, or transmit Company or client credentials or data outside Company-approved tools. The Contractor shall notify the Company immediately upon becoming aware of any loss, unauthorized access, or suspected compromise of Company or client information, credentials, or systems.</p>
 
 <h2>Article 7: Independent Contractor Status</h2>
 <h3>7.1. Relationship</h3>
@@ -95,14 +97,20 @@ export const DEFAULT_CONTRACT_TEMPLATE_HTML = `
 <p>The Contractor shall determine their own methods and processes for completing assignments, provided deadlines and quality standards are met.</p>
 <h3>7.3. Equipment</h3>
 <p>The Contractor shall use their own equipment, internet connection, and workspace to perform assigned services.</p>
+<h3>7.4. Ownership of Work Product</h3>
+<p>All deliverables, work product, automations, scripts, code, workflows, documents, and other materials created by the Contractor in the course of performing services under this Agreement ("Work Product") are the sole and exclusive property of the Company. The Contractor hereby irrevocably assigns to the Company all right, title, and interest in and to the Work Product, including all intellectual property rights. The Contractor retains no right to use, license, or reproduce Work Product except as necessary to perform services under this Agreement. The Contractor's pre-existing tools, materials, and general skills and know-how remain the Contractor's own.</p>
 
 <h2>Article 8: Governing Law and General Provisions</h2>
-<h3>8.1. Governing Law</h3>
-<p>This Agreement shall be governed by and construed in accordance with the laws of the State of New York, USA.</p>
+<h3>8.1. Governing Law and Venue</h3>
+<p>This Agreement shall be governed by and construed in accordance with the laws of the State of New York, USA. The Parties consent to the exclusive jurisdiction of the state and federal courts located in the State of New York for any dispute arising out of or relating to this Agreement.</p>
 <h3>8.2. Entire Agreement</h3>
 <p>This Agreement represents the entire understanding between the Parties and supersedes all prior agreements or communications.</p>
 <h3>8.3. Amendments</h3>
 <p>Any modification must be made in writing and signed by both Parties.</p>
+<h3>8.4. Severability</h3>
+<p>If any provision of this Agreement is held invalid or unenforceable, that provision shall be modified to the minimum extent necessary to make it enforceable, and the remaining provisions shall continue in full force and effect.</p>
+<h3>8.5. Survival</h3>
+<p>Articles 4 (Tax and Licensing Responsibilities), 6 (Restrictive Covenants), and Section 7.4 (Ownership of Work Product), together with any other provisions that by their nature should survive, shall survive termination of this Agreement.</p>
 
 <p><strong>IN WITNESS WHEREOF, the Parties have executed this Independent Contractor Agreement as of the Effective Date.</strong></p>
 <p><strong>THE COMPANY - Pure Water Automations</strong></p>
@@ -133,6 +141,7 @@ export const DEFAULT_CONTRACT_TEMPLATE_HTML = `
 <p>Confidential Information does not include information that:</p>
 <ul>
 <li>Is already in the public domain at the time of disclosure or becomes publicly available without breach of this Agreement.</li>
+<li>Was already lawfully known to the Receiving Party, without restriction, prior to disclosure by the Disclosing Party.</li>
 <li>Is lawfully received from a third party without breach of any confidentiality obligation.</li>
 <li>Is independently developed by the Receiving Party without reference to or reliance upon the Confidential Information.</li>
 </ul>
@@ -141,31 +150,30 @@ export const DEFAULT_CONTRACT_TEMPLATE_HTML = `
 <ul>
 <li>Maintain the confidentiality of all Confidential Information and take all reasonable precautions to prevent unauthorized access, disclosure, or use of such information.</li>
 <li>Use the Confidential Information solely for the Purpose and for no other purpose.</li>
-<li>Not disclose any Confidential Information to any third party without prior written consent from the Disclosing Party.</li>
+<li>Not disclose any Confidential Information to any third party without prior written consent from the Disclosing Party, except as permitted under Section 4 (Compelled Disclosure).</li>
+<li>Protect Confidential Information using reasonable security measures, including Company-approved tools, strong passwords, and multi-factor authentication where available, and not store or transmit Confidential Information outside Company-approved tools.</li>
+<li>Notify the Disclosing Party immediately upon becoming aware of any unauthorized access to, disclosure of, or suspected compromise of Confidential Information.</li>
 <li>Return all Confidential Information upon termination of engagement or at the request of the Disclosing Party.</li>
 </ul>
 <h3>3. Duration of Confidentiality</h3>
-<p>The confidentiality obligations under this Agreement will continue indefinitely, regardless of whether the Receiving Party remains engaged by Pure Water Automations. The Receiving Party agrees to maintain confidentiality during and after their engagement.</p>
-<h3>4. Exclusion from Confidential Information</h3>
-<p>This Agreement does not apply to information that:</p>
-<ul>
-<li>Is publicly available without breach of this Agreement.</li>
-<li>Is disclosed to the Receiving Party by a third party who is not subject to confidentiality obligations.</li>
-<li>Is required to be disclosed by law, court order, or governmental authority, provided that the Receiving Party gives the Disclosing Party prompt notice of such requirement to allow the Disclosing Party the opportunity to seek protective relief.</li>
-</ul>
+<p>The confidentiality obligations under this Agreement continue during the Receiving Party's engagement with Pure Water Automations and for five (5) years after that engagement ends; provided that, for any Confidential Information that constitutes a trade secret under applicable law, the obligations continue for as long as that information remains a trade secret.</p>
+<h3>4. Compelled Disclosure</h3>
+<p>The Receiving Party may disclose Confidential Information to the extent required by law, court order, or governmental authority, provided that the Receiving Party gives the Disclosing Party prompt written notice of the requirement (where legally permitted) so the Disclosing Party may seek protective relief, and discloses only the portion legally required to be disclosed.</p>
 <h3>5. Return of Confidential Information</h3>
-<p>Upon termination of engagement or upon request by Pure Water Automations, the Receiving Party shall immediately return or destroy all Confidential Information, including copies or materials containing such information, in any form.</p>
+<p>Upon termination of engagement or upon request by Pure Water Automations, the Receiving Party shall, within ten (10) days, return or destroy all Confidential Information, including copies or materials containing such information, in any form, and shall certify such return or destruction in writing upon request. The Receiving Party may retain copies solely to the extent required by law or created by routine automatic backups, and any retained copies remain subject to this Agreement for as long as they exist.</p>
 <h3>6. No License</h3>
 <p>Nothing in this Agreement grants the Receiving Party any right, title, or interest in or to the Confidential Information, nor does it grant any rights to use the Confidential Information except as expressly authorized herein.</p>
 <h3>7. Indemnification</h3>
 <p>The Receiving Party agrees to indemnify and hold harmless Pure Water Automations from any damages, losses, or expenses incurred as a result of the Receiving Party's breach of this Agreement.</p>
-<h3>8. Governing Law</h3>
-<p>This Agreement shall be governed by and construed in accordance with the laws of the State of New York, USA, without regard to its conflicts of law principles.</p>
-<h3>9. Entire Agreement</h3>
+<h3>8. Injunctive Relief</h3>
+<p>The Receiving Party acknowledges that unauthorized use or disclosure of Confidential Information may cause the Disclosing Party irreparable harm for which monetary damages would be an inadequate remedy. The Disclosing Party is therefore entitled to seek injunctive or other equitable relief for any actual or threatened breach of this Agreement, without the need to post a bond, in addition to any other remedies available at law.</p>
+<h3>9. Governing Law and Venue</h3>
+<p>This Agreement shall be governed by and construed in accordance with the laws of the State of New York, USA, without regard to its conflicts of law principles. The Parties consent to the exclusive jurisdiction of the state and federal courts located in the State of New York.</p>
+<h3>10. Entire Agreement</h3>
 <p>This Agreement constitutes the entire agreement between the parties concerning the subject matter hereof and supersedes all prior agreements or understandings, whether written or oral, relating to such subject matter.</p>
-<h3>10. Severability</h3>
+<h3>11. Severability</h3>
 <p>If any provision of this Agreement is found to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.</p>
-<h3>11. Acknowledgment</h3>
+<h3>12. Acknowledgment</h3>
 <p>The Receiving Party acknowledges that they have read and understand the terms of this Non-Disclosure Agreement and agree to abide by the confidentiality obligations set forth herein.</p>
 <p><strong>Disclosing Party:</strong> Pure Water Automations - Name: Justin Okamoto, Title: CEO</p>
 <p><strong>Receiving Party:</strong> Printed Name: {{name}}, Date: {{date}} (Signature captured electronically below.)</p>
