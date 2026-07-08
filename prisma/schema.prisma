@@ -1237,6 +1237,9 @@ model Deal {
   // Sales-to-onboarding handoff summary (the SOP block), captured as structured JSON
   handoffSummary    Json?
   lostReason        String?
+  // Stamped when the deal first moves to stage `won` — monthly "won" targets
+  // filter on this (createdAt is the lead's arrival, not the win).
+  wonAt             DateTime?
   // Upgrade deals: set to the ClientAccount being grown to the next package
   // tier (the sales console's "Start upgrade deal" action).
   upgradeOfAccountId String?

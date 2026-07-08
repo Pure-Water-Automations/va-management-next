@@ -4,6 +4,7 @@
 
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { DiscoverClient } from "@/app/discover/DiscoverClient";
+import { pkgByName } from "@/lib/sales/packages";
 
 // ─────────────────────────────────────────────────────────────────────────
 // PWA public marketing landing page (/home). Self-contained: all copy from
@@ -12,6 +13,13 @@ import { DiscoverClient } from "@/app/discover/DiscoverClient";
 // ─────────────────────────────────────────────────────────────────────────
 
 const SHOW_PRICING = true as const;
+
+// Prices render from the package ladder (single source of truth) so the
+// public page can never drift from what the agreement quotes.
+const SPRING = pkgByName("Spring")!;
+const STREAM = pkgByName("Stream")!;
+const priceOf = (p: { price: number | null }) => `$${(p.price ?? 0).toLocaleString()}`;
+const perOf = (p: { price: number | null; hours: number | null }) => `per month · ${p.hours} hours`;
 
 type Props = { adminCostRate: number };
 
@@ -45,7 +53,7 @@ export function LandingPage({ adminCostRate }: Props) {
             </h1>
             <p className="pl-hero-sub">
               A trained, supervised assistant plus clean systems — for nonprofits, ministries, and small teams
-              drowning in admin.{SHOW_PRICING ? " From $200/month." : ""}
+              drowning in admin.{SHOW_PRICING ? ` From ${priceOf(SPRING)}/month.` : ""}
             </p>
             <ul className="pl-bullets">
               <Bullet>Trained &amp; supervised assistants — not a directory</Bullet>
@@ -96,7 +104,7 @@ export function LandingPage({ adminCostRate }: Props) {
           <div className="pl-stat">
             {SHOW_PRICING ? (
               <>
-                <div className="pl-stat-num">$200/mo</div>
+                <div className="pl-stat-num">{priceOf(SPRING)}/mo</div>
                 <div className="pl-stat-cap">starting point — less than one weekend event</div>
               </>
             ) : (
@@ -171,16 +179,16 @@ export function LandingPage({ adminCostRate }: Props) {
           <PriceCard
             name="Spring"
             tagline="A steady start"
-            price={SHOW_PRICING ? "$200" : "Let's talk"}
-            per={SHOW_PRICING ? "per month · 20 hours" : "discussed on your discovery call"}
+            price={SHOW_PRICING ? priceOf(SPRING) : "Let's talk"}
+            per={SHOW_PRICING ? perOf(SPRING) : "discussed on your discovery call"}
             features={["Trained virtual assistant", "Email & calendar support", "Weekly status update"]}
           />
           <PriceCard
             featured
             name="Stream"
             tagline="Steady support"
-            price={SHOW_PRICING ? "$800" : "Let's talk"}
-            per={SHOW_PRICING ? "per month · 68 hours" : "discussed on your discovery call"}
+            price={SHOW_PRICING ? priceOf(STREAM) : "Let's talk"}
+            per={SHOW_PRICING ? perOf(STREAM) : "discussed on your discovery call"}
             features={["Everything in Spring", "Team Leader supervision", "SOPs documented as we go"]}
           />
           <PriceCard

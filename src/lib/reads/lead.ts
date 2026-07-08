@@ -22,6 +22,7 @@ type Snapshot = {
     createdAt: Date;
     discoveryCallStatus: string | null;
     discoveryCallAt: Date | null;
+    wonAt: Date | null;
     upgradeOfAccountId: string | null;
   }[];
   accounts: { id: string; price: number; lastTouch: Date; ownerEmail: string }[];
@@ -46,6 +47,7 @@ async function loadSnapshot(): Promise<Snapshot> {
           createdAt: true,
           discoveryCallStatus: true,
           discoveryCallAt: true,
+          wonAt: true,
           upgradeOfAccountId: true,
         },
       }),
@@ -82,7 +84,9 @@ function monthBounds(now: Date): [Date, Date] {
 function computeActuals(s: Snapshot): Record<string, number> {
   const [start, end] = monthBounds(s.now);
   const inMonth = (d: Date | null) => !!d && d >= start && d < end;
-  const wonDeals = s.deals.filter((d) => d.stage === "won");
+  // "Won this month": wonAt is stamped on the transition to won; deals won
+  // before the column existed fall back to createdAt so they don't vanish.
+  const wonDeals = s.deals.filter((d) => d.stage === "won" && inMonth(d.wonAt ?? d.createdAt));
   return {
     // Company
     mrr: Math.round(s.accounts.reduce((sum, a) => sum + (a.price || 0), 0)),
@@ -210,7 +214,10 @@ function buildTeam(s: Snapshot, actuals: Record<string, number>): TeamMember[] {
       const mine = s.deals.filter((d) => (d.accountOwnerEmail ?? "").toLowerCase() === email);
       const open = mine.filter((d) => !CLOSED_STAGES.has(d.stage));
       const pipeline = open.reduce((sum, d) => sum + (d.dealValue || 0), 0);
-      const won = mine.filter((d) => d.stage === "won").length;
+      const won = mine.filter((d) => {
+        const at = d.wonAt ?? d.createdAt;
+        return d.stage === "won" && at >= start && at < end;
+      }).length;
       const overdue = overdueByOwner.get(email) ?? 0;
       const stats = [
         { label: "open deals", value: String(open.length) },

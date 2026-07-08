@@ -1,5 +1,6 @@
 "use client";
 
+import { postJson } from "@/components/sales/ui";
 import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { Chip } from "@/components/sales/ui";
 
@@ -9,13 +10,8 @@ import { Chip } from "@/components/sales/ui";
 
 // ── API helper ───────────────────────────────────────────────────────────
 
-export async function callMarketing(body: Record<string, unknown>): Promise<{ ok: boolean; result?: unknown; error?: string }> {
-  const r = await fetch("/api/marketing", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return r.json().catch(() => ({ ok: false, error: "Bad response" }));
+export function callMarketing(body: Record<string, unknown>): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+  return postJson("/api/marketing", body);
 }
 
 // ── Chip color maps ──────────────────────────────────────────────────────

@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { BAR_GRADIENTS, ProgressBar, StatusChip, cardStyle, useToast } from "@/components/sales/ui";
+import { BAR_GRADIENTS, ProgressBar, StatusChip, cardStyle, useToast, PACE_FILL } from "@/components/sales/ui";
 import { fmtTargetValue, monthInfo, paceStatus, type PaceStatus } from "@/lib/sales/pace";
 import type { TargetRow } from "@/lib/reads/lead";
 
-const PACE_FILL: Record<PaceStatus, string> = {
-  Hit: BAR_GRADIENTS.green,
-  "On track": BAR_GRADIENTS.sky,
-  Behind: BAR_GRADIENTS.amber,
-};
 
 const GROUPS = ["Company", "Sales", "Marketing"];
 

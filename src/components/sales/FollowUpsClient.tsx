@@ -2,13 +2,10 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { KindChip, useToast, cardStyle } from "@/components/sales/ui";
+import { KindChip, useToast, cardStyle, postJson } from "@/components/sales/ui";
 import type { FollowUpRow } from "@/lib/reads/sales-console";
 
-async function call(body: Record<string, unknown>) {
-  const r = await fetch("/api/sales/console", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  return r.json().catch(() => ({ ok: false, error: "Bad response" }));
-}
+const call = (body: Record<string, unknown>) => postJson("/api/sales/console", body);
 
 /** Whole days between today and the due date, in local time (negative = overdue). */
 function dayDiff(dueIso: string): number {

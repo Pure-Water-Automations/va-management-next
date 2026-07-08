@@ -1,13 +1,10 @@
 "use client";
 
 import { useMemo, useRef, useState, type CSSProperties } from "react";
-import { Chip, cardStyle, useToast } from "@/components/sales/ui";
+import { Chip, cardStyle, useToast, postJson } from "@/components/sales/ui";
 import type { EmailTemplateRow } from "@/lib/reads/sales-console";
 
-async function call(body: Record<string, unknown>) {
-  const r = await fetch("/api/sales/console", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  return r.json().catch(() => ({ ok: false, error: "Bad response" }));
-}
+const call = (body: Record<string, unknown>) => postJson("/api/sales/console", body);
 
 const CATS: { key: string; label: string }[] = [
   { key: "all", label: "All" },

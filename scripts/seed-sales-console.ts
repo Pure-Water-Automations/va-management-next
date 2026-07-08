@@ -7,17 +7,24 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient, type ClientAgreementStatus } from "@prisma/client";
+import { SALES_OWNERS } from "../src/lib/sales/owners";
+
+// GUARD: this injects 13 fake deals into the shared Deal table — the same
+// table the real pipeline, mirror-sheet export, and MCP tools read. Only run
+// against a sales-console test instance (or force it explicitly).
+if (process.env.CONSOLE_MODE !== "sales" && process.env.SEED_SALES_CONSOLE !== "1") {
+  console.error(
+    "Refusing to seed: this DB is not a sales-console instance (CONSOLE_MODE != 'sales').\n" +
+      "If you really want demo deals in this database, re-run with SEED_SALES_CONSOLE=1.",
+  );
+  process.exit(1);
+}
 
 const db = new PrismaClient();
 
-const OWNER_EMAIL: Record<string, string> = {
-  mark: "mark.patton@purewaterautomations.com",
-  lei: "lei@purewaterautomations.com",
-  // Justin is the real login on the test box, so leadership/team screens and
-  // calendar connections line up with an actual account.
-  justin: "okamotomiak@gmail.com",
-  zawadi: "zawadi@purewaterautomations.com",
-};
+const OWNER_EMAIL: Record<string, string> = Object.fromEntries(
+  SALES_OWNERS.map((o) => [o.key, o.email]),
+);
 
 const seed = JSON.parse(
   readFileSync(join(__dirname, "data", "sales-console-seed.json"), "utf8"),
@@ -85,6 +92,9 @@ async function main() {
       discoveryCallStatus: d.callStatus ?? null,
       discoveryNotesJson: d.notes ?? undefined,
       upgradeOfAccountId: d.upgrade ? (d.clientId ?? null) : null,
+      // The mock's won deal closed on the 1st of the demo month ("onboarding
+      // started July 1"), so "won this month" targets stay correct.
+      wonAt: d.stage === "won" ? new Date(YEAR, new Date().getMonth(), 1) : null,
       createdAt: new Date(d.created),
     };
     await db.deal.upsert({ where: { id: d.id }, update: data, create: { id: d.id, ...data } });

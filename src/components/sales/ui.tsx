@@ -120,6 +120,13 @@ export const BAR_GRADIENTS = {
   funnel: "linear-gradient(90deg, #6278d5, #4dc4e8)",
 } as const;
 
+/** Bar fill per paceStatus() verdict (lib/sales/pace.ts). */
+export const PACE_FILL: Record<"Hit" | "On track" | "Behind", string> = {
+  Hit: BAR_GRADIENTS.green,
+  "On track": BAR_GRADIENTS.sky,
+  Behind: BAR_GRADIENTS.amber,
+};
+
 export function ProgressBar({ pct, fill = BAR_GRADIENTS.sky, height = 8 }: { pct: number; fill?: string; height?: number }) {
   return (
     <div style={{ height, borderRadius: 999, background: "var(--color-bg-tertiary, #e8e8ed)", overflow: "hidden" }}>
@@ -166,6 +173,23 @@ export function StatCard({ label, value, sub, hero = false, onClick, active = fa
 
 export function StatGrid({ children }: { children: ReactNode }) {
   return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 18 }}>{children}</div>;
+}
+
+// ── API helper ───────────────────────────────────────────────────────────
+
+/**
+ * POST a console op. Never rejects — network failures and bad responses both
+ * resolve to { ok: false, error }, so callers' `!res.ok` rollback paths always
+ * run (an optimistic update must never survive a dead request).
+ */
+export function postJson(url: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; result?: unknown }> {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then((r) => r.json())
+    .catch(() => ({ ok: false, error: "Network error — please try again." }));
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────

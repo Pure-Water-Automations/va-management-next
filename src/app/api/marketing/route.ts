@@ -1,12 +1,16 @@
 import type { Role } from "@prisma/client";
 import { action, str, optNum, optStr } from "@/lib/api";
-import { isSalesRep } from "@/lib/auth/roles";
+import { isSalesRep, viewForRole } from "@/lib/auth/roles";
 import { isSalesConsoleMode } from "@/lib/mode";
 import { db } from "@/lib/db";
 
 // One route, dispatched on `op`, for every Marketing console mutation.
 // Sales reps + admins; on a sales-console deployment every staff login.
-const allow = (role: Role) => isSalesRep(role) || isSalesConsoleMode();
+// Staff-only, mirroring requireSalesUser: in sales-console mode any STAFF
+// role may act, but client-portal logins never can (the page guard bounces
+// them to /client; the API must enforce the same line).
+const allow = (role: Role) =>
+  isSalesRep(role) || (isSalesConsoleMode() && viewForRole(role) !== "CLIENT");
 
 const CONTENT_STATUSES = new Set(["idea", "draft", "inprogress", "scheduled", "published"]);
 const TESTIMONIAL_STAGES = new Set(["torequest", "requested", "received", "published"]);

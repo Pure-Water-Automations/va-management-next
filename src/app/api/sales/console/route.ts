@@ -1,14 +1,18 @@
 import type { Prisma, Role } from "@prisma/client";
 import { action, str, optStr } from "@/lib/api";
 import { db } from "@/lib/db";
-import { isSalesRep } from "@/lib/auth/roles";
+import { isSalesRep, viewForRole } from "@/lib/auth/roles";
 import { isSalesConsoleMode } from "@/lib/mode";
 import { pkgByName, nextPkgOf } from "@/lib/sales/packages";
 
 // Op-dispatch API for the Sales console screens (Follow-ups, Client Accounts,
 // Email Templates + the Client drawer). Open to sales reps / admins; on a
 // sales-console deployment (CONSOLE_MODE="sales") every staff login qualifies.
-const allow = (role: Role) => isSalesRep(role) || isSalesConsoleMode();
+// Staff-only, mirroring requireSalesUser: in sales-console mode any STAFF
+// role may act, but client-portal logins never can (the page guard bounces
+// them to /client; the API must enforce the same line).
+const allow = (role: Role) =>
+  isSalesRep(role) || (isSalesConsoleMode() && viewForRole(role) !== "CLIENT");
 
 const INTERACTION_TYPES = new Set(["call", "email", "note", "checkin"]);
 

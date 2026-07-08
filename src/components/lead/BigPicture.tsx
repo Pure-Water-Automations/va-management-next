@@ -3,16 +3,11 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { useMemo } from "react";
-import { BAR_GRADIENTS, GradientAvatar, ProgressBar, StatCard, StatGrid, cardStyle } from "@/components/sales/ui";
+import { BAR_GRADIENTS, GradientAvatar, ProgressBar, StatCard, StatGrid, cardStyle, PACE_FILL } from "@/components/sales/ui";
 import { compactMoney } from "@/lib/sales/packages";
 import { monthInfo, paceStatus, type PaceStatus } from "@/lib/sales/pace";
 import type { LeadOverview } from "@/lib/reads/lead";
 
-const PACE_FILL: Record<PaceStatus, string> = {
-  Hit: BAR_GRADIENTS.green,
-  "On track": BAR_GRADIENTS.sky,
-  Behind: BAR_GRADIENTS.amber,
-};
 
 export function BigPicture({ data }: { data: LeadOverview }) {
   const { elapsed } = useMemo(() => monthInfo(), []);

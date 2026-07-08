@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
-import { isSalesRep } from "@/lib/auth/roles";
+import { requireSalesUser } from "@/lib/auth/sales-guard";
 import { loadSettings } from "@/lib/settings";
 import { parseBookingConfig } from "@/lib/discovery-booking";
 import { calendarConnections } from "@/lib/calendar-connection";
@@ -20,8 +18,7 @@ const MESSAGES: Record<string, { text: string; variant: "success" | "danger" | "
 };
 
 export default async function SalesCalendarPage({ searchParams }: { searchParams: Promise<{ calendar?: string }> }) {
-  const user = await getCurrentUser();
-  if (!isSalesRep(user.role) && !user.isAdmin) redirect("/");
+  await requireSalesUser();
 
   const settings = await loadSettings();
   const reps = parseBookingConfig(settings.get("discovery_booking_windows"));

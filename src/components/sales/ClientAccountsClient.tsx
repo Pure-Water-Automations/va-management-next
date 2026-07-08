@@ -12,16 +12,12 @@ import {
   cardStyle,
   StatCard,
   StatGrid,
-  useToast,
-} from "@/components/sales/ui";
+  useToast, postJson } from "@/components/sales/ui";
 import { pkgByName, nextPkgOf, compactMoney } from "@/lib/sales/packages";
 import { ownerLabel } from "@/lib/sales/owners";
 import type { ClientAccountRow, TimelineEntry } from "@/lib/reads/sales-console";
 
-async function call(body: Record<string, unknown>) {
-  const r = await fetch("/api/sales/console", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  return r.json().catch(() => ({ ok: false, error: "Bad response" }));
-}
+const call = (body: Record<string, unknown>) => postJson("/api/sales/console", body);
 
 // ── date helpers ─────────────────────────────────────────────────────────
 
@@ -87,8 +83,8 @@ export function ClientAccountsClient({ accounts: initial, openAccountId = null }
 
   async function startUpgrade(a: ClientAccountRow) {
     const res = await call({ op: "account_start_upgrade", id: a.id });
-    if (res.ok && res.result?.dealId) {
-      const dealId = res.result.dealId as string;
+    const dealId = res.ok ? (res.result as { dealId?: string } | undefined)?.dealId : undefined;
+    if (dealId) {
       setAccounts((p) => p.map((x) => (x.id === a.id ? { ...x, upgradeDealId: dealId } : x)));
       showToast("Upgrade deal created in the pipeline, follow-up added for tomorrow.");
     } else {

@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
-import { isSalesRep } from "@/lib/auth/roles";
+import { requireSalesUser } from "@/lib/auth/sales-guard";
 import { loadSalesRows } from "@/lib/reads/sales";
 import { loadSettings } from "@/lib/settings";
 import { SalesBoard } from "@/components/SalesBoard";
@@ -10,8 +8,7 @@ export const dynamic = "force-dynamic";
 // The dedicated Sales console — the SALES role's home, also open to HR/admin.
 // `?deal=<id>` deep-links straight into that deal's drawer.
 export default async function SalesConsole({ searchParams }: { searchParams: Promise<{ deal?: string }> }) {
-  const user = await getCurrentUser();
-  if (!isSalesRep(user.role) && !user.isAdmin) redirect("/");
+  const user = await requireSalesUser();
   const { deal } = await searchParams;
 
   const rows = await loadSalesRows();
