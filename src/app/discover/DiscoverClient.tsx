@@ -16,9 +16,12 @@ type Props = {
   adminCostRate: number;
   bookingUrl: string | null;
   testimonial: string | null;
+  /** Embedded in another page (landing hero): no full-page wrapper/background,
+   *  no fixed progress bar — the card content sizes to the parent container. */
+  embedded?: boolean;
 };
 
-export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props) {
+export function DiscoverClient({ adminCostRate, bookingUrl, testimonial, embedded = false }: Props) {
   const questions = DISCOVERY_QUESTIONS as DiscoveryQuestion[];
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [idx, setIdx] = useState(0);
@@ -29,6 +32,10 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   const [bookingToken, setBookingToken] = useState<string | null>(null);
   const [bookedLabel, setBookedLabel] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  const shell = embedded ? embeddedShell : page;
+  const cardS = embedded ? embeddedCard : card;
+  const track = embedded ? embeddedTrack : progressTrack;
 
   const visible = useMemo(() => questions.filter((q) => isVisible(q, answers)), [questions, answers]);
   const clamped = Math.min(idx, Math.max(0, visible.length - 1));
@@ -115,8 +122,8 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     // Already-booked confirmation.
     if (bookedLabel) {
       return (
-        <div style={page}>
-          <div style={{ ...card, textAlign: "center", alignItems: "center" }}>
+        <div style={shell}>
+          <div style={{ ...cardS, textAlign: "center", alignItems: "center" }}>
             <div style={{ fontSize: 44 }}>✅</div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-3xl)", color: "var(--color-navy-900)", margin: "8px 0 0" }}>
               You&apos;re booked!
@@ -136,8 +143,8 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     // the copy never over-promises — same heuristic the server scores with.
     const strongFit = fitVerdict(answers) !== "cold";
     return (
-      <div style={page}>
-        <div style={{ ...card, textAlign: "center", alignItems: "center" }}>
+      <div style={shell}>
+        <div style={{ ...cardS, textAlign: "center", alignItems: "center" }}>
           <div style={{ fontSize: 44 }}>🌊</div>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-3xl)", color: "var(--color-navy-900)", margin: "8px 0 0" }}>
             {strongFit ? "You’re a strong fit — let’s make this call count." : "Thanks — let’s find the right next step."}
@@ -162,9 +169,9 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   if (showCost) {
     const cost = estimateAdminCost(answers.hoursPerWeek ?? "", adminCostRate);
     return (
-      <div style={page}>
-        <div style={progressTrack}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
-        <div style={{ ...card, textAlign: "center", alignItems: "center" }}>
+      <div style={shell}>
+        <div style={track}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
+        <div style={{ ...cardS, textAlign: "center", alignItems: "center" }}>
           <div style={qNum}>Here&apos;s what that&apos;s costing</div>
           <div style={{ fontFamily: "var(--font-display)", fontSize: 56, fontWeight: 800, color: "var(--color-navy-900)", lineHeight: 1 }}>
             ${cost.toLocaleString()}
@@ -179,13 +186,13 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     );
   }
 
-  if (!q) return <div style={page} />;
+  if (!q) return <div style={shell} />;
   const isChoice = q.type === "single_select";
 
   return (
-    <div style={page}>
-      <div style={progressTrack}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
-      <div style={card}>
+    <div style={shell}>
+      <div style={track}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
+      <div style={cardS}>
         <div style={qNum}>{clamped + 1} <span style={{ opacity: 0.5 }}>of {total}</span></div>
         <label htmlFor={q.key} style={qLabel}>{q.label}{q.required && <span style={{ color: "var(--color-sky-500)" }}> *</span>}</label>
         {q.help && <div style={qHelp}>{q.help}</div>}
@@ -206,7 +213,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
           </div>
         </div>
       </div>
-      <div style={brand}>Pure Water Automations · Refreshing leaders. Removing burdens.</div>
+      {!embedded && <div style={brand}>Pure Water Automations · Refreshing leaders. Removing burdens.</div>}
     </div>
   );
 }
@@ -331,6 +338,10 @@ function MultiSelect({
 }
 
 const page: CSSProperties = { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, background: "linear-gradient(180deg, var(--color-sky-50), var(--color-bg-secondary))" };
+// Embedded (landing-hero) variants: the parent supplies the card chrome.
+const embeddedShell: CSSProperties = { width: "100%", display: "flex", flexDirection: "column" };
+const embeddedCard: CSSProperties = { width: "100%", background: "transparent", border: "none", borderRadius: 0, boxShadow: "none", padding: "18px 0 0", display: "flex", flexDirection: "column" };
+const embeddedTrack: CSSProperties = { height: 5, borderRadius: 999, background: "var(--color-bg-tertiary, #e8e8ed)", overflow: "hidden", flex: "none" };
 const progressTrack: CSSProperties = { position: "fixed", top: 0, left: 0, right: 0, height: 6, background: "var(--color-bg-tertiary)" };
 const progressBar: CSSProperties = { height: "100%", background: "linear-gradient(90deg, var(--color-sky-400), var(--color-navy-700))", transition: "width 0.3s ease" };
 const card: CSSProperties = { width: "100%", maxWidth: 640, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-lg)", padding: "36px 40px", display: "flex", flexDirection: "column" };

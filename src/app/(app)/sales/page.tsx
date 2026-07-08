@@ -8,9 +8,11 @@ import { SalesBoard } from "@/components/SalesBoard";
 export const dynamic = "force-dynamic";
 
 // The dedicated Sales console — the SALES role's home, also open to HR/admin.
-export default async function SalesConsole() {
+// `?deal=<id>` deep-links straight into that deal's drawer.
+export default async function SalesConsole({ searchParams }: { searchParams: Promise<{ deal?: string }> }) {
   const user = await getCurrentUser();
   if (!isSalesRep(user.role) && !user.isAdmin) redirect("/");
+  const { deal } = await searchParams;
 
   const rows = await loadSalesRows();
   const canFinance = user.isAdmin || user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS";
@@ -29,7 +31,7 @@ export default async function SalesConsole() {
           </p>
         </div>
       </div>
-      <SalesBoard deals={rows} canFinance={canFinance} testimonials={testimonials} />
+      <SalesBoard deals={rows} canFinance={canFinance} testimonials={testimonials} openDealId={deal ?? null} />
     </>
   );
 }

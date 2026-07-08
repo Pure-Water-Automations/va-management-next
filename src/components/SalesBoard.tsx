@@ -85,14 +85,15 @@ function pendingLabel(a: NextAction): string {
   return a.op === "convert" ? "Awaiting client setup" : a.op === "mark_paid" ? "Awaiting payment" : a.label;
 }
 
-export function SalesBoard({ deals, canFinance = true, testimonials }: { deals: DealRow[]; canFinance?: boolean; testimonials?: string | null }) {
+export function SalesBoard({ deals, canFinance = true, testimonials, openDealId = null }: { deals: DealRow[]; canFinance?: boolean; testimonials?: string | null; openDealId?: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "list" | "testimonials">("board");
   const [query, setQuery] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // `openDealId` deep-links straight into a deal's drawer (/sales?deal=<id>).
+  const [openId, setOpenId] = useState<string | null>(openDealId);
   const [dragStage, setDragStage] = useState<string | null>(null);
   const dragId = useRef<string | null>(null); // the deal being dragged (own board only)
   const [preview, setPreview] = useState<{ dealId: string; isResend: boolean } | null>(null);
