@@ -177,6 +177,7 @@ export function Sidebar({
         {isAdmin && (
           <NavGroup label="Admin">
             <NavItemLink href="/admin/users" label="Users" icon={<IconUsers />} />
+            <NavItemLink href="/admin/mcp-tokens" label="MCP Tokens" icon={<IconShieldCheck />} />
           </NavGroup>
         )}
 
