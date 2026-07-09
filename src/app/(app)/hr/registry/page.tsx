@@ -7,6 +7,7 @@ import { ActionButton } from "@/components/ActionButton";
 import { BaselineCell, BaselineCutover } from "@/components/BaselineEditor";
 import { SupervisorSelect } from "@/components/SupervisorSelect";
 import { NotifyPrefsCell } from "@/components/NotifyPrefsCell";
+import { TrustedBulkApproveCheckbox } from "@/components/TrustedBulkApproveCheckbox";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,20 @@ export default async function RegistryPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
             <thead>
               <tr>
-                {["VA", "Role", "Status", "Supervisor", "Target/wk", "Baseline (h)", "Cumulative", "Last check-in", "Eligible", "Notify", ""].map((h, i) => (
+                {[
+                  "VA",
+                  "Role",
+                  "Status",
+                  "Supervisor",
+                  "Target/wk",
+                  "Baseline (h)",
+                  "Cumulative",
+                  "Last check-in",
+                  "Eligible",
+                  ...(canEdit ? ["Bulk approve"] : []),
+                  "Notify",
+                  "",
+                ].map((h, i) => (
                   <th key={h || `c${i}`} style={th}>{h}</th>
                 ))}
               </tr>
@@ -94,6 +108,16 @@ export default async function RegistryPage() {
                     )}
                   </td>
                   <td style={td}>{eligibility.eligible ? <Badge variant="success" dot>Yes</Badge> : <span className="small">—</span>}</td>
+                  {canEdit && (
+                    <td style={{ ...td, whiteSpace: "normal", minWidth: 300 }}>
+                      <TrustedBulkApproveCheckbox
+                        vaId={va.vaId}
+                        name={va.name}
+                        email={va.email}
+                        trustedForBulkApprove={va.trustedForBulkApprove}
+                      />
+                    </td>
+                  )}
                   <td style={td}>
                     {canEdit ? (
                       <NotifyPrefsCell vaId={va.vaId} channel={va.notifyChannel} number={va.whatsappNumber} />

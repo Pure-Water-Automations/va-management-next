@@ -165,6 +165,23 @@ export const POST = action(
         return { approved: result.count };
       }
 
+      case "set_payment_profile": {
+        if (!user.isAdmin && user.role !== "HR_MANAGER" && user.role !== "BOOKKEEPER") {
+          throw new Error("Only HR/bookkeeper can edit payment profiles.");
+        }
+        const vaId = str(body, "vaId");
+        const method = str(body, "method");
+        if (!["WISE", "REMITLY", "PAYONEER", "GREY"].includes(method)) {
+          throw new Error("Invalid method.");
+        }
+        const payoutCurrency = (optStr(body, "payoutCurrency") || "USD").toUpperCase().slice(0, 3);
+        return db.vaPaymentProfile.upsert({
+          where: { vaId },
+          update: { method, payoutCurrency },
+          create: { vaId, method, payoutCurrency },
+        });
+      }
+
       default:
         throw new Error(`Unknown op: ${op}`);
     }
