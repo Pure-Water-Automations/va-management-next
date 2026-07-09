@@ -165,6 +165,9 @@ model Va {
   notionProfileUrl  String?
   roleStartedDate   DateTime?
   notionDisplayTier String?
+  // Payroll: rows for this VA may be bulk-approved without individual review
+  // (HR judgment flag — review §14). Anomaly-flagged rows always need review.
+  trustedForBulkApprove Boolean @default(false)
   tierMismatchFlag  String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -266,6 +269,13 @@ enum PeriodStatus {
   paid
 }
 
+enum PayrollRowStatus {
+  submitted
+  approved
+  excluded
+  paid
+}
+
 model PayrollPeriod {
   periodStart           DateTime             @id @db.Date
   periodEnd             DateTime             @db.Date
@@ -293,6 +303,15 @@ model PayrollCalculation {
   hourlyRate       Float?
   salaryPerPeriod  Float?
   grossPay         Float            @default(0)
+  // ── Approval flow (proposal §6.2): Submitted → Approved → Paid ─────────
+  rowStatus       PayrollRowStatus @default(submitted)
+  approvedByEmail String?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  excludedReason  String? // set when rowStatus = excluded
+  // ── Anomaly detection (§6.4) ───────────────────────────────────────────
+  flagged         Boolean          @default(false)
+  flagReasons     Json             @default("[]") // string[]
   createdAt        DateTime         @default(now())
 
   @@unique([periodStart, vaId])
@@ -1339,4 +1358,33 @@ model ClientOnboarding {
   notes                String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Payroll dashboard (proposal: Payroll Dashboard Proposal, 2026-07-09)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Per-VA payout profile. Phase 1–2 stores only method + currency (drives the
+/// dashboard badges). Recipient identifiers (encrypted) arrive in Phase 3 —
+/// see the Pre-Phase-3 gate on the proposal page before adding them.
+model VaPaymentProfile {
+  id             String   @id @default(cuid())
+  vaId           String   @unique
+  method         String   @default("WISE") // WISE | REMITLY | PAYONEER | GREY
+  payoutCurrency String   @default("USD")
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+/// Tracker project string → client organization (null = internal PWA work).
+/// The keystone of hours-per-client attribution (§6.1); unmapped projects
+/// surface in the needs-mapping queue on /payroll/mapping.
+model ClientProjectMap {
+  id             String   @id @default(cuid())
+  project        String   @unique // exact tracker project string
+  clientOrgId    String? // null = internal
+  createdByEmail String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

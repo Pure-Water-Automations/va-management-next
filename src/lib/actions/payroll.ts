@@ -1,6 +1,7 @@
 import type { CompRole, CompensationType, PeriodStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
+import { activeHoursSource } from "@/lib/services/hours-source";
 import { computePeriodCalculations } from "@/lib/services/payroll-calc";
 
 type PeriodInput = {
@@ -73,34 +74,11 @@ export async function recalculateOpenPeriod() {
   ]);
 
   const vaIds = vas.map((va) => va.vaId);
-  const [periodHours, priorHours] = await Promise.all([
-    db.deskLogHours.groupBy({
-      by: ["vaId"],
-      where: {
-        vaId: { in: vaIds },
-        date: {
-          gte: period.periodStart,
-          lte: period.periodEnd,
-        },
-      },
-      _sum: { taskSpentHrs: true },
-    }),
-    db.deskLogHours.groupBy({
-      by: ["vaId"],
-      where: {
-        vaId: { in: vaIds },
-        date: { lt: period.periodStart },
-      },
-      _sum: { taskSpentHrs: true },
-    }),
+  const source = activeHoursSource();
+  const [hoursByVaId, priorHoursByVaId] = await Promise.all([
+    source.hoursByVa(period.periodStart, period.periodEnd, vaIds),
+    source.priorHoursByVa(period.periodStart, vaIds),
   ]);
-
-  const hoursByVaId = Object.fromEntries(
-    periodHours.map((row) => [row.vaId, row._sum.taskSpentHrs ?? 0]),
-  );
-  const priorHoursByVaId = Object.fromEntries(
-    priorHours.map((row) => [row.vaId, row._sum.taskSpentHrs ?? 0]),
-  );
 
   const rows = computePeriodCalculations(
     vas,

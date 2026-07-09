@@ -5,6 +5,7 @@
  * reminder/close timestamps on PayrollPeriod.
  */
 import { db } from "@/lib/db";
+import { activeHoursSource } from "@/lib/services/hours-source";
 import { computePeriodCalculations } from "@/lib/services/payroll-calc";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
@@ -18,17 +19,11 @@ const todayMidnight = () => {
 };
 
 async function recalc(periodStart: Date, periodEnd: Date, unpaidGateway: number) {
-  const [vas, roles, hours] = await Promise.all([
+  const [vas, roles, hoursByVaId] = await Promise.all([
     db.va.findMany({ where: { status: { in: ["active", "training"] } } }),
     db.compensationRole.findMany(),
-    db.deskLogHours.groupBy({
-      by: ["vaId"],
-      where: { date: { gte: periodStart, lte: periodEnd } },
-      _sum: { taskSpentHrs: true },
-    }),
+    activeHoursSource().hoursByVa(periodStart, periodEnd),
   ]);
-  const hoursByVaId: Record<string, number> = {};
-  for (const h of hours) hoursByVaId[h.vaId] = h._sum.taskSpentHrs ?? 0;
   const rows = computePeriodCalculations(
     vas.map((v) => ({
       vaId: v.vaId,
