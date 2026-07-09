@@ -30,6 +30,7 @@ const ROLE_LABELS: Record<Role, string> = {
   SALES: "Sales",
   SENIOR_VA: "Senior VA",
   VA: "VA",
+  TESTER: "Tester",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_MEMBER: "Client Member",
 };
