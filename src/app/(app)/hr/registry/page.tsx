@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ActionButton } from "@/components/ActionButton";
-import { BaselineCell, BaselineCutover } from "@/components/BaselineEditor";
+import { BaselineCell, BaselineCutover, VaEmailCell } from "@/components/BaselineEditor";
 import { SupervisorSelect } from "@/components/SupervisorSelect";
 import { NotifyPrefsCell } from "@/components/NotifyPrefsCell";
 
@@ -68,7 +68,9 @@ export default async function RegistryPage() {
                 <tr key={va.vaId}>
                   <td style={td}>
                     <div style={{ fontWeight: 600 }}>{va.name}</div>
-                    <div className="small">{va.email}</div>
+                    {canEdit
+                      ? <VaEmailCell vaId={va.vaId} email={va.email} />
+                      : <div className="small">{va.email}</div>}
                   </td>
                   <td style={td}><Badge variant="primary">{va.compensationRole}</Badge></td>
                   <td style={td}><Badge variant={statusVariant(va.status)} dot>{va.status}</Badge></td>

@@ -408,6 +408,34 @@ export async function setVaBaseline(vaId: string, baselineHours: number, actorEm
   return va;
 }
 
+/**
+ * Change a VA's registry email. This is consequential, not cosmetic: the app
+ * links a login to its VA profile by matching `Va.email` to `User.email`
+ * (see auth/access.ts, auth/delegation.ts), and it's the address task,
+ * evaluation, and onboarding notifications are sent to. So this must be the
+ * VA's real working account — e.g. when someone was first registered under a
+ * personal email but now logs in with their @purewaterautomations account.
+ */
+export async function setVaEmail(vaId: string, email: string, actorEmail: string) {
+  const id = requireText(vaId, "vaId");
+  const next = requireText(email, "email").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) throw new Error("Enter a valid email address.");
+  const current = await db.va.findUnique({ where: { vaId: id }, select: { email: true, name: true } });
+  if (!current) throw new Error("VA not found.");
+  if (current.email.toLowerCase() === next) return { vaId: id, email: current.email };
+  const clash = await db.va.findFirst({ where: { email: next, NOT: { vaId: id } }, select: { name: true } });
+  if (clash) throw new Error(`That email already belongs to ${clash.name}.`);
+  const va = await db.va.update({ where: { vaId: id }, data: { email: next } });
+  await logActivity({
+    source: "hr_action",
+    eventType: "va_email_changed",
+    vaId: id,
+    severity: "info",
+    summary: `Registry email for ${va.name} changed from ${current.email} to ${next} by ${actorEmail}`,
+  });
+  return { vaId: id, email: va.email };
+}
+
 /** Email TEST MODE — redirect ALL system mail to one address (empty = off). */
 export async function setEmailTestRedirect(email: string | undefined, actorEmail: string) {
   const value = (email ?? "").trim();
