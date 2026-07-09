@@ -1,26 +1,25 @@
 #!/usr/bin/env bash
 # Deploy the PWA VA Management console.
 #
-#   ./deploy.sh dev            deploy committed HEAD of main -> IONOS staging
-#   ./deploy.sh dev  <ref>     deploy any committed ref      -> IONOS staging
-#   ./deploy.sh prod           deploy origin/production      -> Hostinger PRODUCTION
-#   ./deploy.sh prod <ref>     prod refuses anything that isn't the production
-#                              branch or a v* tag (guard against shipping WIP)
+#   ./deploy.sh prod           deploy main            -> Hostinger PRODUCTION (guarded)
+#   ./deploy.sh prod <ref>     prod refuses anything that isn't main or a v* tag
+#   ./deploy.sh dev  <ref>     deploy any committed ref -> IONOS dev/testing box
 #
-# Model (dual-env-deploy house standard, adapted):
-#   main        = integration, deployed freely to the IONOS dev box
-#   production  = exactly what's live on Hostinger; moves via merge + this script
-#   hotfix      = branch FROM production, fix, merge back, deploy prod,
-#                 then cherry-pick/merge back to main (dev ⊇ prod invariant)
+# House model (main = prod, set 2026-07-09):
+#   main       = production — EXACTLY what's live on Hostinger. Ship via this script.
+#   feature/*  = dev + testing, deployed to the IONOS subdomains (dev-team, discovery,
+#                dev-projects). Promote by merging a tested feature into main + `prod`.
+#   hotfix     = branch FROM main, fix, merge back to main, deploy prod.
 #
 # Only COMMITTED code ever reaches a box:
-#   dev  = `git archive <ref>` rsync'd (never the dirty working tree)
-#   prod = git push to the box's bare repo + `git reset --hard` of current/
-#          (the box IS a git checkout — `git log` on the box = what's live)
+#   prod = git push main to the box's bare repo + checkout/reset (the box IS a git
+#          checkout on `main` — `git log` on the box = what's live).
+#   dev  = `git archive <ref>` rsync'd (never the dirty working tree).
+# Prod additionally: pg_dumps the DB first, runs migrate deploy, and health-checks.
 #
-# Prod flow additionally: pg_dumps the DB first, runs migrate deploy, and
-# health-checks after restart. Env + secrets live in each box's shared/ dir
-# and are never shipped from here.
+# NOTE: `dev` has NO default ref on purpose. The dev box runs whichever
+# feature/integration branch is under test (e.g. integration/dev-mcp); deploying a bare
+# `main` there would push the lean prod schema onto the dev DB and break it.
 set -euo pipefail
 
 ENV="${1:-}"
@@ -35,7 +34,7 @@ PORT="8796"
 DEV_URL="https://dev-team.pwasecondbrain.uk"
 PROD_URL="https://team.purewaterautomations.com"
 
-usage() { echo "usage: ./deploy.sh <dev|prod> [ref]"; exit 1; }
+usage() { echo "usage: ./deploy.sh <dev|prod> [ref]   (dev requires an explicit ref)"; exit 1; }
 [ -z "$ENV" ] && usage
 
 build_and_restart() { # $1 = vps
@@ -46,14 +45,13 @@ build_and_restart() { # $1 = vps
     npx prisma migrate deploy && \
     npm run build && \
     systemctl restart $SERVICE && \
-    (systemctl try-restart va-management-rtms 2>/dev/null || true) && \
     sleep 2 && echo active=\$(systemctl is-active $SERVICE) && \
     curl -sf http://127.0.0.1:$PORT/api/health"
 }
 
 case "$ENV" in
   dev)
-    REF="${REF:-main}"
+    [ -z "$REF" ] && { echo "ERROR: dev needs an explicit ref, e.g. ./deploy.sh dev integration/dev-mcp"; exit 1; }
     git -C "$SRC" rev-parse --verify --quiet "$REF^{commit}" >/dev/null \
       || { echo "ERROR: '$REF' is not a committed ref. Commit first — the dirty tree never ships."; exit 1; }
     SHA="$(git -C "$SRC" rev-parse --short "$REF")"
@@ -72,11 +70,11 @@ case "$ENV" in
     ;;
 
   prod)
-    REF="${REF:-production}"
-    # HARD GUARD: prod only ships the production branch or a v* release tag.
-    if [ "$REF" != "production" ] && ! [[ "$REF" == v* ]]; then
-      echo "ERROR: prod deploys only 'production' or a v* tag (got '$REF')."
-      echo "       Promote first:  git merge <work> into production, then ./deploy.sh prod"
+    REF="${REF:-main}"
+    # HARD GUARD: prod only ships main or a v* release tag.
+    if [ "$REF" != "main" ] && ! [[ "$REF" == v* ]]; then
+      echo "ERROR: prod deploys only 'main' or a v* tag (got '$REF')."
+      echo "       Promote first:  git merge <tested-feature> into main, then ./deploy.sh prod"
       exit 1
     fi
     git -C "$SRC" rev-parse --verify --quiet "$REF^{commit}" >/dev/null \
@@ -90,15 +88,14 @@ case "$ENV" in
       gzip -t backups/va_console-predeploy-\$TS.sql.gz && echo \"backup ok: backups/va_console-predeploy-\$TS.sql.gz\""
 
     echo "==> prod: pushing $REF ($SHA) to the box repo"
-    git -C "$SRC" push "ssh://$PROD_VPS$BASE/repo.git" "$REF:production"
+    git -C "$SRC" push --force "ssh://$PROD_VPS$BASE/repo.git" "$REF:main"
 
-    echo "==> prod: checkout + build + migrate + restart"
+    echo "==> prod: checkout main + build + migrate + restart"
     ssh "$PROD_VPS" "cd $BASE/current && \
-      git fetch origin && git reset --hard origin/production && \
+      git fetch origin && git checkout -f -B main origin/main && git reset --hard origin/main && \
       git log --oneline -1"
     build_and_restart "$PROD_VPS"
     echo; echo "==> done. $PROD_URL (deployed $SHA)"
-    echo "==> reminder: dev ⊇ prod — if this was a hotfix, merge it back to main."
     ;;
 
   *) usage ;;
