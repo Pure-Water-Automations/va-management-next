@@ -158,6 +158,20 @@ export async function recalculateOpenPeriod() {
 }
 
 export async function lockOpenPeriod() {
+  // Approval gate (proposal §6.2): every row must be resolved.
+  const open = await db.payrollPeriod.findFirst({
+    where: { status: "open" },
+    orderBy: { periodStart: "desc" },
+  });
+  if (open) {
+    const unresolved = await db.payrollCalculation.count({
+      where: { periodStart: open.periodStart, rowStatus: { in: ["submitted"] } },
+    });
+    if (unresolved > 0) {
+      throw new Error(`Cannot lock: ${unresolved} row(s) still awaiting approval.`);
+    }
+  }
+
   const recalculated = await recalculateOpenPeriod();
   const period = await db.payrollPeriod.update({
     where: { periodStart: recalculated.period.periodStart },

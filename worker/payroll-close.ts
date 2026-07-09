@@ -6,6 +6,7 @@
  */
 import { db } from "@/lib/db";
 import { activeHoursSource } from "@/lib/services/hours-source";
+import { nextPeriodAfter } from "@/lib/services/pay-schedule";
 import { computePeriodCalculations } from "@/lib/services/payroll-calc";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
@@ -120,7 +121,24 @@ async function main() {
         if (from && bookkeeper)
           await sendSystemEmail({ from, to: bookkeeper, subject: "Payroll period closed — calculations attached", body: `Period ${period.periodStart.toISOString().slice(0, 10)} closed.\n\n${toCsv(rows)}` });
         await logActivity({ source: "payroll_close", eventType: "period_closed", summary: `Closed period ${period.periodStart.toISOString().slice(0, 10)} — ${rows.length} VAs, $${totalGross.toFixed(2)}` });
-        action = "closed";
+        // Auto-create the next semi-monthly period (proposal §4) so payroll
+        // never stalls waiting for a manual create-period.
+        const next = nextPeriodAfter({
+          periodStart: period.periodStart,
+          periodEnd: period.periodEnd,
+          runDate: period.closeDate,
+        });
+        await db.payrollPeriod.upsert({
+          where: { periodStart: next.periodStart },
+          update: {},
+          create: {
+            periodStart: next.periodStart,
+            periodEnd: next.periodEnd,
+            closeDate: next.runDate,
+            status: "open",
+          },
+        });
+        action = "closed_and_created_next";
       }
     }
 
