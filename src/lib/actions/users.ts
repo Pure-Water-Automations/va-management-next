@@ -30,6 +30,10 @@ export async function createUser(data: {
   const email = data.email.trim().toLowerCase();
   if (!email) throw new Error("Email is required");
   if (!ROLES.includes(data.role)) throw new Error("Invalid role");
+  // Link the login to its VA record when the email matches one — Va.email == User.email
+  // is how the VA console resolves a login to its profile. Without this, a VA login is
+  // never recognised as a VA: no dashboard, and delegated tasks never show up.
+  const va = await db.va.findUnique({ where: { email }, select: { vaId: true } });
   await db.user.create({
     data: {
       email,
@@ -37,6 +41,7 @@ export async function createUser(data: {
       role: data.role,
       isAdmin: data.isAdmin,
       active: true,
+      ...(va ? { vaId: va.vaId } : {}),
     },
   });
   revalidatePath("/admin/users");

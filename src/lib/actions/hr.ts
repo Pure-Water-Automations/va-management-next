@@ -426,6 +426,10 @@ export async function setVaEmail(vaId: string, email: string, actorEmail: string
   const clash = await db.va.findFirst({ where: { email: next, NOT: { vaId: id } }, select: { name: true } });
   if (clash) throw new Error(`That email already belongs to ${clash.name}.`);
   const va = await db.va.update({ where: { vaId: id }, data: { email: next } });
+  // Keep the login link in sync: a User with this email IS this VA (Va.email ==
+  // User.email). Correcting a VA's registry email therefore also repairs their console
+  // access + delegated-task visibility for any matching login that wasn't linked yet.
+  await db.user.updateMany({ where: { email: next, vaId: null }, data: { vaId: id } });
   await logActivity({
     source: "hr_action",
     eventType: "va_email_changed",
