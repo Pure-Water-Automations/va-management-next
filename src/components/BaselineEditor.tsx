@@ -29,6 +29,28 @@ export function BaselineCell({ vaId, baselineHours }: { vaId: string; baselineHo
   );
 }
 
+export function VaEmailCell({ vaId, email }: { vaId: string; email: string }) {
+  const router = useRouter();
+  const [val, setVal] = useState(email);
+  const [busy, setBusy] = useState(false);
+  const dirty = val.trim().toLowerCase() !== email.toLowerCase();
+
+  async function save() {
+    setBusy(true);
+    const res = await postAction("/api/hr/set-va-email", { vaId, email: val.trim() });
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error ?? "Failed"); return; }
+    router.refresh();
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <input type="email" value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && dirty) save(); }} style={{ ...inp, width: 210 }} aria-label={`Registry email for VA ${vaId}`} />
+      {dirty && <button onClick={save} disabled={busy} style={{ border: "none", background: "transparent", color: "var(--color-sky-600)", fontWeight: 700, fontSize: "var(--text-xs)", cursor: "pointer" }}>{busy ? "…" : "save"}</button>}
+    </div>
+  );
+}
+
 export function BaselineCutover({ current }: { current: string }) {
   const router = useRouter();
   const [date, setDate] = useState(current);
