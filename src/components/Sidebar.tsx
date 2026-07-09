@@ -90,6 +90,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Payroll",
       items: [
         { href: "/payroll", label: "Active Period", icon: <IconDollar /> },
+        { href: "/payroll/mapping", label: "Client Mapping", icon: <IconBuilding /> },
         { href: "/payroll/archive", label: "Archive", icon: <IconArchive /> },
         { href: "/directory", label: "Team Directory", icon: <IconUsers /> },
       ],
