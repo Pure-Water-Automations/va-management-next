@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
-import { viewForRole } from "@/lib/auth/roles";
+import { getCurrentUser, getEffectiveView, isAllAccess } from "@/lib/auth/access";
 import { getHrDashboard } from "@/lib/reads/hr";
 import { Stat } from "@/components/ui/Stat";
 import { Badge } from "@/components/ui/Badge";
@@ -52,9 +51,13 @@ type Decision = {
 
 export default async function HrDashboard() {
   const user = await getCurrentUser();
-  // Guard the HR console: only HR-view roles (and admins) land here — others
-  // (SALES, RECRUITER, VA …) go to their own home.
-  if (viewForRole(user.role) !== "HR" && !user.isAdmin) redirect("/");
+  // Guard the HR console using the SAME source of truth the root router uses to
+  // send people here (`getEffectiveView`), not `viewForRole` alone. All-access
+  // users (admins AND the QA `TESTER` role) can switch consoles via the `va_view`
+  // cookie, so an all-access user viewing HR must be admitted — otherwise the root
+  // router (which honors the cookie) sends them to /hr while this guard bounces
+  // them to /, an infinite redirect loop (TESTER → "view as HR" → reload/404).
+  if ((await getEffectiveView(user)) !== "HR" && !isAllAccess(user)) redirect("/");
   const [d, settings, birthdayVas] = await Promise.all([
     getHrDashboard(),
     loadSettings(),
