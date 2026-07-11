@@ -1,6 +1,6 @@
 import type { TrialActorType } from "@/lib/trial/types";
 import { chatJson, type TrialAiTransport } from "./client";
-import { disclosureTag, escalationCheck, outputFilter } from "./guardrails";
+import { escalationCheck, outputFilter } from "./guardrails";
 import { emilyPrompt, michaelPrompt, puriiPrompt, sarahPrompt, type PersonaContext } from "./personas";
 
 interface HistoryMessage {
@@ -67,9 +67,11 @@ export async function generateActorReply({
   );
   if (!response) return { reply: null, escalated: false, escalationReason: null };
 
+  // No disclosure prefix here — the stored message already carries structured
+  // attribution (from + "AI reply" tag); a text prefix would double-badge the UI.
   const filtered = outputFilter(response.reply);
   return {
-    reply: `${disclosureTag(actorType)} ${filtered}`.trim(),
+    reply: filtered.trim(),
     escalated: false,
     escalationReason: null,
   };

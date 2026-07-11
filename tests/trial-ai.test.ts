@@ -42,7 +42,9 @@ test("prohibited pass language is replaced with a neutral human-review redirect"
   });
 
   assert.equal(result.escalated, false);
-  assert.match(result.reply || "", /^\[Purii · AI coordinator\]/);
+  // No disclosure prefix in the text — the message row carries structured
+  // attribution (from + tag); a bracket prefix would double-badge the UI.
+  assert.doesNotMatch(result.reply || "", /^\[Purii/);
   assert.doesNotMatch(result.reply || "", /you passed/i);
   assert.match(result.reply || "", /human reviewer/i);
   assert.match(result.reply || "", /draft is ready for review/i);

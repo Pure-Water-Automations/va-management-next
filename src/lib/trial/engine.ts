@@ -416,7 +416,7 @@ export function validateStepSubmission(
   }
   const valid =
     kind === "learn" ? Boolean(text1) :
-    kind === "tour" ? Boolean(link) :
+    kind === "tour" ? Boolean(input.checklistChecks?.length || text1 || link) :
     kind === "sim" ? Boolean(text1 && text2) :
     kind === "sop" ? Boolean(text2) :
     kind === "meet" ? Boolean(text1) :
@@ -533,9 +533,17 @@ export async function replyToMessage(candidateId: string, input: MessageReplyReq
     db.trialEvent.create({ data: { trialId: trial.id, day, actor: "Candidate", type: TRIAL_EVENTS.MESSAGE_SENT, label: `Message sent to ${actorType}`, dataJson: { actorType } } }),
   ]);
   const historyRows = await db.trialMessage.findMany({ where: { conversationId: conversation.id }, orderBy: { timestamp: "asc" }, include: { conversation: { select: { actorType: true } } } });
-  const reply = await generateActorReply({ trial, actorType, candidateText, history: historyRows.map(messageView) });
-  if (!reply) return { ok: true };
-  const created = await db.trialMessage.create({ data: { conversationId: conversation.id, timestamp: now, day, from: actorType.toLowerCase(), text: reply, tag: "AI reply" }, include: { conversation: { select: { actorType: true } } } });
+  const aiResult = await generateActorReply({ trial, actorType, candidateText, history: historyRows.map(messageView) });
+  if (aiResult.escalated) {
+    // Guardrail tripped (health/accommodation/hostility) or the candidate wrote
+    // to the Human thread: route to a person, never auto-reply (doc 03 §3).
+    await logTrialEvent(trial.id, day, "AI", TRIAL_EVENTS.HUMAN_ESCALATED, `Conversation with ${actorType} escalated to a human: ${aiResult.escalationReason ?? "safety check"}`, { actorType, reason: aiResult.escalationReason });
+    const humanConversation = await getConversation(trial.id, "Human");
+    const created = await db.trialMessage.create({ data: { conversationId: humanConversation.id, timestamp: now, day, from: "purii", text: "Thanks for flagging this — I'm routing you to the PWA HR team so a person can help. They'll reply here soon.", tag: "AI · routed to human" }, include: { conversation: { select: { actorType: true } } } });
+    return { ok: true, reply: messageView(created) };
+  }
+  if (!aiResult.reply) return { ok: true };
+  const created = await db.trialMessage.create({ data: { conversationId: conversation.id, timestamp: now, day, from: actorType.toLowerCase(), text: aiResult.reply, tag: "AI reply" }, include: { conversation: { select: { actorType: true } } } });
   await logTrialEvent(trial.id, day, "AI", TRIAL_EVENTS.MESSAGE_SENT, `${actorType} replied`, { actorType });
   return { ok: true, reply: messageView(created) };
 }

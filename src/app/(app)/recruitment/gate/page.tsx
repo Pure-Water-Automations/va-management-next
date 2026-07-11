@@ -20,8 +20,22 @@ const REC_LABEL: Record<string, string> = {
 };
 
 export default async function GateReviewPage() {
-  const [user, candidates, preTrial] = await Promise.all([getCurrentUser(), getGateQueue(), getPreTrialQueue()]);
+  const [user, allCandidates, preTrial] = await Promise.all([getCurrentUser(), getGateQueue(), getPreTrialQueue()]);
   const canReview = isGateReviewer(user.role) || user.isAdmin;
+
+  // V2 trial candidates are reviewed ONLY through the Skills Trial console
+  // (rubric + validation) — keep them out of the legacy pass/fail list so the
+  // old buttons can't bypass the V2 gate rules.
+  let candidates = allCandidates;
+  if (env.SKILLS_TRIAL_V2) {
+    const { db } = await import("@/lib/db");
+    const v2Trials = await db.candidateTrial.findMany({
+      where: { programVersion: { versionNumber: { not: 1 } } },
+      select: { candidateId: true },
+    });
+    const v2Ids = new Set(v2Trials.map((t) => t.candidateId));
+    candidates = allCandidates.filter((c) => !v2Ids.has(c.candidateId));
+  }
 
   return (
     <>

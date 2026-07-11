@@ -19,11 +19,19 @@ export default async function TrackPage({ params }: { params: Promise<{ token: s
 
   const candidate = await db.candidate.findUnique({
     where: { trainingAccessToken: token },
-    select: { trial: { select: { programVersion: { select: { versionNumber: true } } } } },
+    select: {
+      currentStage: true,
+      trial: { select: { programVersion: { select: { versionNumber: true } } } },
+    },
   });
 
+  // No trial row yet is the NORMAL state for a fresh V2 invite — the trial is
+  // created lazily by Mission Control's first GET /api/trials/steps. Only an
+  // explicit V1 trial (or a candidate outside the trial stage) stays on the
+  // legacy checklist.
   const versionNumber = candidate?.trial?.programVersion.versionNumber;
-  if (!candidate?.trial || versionNumber === 1) {
+  const isActiveTrialCandidate = candidate?.currentStage === "tenhr_in_progress";
+  if (versionNumber === 1 || (!candidate?.trial && !isActiveTrialCandidate)) {
     return <TrackClient token={token} />;
   }
 

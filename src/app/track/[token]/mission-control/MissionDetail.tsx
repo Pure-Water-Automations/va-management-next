@@ -49,7 +49,10 @@ export function MissionDetail({
 }) {
   const meta = KIND_META[step.kind];
   const status = STATUS_META[step.status];
-  const needsRevision = step.status === "NEEDS_REVISION";
+  // A step stays "in revision" after the candidate restarts it (status moves to
+  // IN_PROGRESS) — prior feedback means the engine requires a revision plan on
+  // every resubmission, so keep collecting it whenever feedback exists.
+  const needsRevision = step.status === "NEEDS_REVISION" || (step.feedback !== null && step.status !== "APPROVED" && step.status !== "SUBMITTED");
   const locked = step.status === "APPROVED" || step.status === "SUBMITTED";
 
   // ── Form state, seeded from the step (re-seeds when the step changes) ──
