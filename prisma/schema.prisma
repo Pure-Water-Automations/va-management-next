@@ -140,8 +140,8 @@ model Va {
   desklogUserId     String?
   skillSpecs        String?
   availabilityNotes String?
-  daysOff           String?   // comma-separated regular days off, e.g. "Mon,Sat"
-  lastCheckinNotes  String?   // latest free-text check-in notes
+  daysOff           String? // comma-separated regular days off, e.g. "Mon,Sat"
+  lastCheckinNotes  String? // latest free-text check-in notes
   lastCheckinDate   DateTime?
   notionProfileUrl  String?
   roleStartedDate   DateTime?
@@ -472,6 +472,8 @@ model Candidate {
   sessions         TrainingSession[]
   taskProgress     TrainingTaskProgress[]
   recordings       Recording[]
+  // PWA Skills Trial (V2 simulated work week)
+  trial            CandidateTrial?
   // In-app screen recording used for the 10-hr walkthrough (augments tenhrLoomUrl).
   // Wiring is deferred; the column exists now so no later migration is needed.
   tenhrRecordingId String?
@@ -666,7 +668,7 @@ model Recording {
   enhancedKey         String? // recordings/<id>/enhanced.mp4
   enhancedDurationSec Float?
   enhanceStats        Json? // { cutMs, outputMs, sourceMs, byType }
-  enhanceError        String? @db.Text
+  enhanceError        String?   @db.Text
   enhancedAt          DateTime?
 
   // Review workflow (supervisor / HR)
@@ -932,8 +934,8 @@ model MeetingActionItem {
   suggestedDueDate  DateTime?
   clientContext     String?
   status            MeetingActionItemStatus @default(PENDING)
-  taskId            String?                 // soft ref to Task.id (no FK, by design)
-  resolvedBy        String?                 // email of who confirmed/skipped
+  taskId            String? // soft ref to Task.id (no FK, by design)
+  resolvedBy        String? // email of who confirmed/skipped
   resolvedAt        DateTime?
   createdAt         DateTime                @default(now())
 
@@ -1210,4 +1212,153 @@ model ClientOnboarding {
   notes                String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
+}
+
+// ── PWA Skills Trial (V2 simulated work week) ─────────────────────────────
+// docs/skills-trial/09-technical-prd.md §3 + appendices/D-data-model.md
+
+enum TrialStatus {
+  ACTIVE
+  SUBMITTED
+  REVISION
+  COMPLETED
+}
+
+enum MissionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  NEEDS_REVISION
+  APPROVED
+}
+
+// One immutable snapshot of the trial program (prevents mid-trial edits).
+model TrialProgramVersion {
+  id            String   @id @default(cuid())
+  versionNumber Int      @unique
+  name          String   @default("V2 Simulated Work Week")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  templates MissionTemplate[]
+  trials    CandidateTrial[]
+}
+
+// Template for each of the 9 simulated steps.
+model MissionTemplate {
+  id               String              @id @default(cuid())
+  programVersionId String
+  programVersion   TrialProgramVersion @relation(fields: [programVersionId], references: [id], onDelete: Cascade)
+  sortOrder        Int                 @default(0)
+  key              String // e.g. "mission", "sim", "sop", "meet"
+  title            String
+  kind             String // learn | tour | sim | branch | sop | meet | reflect
+  kindLabel        String // ORIENTATION | CLIENT WORK | SYSTEMS | TEAM | REFLECTION
+  estMinutes       Int
+  dayDue           Int
+  clientName       String
+  story            String              @db.Text
+  deliverableText  String
+  instructionsText String              @db.Text
+  // structured extras (scenario checks, branch briefs, reflection questions)
+  contentJson      Json?
+
+  candidateMissions CandidateMission[]
+
+  @@index([programVersionId])
+}
+
+// One active instance of a trial program for a candidate.
+model CandidateTrial {
+  id                   String              @id @default(cuid())
+  candidateId          String              @unique
+  candidate            Candidate           @relation(fields: [candidateId], references: [candidateId], onDelete: Cascade)
+  programVersionId     String
+  programVersion       TrialProgramVersion @relation(fields: [programVersionId], references: [id])
+  startDate            DateTime            @default(now())
+  deadlineDate         DateTime
+  activeSeconds        Int                 @default(0) // total compiled duration of timers
+  status               TrialStatus         @default(ACTIVE)
+  timezone             String              @default("GMT+8")
+  declaredDays         String              @default("Mon,Tue,Wed,Thu,Fri") // comma separated
+  declaredBlock        String              @default("Morning") // Morning | Afternoon | Evening
+  specializationTrack  String? // comms | coordination | research
+  acknowledgedAt       DateTime?
+  accommodationsActive Boolean             @default(false) // pauses reminders + excludes latency scoring
+
+  missions      CandidateMission[]
+  events        TrialEvent[]
+  conversations TrialConversation[]
+
+  @@index([status])
+}
+
+// Candidate-specific snapshot of a mission template.
+model CandidateMission {
+  id             String          @id @default(cuid())
+  trialId        String
+  trial          CandidateTrial  @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       MissionTemplate @relation(fields: [templateId], references: [id])
+  status         MissionStatus   @default(NOT_STARTED)
+  secondsSpent   Int             @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  timerStartedAt DateTime? // server-side active timer anchor; null = timer stopped
+
+  // Submission values
+  submittedText1 String? @db.Text // message to client / comment
+  submittedText2 String? @db.Text // announcement draft / SOP field JSON
+  submittedLink  String?
+  revisionPlan   String? @db.Text // revision ETA plan
+  // prior submission snapshot for the artifact-comparison view
+  initialText1   String? @db.Text
+  initialText2   String? @db.Text
+  initialLink    String?
+
+  // Feedback snapshot
+  feedbackJson Json? // { obs, impact, sugg, enc }
+
+  @@unique([trialId, templateId])
+  @@index([trialId])
+}
+
+// Persistent chronological timeline events (immutable audit log).
+model TrialEvent {
+  id        String         @id @default(cuid())
+  trialId   String
+  trial     CandidateTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  timestamp DateTime       @default(now())
+  day       Int
+  actor     String // System | Candidate | AI | Human
+  type      String // event taxonomy key, see src/lib/trial/events.ts
+  label     String         @db.Text
+  dataJson  Json?
+
+  @@index([trialId, timestamp])
+}
+
+// Conversation thread groupings (Purii / Sarah / Emily / Michael / Human).
+model TrialConversation {
+  id        String         @id @default(cuid())
+  trialId   String
+  trial     CandidateTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  actorType String // Purii | Sarah | Emily | Michael | Human
+
+  messages TrialMessage[]
+
+  @@unique([trialId, actorType])
+}
+
+model TrialMessage {
+  id             String            @id @default(cuid())
+  conversationId String
+  conversation   TrialConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  timestamp      DateTime          @default(now())
+  day            Int
+  from           String // purii | me | human | sarah | emily | michael
+  text           String            @db.Text
+  tag            String? // subtitle like "AI feedback" or "Human · J. Okamoto"
+
+  @@index([conversationId, timestamp])
 }

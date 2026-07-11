@@ -49,6 +49,18 @@ const envSchema = z.object({
     if (typeof value !== "string" || value.trim() === "") return true; // default ON
     return !["false", "0", "off", "no"].includes(value.trim().toLowerCase());
   }, z.boolean()),
+  // PWA Skills Trial (V2 simulated work week). Default OFF — Stage-1 rollout is
+  // feature-flagged to the recruit.* test instance only (docs/skills-trial/14).
+  SKILLS_TRIAL_V2: z.preprocess((value) => {
+    if (typeof value !== "string" || value.trim() === "") return false; // default OFF
+    return ["true", "1", "on", "yes"].includes(value.trim().toLowerCase());
+  }, z.boolean()),
+  // AI model for the trial personas (Purii/Sarah/Emily/Michael/Reviewer
+  // Assistant), served through the existing OpenRouter client. DEC-006.
+  TRIAL_AI_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("google/gemini-2.5-flash-lite"),
+  ),
   // MCP endpoint: shared bearer token + the service identity it acts as. The
   // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
   MCP_API_TOKEN: optionalEnvString(z.string()),
