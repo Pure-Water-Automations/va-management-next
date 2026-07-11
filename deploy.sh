@@ -34,7 +34,15 @@ PORT="8796"
 DEV_URL="https://dev-team.pwasecondbrain.uk"
 PROD_URL="https://team.purewaterautomations.com"
 
-usage() { echo "usage: ./deploy.sh <dev|prod> [ref]   (dev requires an explicit ref)"; exit 1; }
+# Skills Trial isolated test instance (recruit.pwasecondbrain.uk) — same IONOS
+# box, own dir/service/DB (va_console_trial) so trial testing never touches the
+# shared dev box. Promote: trial -> merge to a dev branch -> main.
+TRIAL_BASE="/app/SecondBrain/va-trial-test"
+TRIAL_SERVICE="va-trial-test"
+TRIAL_PORT="8803"
+TRIAL_URL="https://recruit.pwasecondbrain.uk"
+
+usage() { echo "usage: ./deploy.sh <dev|trial|prod> [ref]   (dev/trial require an explicit ref)"; exit 1; }
 [ -z "$ENV" ] && usage
 
 build_and_restart() { # $1 = vps
@@ -67,6 +75,31 @@ case "$ENV" in
     ssh "$DEV_VPS" "echo '$SHA' > $BASE/current/DEPLOYED_VERSION"
     build_and_restart "$DEV_VPS"
     echo; echo "==> done. $DEV_URL (deployed $SHA)"
+    ;;
+
+  trial)
+    [ -z "$REF" ] && { echo "ERROR: trial needs an explicit ref, e.g. ./deploy.sh trial feature/skills-trial-v2"; exit 1; }
+    git -C "$SRC" rev-parse --verify --quiet "$REF^{commit}" >/dev/null \
+      || { echo "ERROR: '$REF' is not a committed ref. Commit first — the dirty tree never ships."; exit 1; }
+    SHA="$(git -C "$SRC" rev-parse --short "$REF")"
+    echo "==> trial: git archive $REF ($SHA) -> $DEV_VPS:$TRIAL_BASE/current"
+    TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+    git -C "$SRC" archive "$REF" | tar -x -C "$TMP"
+    rsync -az --delete \
+      --exclude node_modules/ --exclude .next/ --exclude .git/ \
+      --exclude va-world/ \
+      "$TMP/" "$DEV_VPS:$TRIAL_BASE/current/"
+    ssh "$DEV_VPS" "echo '$SHA' > $TRIAL_BASE/current/DEPLOYED_VERSION"
+    ssh "$DEV_VPS" "cd $TRIAL_BASE/current && \
+      set -a && . $TRIAL_BASE/shared/.env && set +a && \
+      npm ci --include=dev --no-audit --no-fund && \
+      npx prisma generate && \
+      npx prisma migrate deploy && \
+      npm run build && \
+      systemctl enable --now $TRIAL_SERVICE >/dev/null 2>&1; systemctl restart $TRIAL_SERVICE && \
+      sleep 2 && echo active=\$(systemctl is-active $TRIAL_SERVICE) && \
+      curl -sf http://127.0.0.1:$TRIAL_PORT/api/health"
+    echo; echo "==> done. $TRIAL_URL (deployed $SHA)"
     ;;
 
   prod)
