@@ -2,11 +2,13 @@ import { getGateQueue, getPreTrialQueue } from "@/lib/reads/hr-extra";
 import { getCurrentUser } from "@/lib/auth/access";
 import { pluralize } from "@/lib/labels";
 import { isGateReviewer } from "@/lib/auth/roles";
+import { env } from "@/lib/env";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ActionButton } from "@/components/ActionButton";
 import { ApplicationDetails } from "@/components/ApplicationDetails";
 import { ScreeningPanel } from "@/components/ScreeningPanel";
+import { TrialQueue } from "./trial/TrialQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,8 @@ export default async function GateReviewPage() {
         </div>
         <span className="small">{preTrial.length + candidates.length} in review</span>
       </div>
+
+      {env.SKILLS_TRIAL_V2 && <TrialQueue />}
 
       <h2 style={sectionTitle}>Pre-trial reviews <span className="small" style={{ fontWeight: 400 }}>({preTrial.length}) — approve to start the 10-hour trial</span></h2>
       {preTrial.length === 0 ? (
