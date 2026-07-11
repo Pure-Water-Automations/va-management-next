@@ -1,4 +1,4 @@
-import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
+import { getCurrentUser, isBetaVisible, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -126,7 +126,7 @@ function sectionLabel(text: string) {
 export default async function HrClientOrgPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await getCurrentUser();
-  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !user.isAdmin) {
+  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !isAllAccess(user)) {
     redirect("/hr");
   }
 
