@@ -132,6 +132,10 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   lastCursorSent = 0;
   lastDragEmit = 0;
   titleEmitTimer: ReturnType<typeof setTimeout> | null = null;
+  _wheel?: (e: WheelEvent) => void;
+  _kd?: (e: KeyboardEvent) => void;
+  _ku?: (e: KeyboardEvent) => void;
+  spaceDown = false;
 
   constructor(props: Props) {
     super(props);
@@ -173,15 +177,72 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     this._mu = () => this.onWinUp();
     window.addEventListener("mousemove", this._mm);
     window.addEventListener("mouseup", this._mu);
+    // Keyboard nav (arrows pan, +/-/0 zoom) + space-to-pan, like Miro. Ignored while
+    // typing in an input / contentEditable so it never hijacks text entry.
+    this._kd = (e: KeyboardEvent) => this.onKeyDown(e);
+    this._ku = (e: KeyboardEvent) => {
+      if (e.code === "Space") this.spaceDown = false;
+    };
+    window.addEventListener("keydown", this._kd);
+    window.addEventListener("keyup", this._ku);
     setTimeout(() => this.fitView(), 0);
     this.connectLive();
   }
   componentWillUnmount() {
     if (this._mm) window.removeEventListener("mousemove", this._mm);
     if (this._mu) window.removeEventListener("mouseup", this._mu);
+    if (this._kd) window.removeEventListener("keydown", this._kd);
+    if (this._ku) window.removeEventListener("keyup", this._ku);
+    if (this.canvasEl && this._wheel) this.canvasEl.removeEventListener("wheel", this._wheel);
     if (this.saveTimer) clearTimeout(this.saveTimer);
     if (this.titleEmitTimer) clearTimeout(this.titleEmitTimer);
     if (this.es) this.es.close();
+  }
+
+  isTyping(): boolean {
+    const a = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+    if (!a) return false;
+    const tag = a.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || a.isContentEditable;
+  }
+  onKeyDown(e: KeyboardEvent) {
+    if (this.isTyping()) return;
+    if (e.code === "Space") {
+      this.spaceDown = true;
+      e.preventDefault();
+      return;
+    }
+    const step = e.shiftKey ? 200 : 70;
+    switch (e.key) {
+      case "ArrowLeft": this.setState((s) => ({ pan: { x: s.pan.x + step, y: s.pan.y } })); e.preventDefault(); break;
+      case "ArrowRight": this.setState((s) => ({ pan: { x: s.pan.x - step, y: s.pan.y } })); e.preventDefault(); break;
+      case "ArrowUp": this.setState((s) => ({ pan: { x: s.pan.x, y: s.pan.y + step } })); e.preventDefault(); break;
+      case "ArrowDown": this.setState((s) => ({ pan: { x: s.pan.x, y: s.pan.y - step } })); e.preventDefault(); break;
+      case "+": case "=": this.zoomIn(); e.preventDefault(); break;
+      case "-": case "_": this.zoomOut(); e.preventDefault(); break;
+      case "0": this.fitView(); e.preventDefault(); break;
+      default: break;
+    }
+  }
+  // Trackpad/mouse wheel: two-finger scroll pans; ctrl/⌘+scroll (and pinch, which the
+  // browser reports as ctrl+wheel) zooms toward the cursor — the Miro/Figma convention.
+  onWheel(e: WheelEvent) {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      const factor = Math.exp(-e.deltaY * 0.01);
+      this.zoomAt(factor, e.clientX, e.clientY);
+    } else {
+      this.setState((s) => ({ pan: { x: s.pan.x - e.deltaX, y: s.pan.y - e.deltaY } }));
+    }
+  }
+  zoomAt(factor: number, clientX: number, clientY: number) {
+    if (!this.canvasEl) return;
+    const r = this.canvasEl.getBoundingClientRect();
+    const cx = clientX - r.left, cy = clientY - r.top;
+    const z = this.state.zoom;
+    const nz = Math.min(2.5, Math.max(0.2, z * factor));
+    const wx = (cx - this.state.pan.x) / z, wy = (cy - this.state.pan.y) / z;
+    this.setState({ zoom: nz, pan: { x: cx - wx * nz, y: cy - wy * nz } });
   }
 
   // ── live collaboration ───────────────────────────────────────────────
@@ -285,7 +346,14 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   }
 
   setCanvasRef = (el: HTMLDivElement | null) => {
+    // Wheel must be a non-passive native listener so we can preventDefault (React's
+    // onWheel is passive and can't stop the page/scroll from moving).
+    if (this.canvasEl && this._wheel) this.canvasEl.removeEventListener("wheel", this._wheel);
     this.canvasEl = el;
+    if (el) {
+      this._wheel = (e: WheelEvent) => this.onWheel(e);
+      el.addEventListener("wheel", this._wheel, { passive: false });
+    }
   };
 
   // ── persistence ──────────────────────────────────────────────────────
@@ -406,6 +474,13 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   }
   onCanvasDown = (e: React.MouseEvent) => {
     if (this.state.shareOpen) this.setState({ shareOpen: false });
+    // Hold Space (or middle-mouse) to pan even when starting over an element — Miro-style.
+    if (this.spaceDown || e.button === 1) {
+      this.drag = { mode: "pan", sx: e.clientX, sy: e.clientY, px: this.state.pan.x, py: this.state.pan.y };
+      this.setState({ panning: true });
+      e.preventDefault();
+      return;
+    }
     const node = (e.target as HTMLElement).closest("[data-el-id]") as HTMLElement | null;
     const tool = this.state.tool;
     if (tool === "connector") {
