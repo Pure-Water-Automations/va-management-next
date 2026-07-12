@@ -113,6 +113,7 @@ model User {
   taskClaimRequests  Task[]              @relation("TaskClaimRequester")
   taskComments       TaskComment[]       @relation("TaskCommentAuthor")
   projectComments    ProjectComment[]    @relation("ProjectCommentAuthor")
+  whiteboardsCreated ProjectWhiteboard[] @relation("WhiteboardCreator")
   savedViews         SavedView[]
   notifications      Notification[]
   clientMemberships  ClientMembership[]
@@ -880,12 +881,32 @@ model Project {
   createdBy          User                @relation("ProjectCreator", fields: [createdById], references: [id])
   tasks              Task[]
   comments           ProjectComment[]
+  whiteboards        ProjectWhiteboard[]
   clientOrganization ClientOrganization? @relation(fields: [clientOrganizationId], references: [id])
 
   @@index([ownerId])
   @@index([status])
   @@index([client])
   @@index([clientOrganizationId])
+}
+
+// A project whiteboard: an infinite canvas of sticky notes, frames, task cards,
+// connectors, stamps, and comments. `data` is the full canvas document (elements +
+// links + view). Whiteboard notes can be promoted into real Tasks on this project
+// via "Convert to tasks" — see lib/actions/whiteboards.ts.
+model ProjectWhiteboard {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String   @default("Untitled board")
+  data        Json?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("WhiteboardCreator", fields: [createdById], references: [id])
+
+  @@index([projectId])
 }
 
 model Task {
