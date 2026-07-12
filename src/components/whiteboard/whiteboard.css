@@ -221,6 +221,14 @@
   border-top: 1px solid var(--color-border-subtle); padding: 9px 12px; display: flex; gap: 7px; align-items: center;
 }
 
+/* image upload spinner */
+.wb-spin {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2.5px solid var(--color-sky-200); border-top-color: var(--color-sky-500);
+  animation: wb-spin 0.7s linear infinite;
+}
+@keyframes wb-spin { to { transform: rotate(360deg); } }
+
 /* stamp emoji palette */
 .wb-stamp-palette {
   position: absolute; left: 70px; top: 50%; transform: translateY(-50%);

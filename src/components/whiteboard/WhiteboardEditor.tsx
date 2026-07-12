@@ -29,6 +29,8 @@ type WbEl = {
   priority?: string;
   due?: string;
   frameId?: string;
+  imgKey?: string; // R2 object key for an uploaded image
+  uploading?: boolean; // image element mid-upload
 };
 type WbLink = { from: string; to: string };
 export type WbDoc = { elements: WbEl[]; links: WbLink[] };
@@ -136,6 +138,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   _kd?: (e: KeyboardEvent) => void;
   _ku?: (e: KeyboardEvent) => void;
   spaceDown = false;
+  fileInput: HTMLInputElement | null = null;
 
   constructor(props: Props) {
     super(props);
@@ -602,6 +605,67 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     }));
     this.emit({ k: "upsert", el });
   }
+  // ── image upload ─────────────────────────────────────────────────────
+  openImagePicker = () => {
+    this.setState({ tool: "select" });
+    this.fileInput?.click();
+  };
+  onImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert("Please choose an image file.");
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      window.alert("Image is too large (max 12 MB).");
+      return;
+    }
+    // Size the element to the image's aspect (read locally before upload).
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      const maxW = 340;
+      const scale = Math.min(1, maxW / (img.naturalWidth || maxW));
+      const w = Math.max(120, Math.round((img.naturalWidth || maxW) * scale));
+      const h = Math.max(90, Math.round((img.naturalHeight || 200) * scale));
+      URL.revokeObjectURL(url);
+      const c = this.canvasEl?.getBoundingClientRect();
+      const center = c ? this.toWorld(c.left + c.width / 2, c.top + c.height / 2) : { x: 400, y: 300 };
+      const id = "img_" + Date.now().toString(36);
+      const el: WbEl = { id, type: "image", x: center.x - w / 2, y: center.y - h / 2, w, h, text: file.name, uploading: true };
+      this.mutate((s) => ({ elements: s.elements.concat(el), selected: [id], tool: "select" }));
+      this.uploadImage(id, file);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      window.alert("Could not read that image.");
+    };
+    img.src = url;
+  };
+  uploadImage = async (id: string, file: File) => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/hr/whiteboards/${this.props.boardId}/image`, { method: "POST", body: fd });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "upload failed");
+      const key: string = json.key;
+      this.mutate((s) => ({ elements: s.elements.map((e) => (e.id === id ? { ...e, imgKey: key, uploading: false } : e)) }));
+      const updated = this.state.elements.find((e) => e.id === id);
+      if (updated) this.emit({ k: "upsert", el: { ...updated, imgKey: key, uploading: false } });
+    } catch (err) {
+      window.alert("Image upload failed: " + (err instanceof Error ? err.message : "unknown error"));
+      // Drop the failed placeholder so the board isn't left with a broken image.
+      this.mutate((s) => ({ elements: s.elements.filter((e) => e.id !== id), selected: [] }));
+      this.emit({ k: "delete", ids: [id] });
+    }
+  };
+  imageSrc(el: WbEl): string {
+    return `/api/hr/whiteboards/${this.props.boardId}/image?key=${encodeURIComponent(el.imgKey!)}`;
+  }
+
   // Capture contentEditable edits back into the document on blur.
   commitText = (id: string) => (e: React.FocusEvent<HTMLDivElement>) => {
     const text = e.currentTarget.textContent ?? "";
@@ -960,14 +1024,29 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                   style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
                   data-el-id={e.id}
                 >
-                  <div className="wb-image-ph">
-                    <Icon d="M4 5h16v14H4z M8 11a1.5 1.5 0 100-3 1.5 1.5 0 000 3z M4 16l5-4 4 3 3-2 4 3" w={26} />
-                    <span style={{ fontSize: 11, fontWeight: 600 }}>Screenshot</span>
-                  </div>
-                  <div className="wb-image-cap">
-                    <Icon d="M4 5h16v14H4z M8 11a1.5 1.5 0 100-3 1.5 1.5 0 000 3z M4 16l5-4 4 3 3-2 4 3" w={13} />
-                    {e.text}
-                  </div>
+                  {e.imgKey ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={this.imageSrc(e)}
+                      alt={e.text || "image"}
+                      draggable={false}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
+                    />
+                  ) : (
+                    <div className="wb-image-ph">
+                      {e.uploading ? (
+                        <>
+                          <span className="wb-spin" />
+                          <span style={{ fontSize: 11, fontWeight: 600 }}>Uploading…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon d="M4 5h16v14H4z M8 11a1.5 1.5 0 100-3 1.5 1.5 0 000 3z M4 16l5-4 4 3 3-2 4 3" w={26} />
+                          <span style={{ fontSize: 11, fontWeight: 600 }}>Image</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -1101,7 +1180,10 @@ class WhiteboardCanvas extends React.Component<Props, State> {
           <div className="wb-toolbar">
             {toolDefs.map((t) => (
               <React.Fragment key={t[0]}>
-                <button className={s.tool === t[0] ? "wb-tool on" : "wb-tool"} onClick={this.setTool(t[0])}>
+                <button
+                  className={s.tool === t[0] ? "wb-tool on" : "wb-tool"}
+                  onClick={t[0] === "image" ? this.openImagePicker : this.setTool(t[0])}
+                >
                   <Icon d={P[t[1]]} />
                   <span className="wb-tip">{t[2]}</span>
                 </button>
@@ -1109,6 +1191,17 @@ class WhiteboardCanvas extends React.Component<Props, State> {
               </React.Fragment>
             ))}
           </div>
+
+          {/* hidden file input for image upload */}
+          <input
+            ref={(el) => {
+              this.fileInput = el;
+            }}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+            style={{ display: "none" }}
+            onChange={this.onImageFile}
+          />
 
           {/* selection context bar */}
           {hasSelection && (
