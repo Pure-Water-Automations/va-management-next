@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
 import { getProjectDetail } from "@/lib/reads/projects";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
+import { listProjectWhiteboards } from "@/lib/reads/whiteboards";
 import { getProjectFieldPills } from "@/lib/reads/fields";
 import { getPageTree, getPageDoc } from "@/lib/reads/pages";
 import { getScratchItems } from "@/lib/reads/scratch";
@@ -20,6 +21,7 @@ import { PageTree } from "@/components/hub/PageTree";
 import { BlockEditor } from "@/components/hub/BlockEditor";
 import { Scratchpad } from "@/components/hub/Scratchpad";
 import { LinkedPanel } from "@/components/hub/LinkedPanel";
+import { ProjectWhiteboards } from "@/components/ProjectWhiteboards";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +35,11 @@ export default async function ProjectHubPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; page?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string; converted?: string }>;
 }) {
   const { id } = await params;
-  const { tab: rawTab, page: rawPage } = await searchParams;
+  const { tab: rawTab, page: rawPage, converted } = await searchParams;
+  const convertedCount = converted ? parseInt(converted, 10) : 0;
   const user = await getCurrentUser();
   if (!user.isAdmin && !canManageTasks(user.role)) {
     redirect("/hr/projects");
@@ -56,13 +59,14 @@ export default async function ProjectHubPage({
   const projectClientId = projectMeta?.clientOrganizationId ?? null;
   const notionOn = !!projectMeta?.clientOrganization?.notionConnection?.active;
 
-  const [project, fieldPills, tree, assignees, linked, linkOptions] = await Promise.all([
+  const [project, fieldPills, tree, assignees, linked, linkOptions, whiteboards] = await Promise.all([
     getProjectDetail(id),
     getProjectFieldPills(id),
     getPageTree("PROJECT", id),
     getDelegationAssignees(projectClientId),
     getLinkedPanelData("project", id),
     getLinkOptions(id),
+    listProjectWhiteboards(id),
   ]);
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
 
@@ -173,6 +177,35 @@ export default async function ProjectHubPage({
       </div>
 
       <PropertyPills projectId={project.id} fields={fieldPills} canEdit={canEdit} />
+
+      {convertedCount > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "14px 18px",
+            margin: "16px 0",
+            borderRadius: "var(--radius-card)",
+            background: "linear-gradient(150deg,#eef0fa 0%,#e7f8fd 100%)",
+            border: "1px solid var(--color-sky-100)",
+          }}
+        >
+          <span style={{ fontSize: 22 }}>✅</span>
+          <div>
+            <div style={{ fontWeight: 700, color: "var(--color-navy-900)" }}>
+              {convertedCount} task{convertedCount === 1 ? "" : "s"} added from a whiteboard
+            </div>
+            <div className="small" style={{ color: "var(--color-navy-700)" }}>
+              Promoted from the board. Owners were notified and can start right away.
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ margin: "16px 0" }}>
+        <ProjectWhiteboards projectId={project.id} boards={whiteboards} canCreate={canEdit} />
+      </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--color-border-subtle)", marginBottom: 20 }}>
