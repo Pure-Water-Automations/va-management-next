@@ -859,3 +859,6 @@ h3.sec-title {
 
 /* Project whiteboards list row hover */
 .wb-list-row:hover { background: var(--color-bg-secondary); }
+
+/* Whiteboard template picker card hover */
+.wb-tpl-card:hover { border-color: var(--color-sky-300) !important; background: var(--color-sky-50) !important; }

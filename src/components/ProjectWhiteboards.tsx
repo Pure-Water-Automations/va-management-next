@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { WHITEBOARD_TEMPLATES } from "@/lib/whiteboards/templates";
 
 type BoardItem = { id: string; title: string; updatedAt: Date | string; createdBy: { name: string | null } };
 
@@ -15,10 +16,11 @@ const boardIcon = (
 );
 
 /**
- * Whiteboards panel on the project detail page. Lists the project's boards and
- * creates a new one (then navigates straight into the full-bleed editor). The board
- * itself lives at /hr/projects/[id]/board/[boardId]; its "Convert to tasks" flow
- * promotes notes into real project tasks.
+ * Whiteboards panel on the project page. Lists the project's boards and creates a
+ * new one — optionally from a starter template (kickoff, retro, brainstorm, …) —
+ * then navigates straight into the full-bleed editor. The board lives at
+ * /hr/projects/[id]/board/[boardId]; its "Convert to tasks" flow promotes notes
+ * into real project tasks.
  */
 export function ProjectWhiteboards({
   projectId,
@@ -30,13 +32,14 @@ export function ProjectWhiteboards({
   canCreate: boolean;
 }) {
   const router = useRouter();
-  const [creating, setCreating] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function create() {
-    setCreating(true);
-    const res = await postAction(`/api/hr/projects/${projectId}/whiteboards`, {});
-    setCreating(false);
+  async function create(templateId: string) {
+    setBusy(templateId);
+    const res = await postAction(`/api/hr/projects/${projectId}/whiteboards`, { template: templateId });
     if (!res.ok) {
+      setBusy(null);
       window.alert(res.error ?? "Failed to create whiteboard");
       return;
     }
@@ -61,11 +64,57 @@ export function ProjectWhiteboards({
           <h2 style={{ margin: 0, fontSize: "var(--text-xl)" }}>Whiteboards</h2>
         </div>
         {canCreate && (
-          <Button variant="secondary" size="sm" onClick={create} loading={creating} disabled={creating}>
-            + New whiteboard
+          <Button variant="secondary" size="sm" onClick={() => setPicking((v) => !v)}>
+            {picking ? "Close" : "+ New whiteboard"}
           </Button>
         )}
       </div>
+
+      {/* Template picker */}
+      {picking && canCreate && (
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-border-subtle)", background: "var(--color-surface)" }}>
+          <div
+            className="small"
+            style={{ fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--color-text-tertiary)", marginBottom: 12 }}
+          >
+            Start from a template
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+            {WHITEBOARD_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => create(t.id)}
+                disabled={busy !== null}
+                style={{
+                  textAlign: "left",
+                  display: "flex",
+                  gap: 11,
+                  alignItems: "flex-start",
+                  padding: "13px 14px",
+                  borderRadius: 14,
+                  border: "1.5px solid var(--color-border)",
+                  background: busy === t.id ? "var(--color-sky-50)" : "var(--color-surface)",
+                  cursor: busy !== null ? "default" : "pointer",
+                  opacity: busy !== null && busy !== t.id ? 0.55 : 1,
+                  font: "inherit",
+                  transition: "border-color .15s ease, background .15s ease",
+                }}
+                className="wb-tpl-card"
+              >
+                <span style={{ fontSize: 24, lineHeight: 1, flex: "none" }}>{t.emoji}</span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: "var(--text-sm)", color: "var(--color-navy-900)" }}>
+                    {busy === t.id ? "Creating…" : t.name}
+                  </span>
+                  <span className="small" style={{ color: "var(--color-text-secondary)", lineHeight: 1.4 }}>
+                    {t.description}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {boards.length === 0 ? (
         <div style={{ padding: "22px 20px", color: "var(--color-text-tertiary)", fontSize: "var(--text-sm)" }}>

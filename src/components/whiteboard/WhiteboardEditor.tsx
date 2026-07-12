@@ -66,6 +66,7 @@ type State = {
   presenceUsers: BoardUser[];
   remoteCursors: Record<string, RemoteCursor>;
   connId: string | null;
+  stampEmoji: string;
 };
 
 type BoardUser = { userId: string; name: string; color: string };
@@ -78,6 +79,7 @@ type LiveOp =
   | { k: "links"; links: WbLink[] }
   | { k: "title"; title: string };
 
+const STAMP_EMOJIS = ["👍", "🔥", "⭐", "✅", "❗", "❤️", "🎉", "👀", "💡", "❓"];
 const AVCOL = [
   "var(--color-navy-800)",
   "var(--color-sky-500)",
@@ -155,6 +157,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       presenceUsers: [],
       remoteCursors: {},
       connId: null,
+      stampEmoji: "👍",
     };
   }
 
@@ -511,7 +514,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     else if (tool === "frame") el = { id, type: "frame", x: w.x - 160, y: w.y - 120, w: 320, h: 240, title: "New frame", tint: "navy" };
     else if (tool === "card") el = { id, type: "card", x: w.x - 116, y: w.y - 75, w: 232, h: 150, text: "New task", assignee: "Unassigned", priority: "Medium", due: "" };
     else if (tool === "image") el = { id, type: "image", x: w.x - 115, y: w.y - 75, w: 230, h: 150, text: "screenshot.png" };
-    else if (tool === "stamp") el = { id, type: "stamp", x: w.x - 18, y: w.y - 18, emoji: "👍" };
+    else if (tool === "stamp") el = { id, type: "stamp", x: w.x - 18, y: w.y - 18, emoji: this.state.stampEmoji };
     else if (tool === "comment") el = { id, type: "comment", x: w.x - 17, y: w.y - 17, count: 1, author: "You", text: "New comment" };
     if (!el) return;
     const editing = tool === "sticky" || tool === "text";
@@ -530,6 +533,18 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     this.mutate((s) => ({ elements: s.elements.map((el) => (el.id === id ? { ...el, text } : el)), editingId: null }));
     const el = this.state.elements.find((x) => x.id === id);
     if (el) this.emit({ k: "upsert", el: { ...el, text } });
+  };
+  // Pick a stamp emoji: if a stamp is selected, recolor it (+broadcast); otherwise
+  // set the pending emoji and arm the stamp tool for the next canvas click.
+  setStamp = (emoji: string) => () => {
+    const sel = this.state.selected.length === 1 ? this.el(this.state.selected[0]) : null;
+    if (sel && sel.type === "stamp") {
+      const updated = { ...sel, emoji };
+      this.mutate((s) => ({ elements: s.elements.map((e) => (e.id === sel.id ? updated : e)), stampEmoji: emoji }));
+      this.emit({ k: "upsert", el: updated });
+    } else {
+      this.setState({ stampEmoji: emoji, tool: "stamp" });
+    }
   };
   setColor = (c: string) => () => {
     const ids = this.state.selected;
@@ -965,6 +980,22 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 </div>
               ))}
           </div>
+
+          {/* stamp emoji palette — appears with the stamp tool or a selected stamp */}
+          {(s.tool === "stamp" || (s.selected.length === 1 && this.el(s.selected[0])?.type === "stamp")) && (
+            <div className="wb-stamp-palette">
+              {STAMP_EMOJIS.map((em) => (
+                <button
+                  key={em}
+                  className={"wb-stamp-opt" + (s.stampEmoji === em ? " on" : "")}
+                  onClick={this.setStamp(em)}
+                  title={"Stamp " + em}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* peer cursors (live collaboration) */}
           {remoteCursorList.length > 0 && (

@@ -8,7 +8,12 @@ export function POST(request: Request, { params }: { params: Promise<{ id: strin
   return action(
     async ({ user, body }) => {
       const { id } = await params;
-      return createWhiteboard(user.id, id, typeof body.title === "string" ? body.title : undefined);
+      return createWhiteboard(
+        user.id,
+        id,
+        typeof body.title === "string" ? body.title : undefined,
+        typeof body.template === "string" ? body.template : undefined,
+      );
     },
     { allow: (r) => canManageTasks(r) },
   )(request);

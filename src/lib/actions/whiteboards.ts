@@ -1,23 +1,29 @@
 import { db } from "@/lib/db";
 import type { Role } from "@prisma/client";
 import { createTask } from "@/lib/actions/tasks";
+import { buildTemplate } from "@/lib/whiteboards/templates";
 
 /**
- * Create a blank whiteboard on a project. Returns the new board id so the client
- * can navigate straight into the editor.
+ * Create a whiteboard on a project, optionally pre-seeded from a starter template
+ * (kickoff, retro, brainstorm, …). Returns the new board id so the client can
+ * navigate straight into the editor.
  */
 export async function createWhiteboard(
   actorId: string,
   projectId: string,
   title?: string,
+  templateId?: string,
 ) {
   const project = await db.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) throw new Error("Project not found");
+  // A named template (anything but "blank"/absent) seeds the canvas + a default title.
+  const seeded = templateId && templateId !== "blank" ? buildTemplate(templateId) : null;
   const board = await db.projectWhiteboard.create({
     data: {
       projectId,
-      title: (title ?? "").trim() || "Untitled board",
+      title: (title ?? "").trim() || seeded?.title || "Untitled board",
       createdById: actorId,
+      data: seeded ? ({ elements: seeded.elements, links: seeded.links } as never) : undefined,
     },
     select: { id: true },
   });
