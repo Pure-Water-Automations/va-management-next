@@ -4,7 +4,7 @@
  * record a CapacityFlagEvent and email the VA's direct supervisor (or team lead).
  */
 import { db } from "@/lib/db";
-import { computeFlags, detectTransition, type CapacitySeverity } from "@/lib/services/capacity";
+import { computeFlags, computeUtilization, detectTransition, type CapacitySeverity } from "@/lib/services/capacity";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str } from "@/lib/settings";
@@ -29,7 +29,9 @@ async function main() {
     const last14 = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
 
     for (const va of vas) {
-      const flags = computeFlags(va.targetHoursWeekly ?? 0, last14.get(va.vaId) ?? 0);
+      const targetHoursWeekly = va.targetHoursWeekly ?? 0;
+      const last14dHours = last14.get(va.vaId) ?? 0;
+      const flags = computeFlags(targetHoursWeekly, last14dHours);
       const prev = await db.capacityFlagEvent.findFirst({
         where: { vaId: va.vaId, flagType: { in: ["overburdened", "underutilized", "cleared"] } },
         orderBy: { timestamp: "desc" },
@@ -63,20 +65,51 @@ async function main() {
       });
       transitions++;
 
-      if (t.transition === "flagged" && from) {
+      if (t.transition === "flagged") {
         // Notify the direct supervisor, else the team lead.
         let to = teamLead;
         if (va.supervisorVaId) {
           const sup = await db.va.findUnique({ where: { vaId: va.supervisorVaId } });
           if (sup?.email) to = sup.email;
         }
-        if (to) {
-          await sendSystemEmail({
+        if (from && to) {
+          const { expected14d, utilizationPct } = computeUtilization(targetHoursWeekly, last14dHours);
+          const overloadAmount = last14dHours - expected14d;
+          const overloadLine =
+            overloadAmount > 0
+              ? `Overload: ${overloadAmount.toFixed(1)} hrs above the 14-day target.`
+              : `Shortfall: ${Math.abs(overloadAmount).toFixed(1)} hrs below the 14-day target.`;
+          const result = await sendSystemEmail({
             from,
             to,
             subject: `Capacity flag: ${va.name} is ${flagType}`,
-            body: `${va.name} was flagged ${flagType} based on the last 14 days of tracked hours. Please check in and rebalance work if needed.`,
+            body: [
+              `${va.name} was flagged ${flagType} based on the last 14 days of tracked hours.`,
+              `Target: ${targetHoursWeekly.toFixed(1)} hrs/week (${expected14d.toFixed(1)} hrs over 14 days).`,
+              `Tracked (last 14 days): ${last14dHours.toFixed(1)} hrs (${utilizationPct.toFixed(0)}% utilization).`,
+              overloadLine,
+              `Please check in and rebalance work if needed.`,
+            ].join("\n"),
           });
+          if (!result.ok) {
+            await logActivity({
+              source: "capacity_monitor",
+              eventType: "capacity_email_skipped",
+              vaId: va.vaId,
+              severity: "warning",
+              summary: `${va.name}: ${flagType} alert email not sent (${result.reason})`,
+            });
+            console.warn(`capacity-monitor: alert email not sent for ${va.name} — ${result.reason}`);
+          }
+        } else {
+          await logActivity({
+            source: "capacity_monitor",
+            eventType: "capacity_email_skipped",
+            vaId: va.vaId,
+            severity: "warning",
+            summary: `${va.name}: ${flagType} alert email skipped (${!from ? "no system_email_from setting" : "no supervisor or team_lead_email"})`,
+          });
+          console.warn(`capacity-monitor: skipped alert email for ${va.name} — ${!from ? "missing system_email_from" : "no recipient"}`);
         }
       }
     }
