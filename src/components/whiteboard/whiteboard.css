@@ -61,7 +61,17 @@
 .wb-canvas.bg-dots { background-image: radial-gradient(circle, #d3d6e0 1.3px, transparent 1.3px); }
 .wb-world { position: absolute; top: 0; left: 0; width: 2400px; height: 1500px; transform-origin: 0 0; }
 .wb-links { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
-.wb-link-path { fill: none; stroke: var(--color-navy-300); stroke-width: 2.2; }
+.wb-link-path { fill: none; stroke: var(--color-navy-300); stroke-width: 2.2; pointer-events: none; }
+.wb-link-hit { fill: none; stroke: transparent; stroke-width: 16px; pointer-events: stroke; cursor: pointer; }
+.wb-link-selection {
+  fill: none; stroke: var(--color-sky-400); stroke-width: 8px; stroke-opacity: .3;
+  stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+}
+.wb-link-label {
+  fill: var(--color-navy-900); font-family: var(--font-sans); font-size: 13px; font-weight: 700;
+  paint-order: stroke; stroke: #fff; stroke-width: 5px; stroke-linejoin: round;
+  dominant-baseline: central; pointer-events: auto; cursor: pointer; user-select: none;
+}
 .wb-el { position: absolute; box-sizing: border-box; }
 .wb-sticky {
   padding: 13px 13px 15px; border-radius: 4px; box-shadow: 2px 3px 8px rgba(19,34,114,.13);
@@ -204,6 +214,8 @@
   min-width: 46px; text-align: center; font-size: 12px; font-weight: 700; color: var(--color-navy-900);
   font-variant-numeric: tabular-nums;
 }
+.wb-zoom-sep { width: 1px; height: 20px; background: var(--color-border-subtle); margin: 0 2px; }
+.wb-zbtn-100 { width: auto; padding: 0 9px; font-size: 11px; font-weight: 700; }
 .wb-hint {
   position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--color-navy-900);
   color: #fff; font-size: 12px; font-weight: 600; padding: 8px 15px; border-radius: 999px;
@@ -341,6 +353,14 @@
 .wb-sb-btn .ic { width: 15px; height: 15px; }
 .wb-sb-btn:hover { background: var(--color-bg-secondary); color: var(--color-navy-900); }
 .wb-sb-btn.on { background: var(--color-navy-900); color: #fff; }
+.wb-link-stylebar { max-width: calc(100vw - 24px); overflow-x: auto; }
+.wb-link-label-input {
+  width: 104px; height: 28px; flex: none; padding: 0 8px; border: 1px solid var(--color-border);
+  border-radius: 8px; outline: none; background: var(--color-surface); color: var(--color-text-primary);
+  font: 12px var(--font-sans);
+}
+.wb-link-label-input:focus { border-color: var(--color-sky-400); box-shadow: 0 0 0 2px rgba(77,196,232,.16); }
+.wb-sb-btn.wb-sb-danger:hover { background: var(--color-error-light); color: var(--color-error-dark); }
 
 /* live-collaboration peer cursors */
 .wb-cursors { position: absolute; inset: 0; pointer-events: none; z-index: 9; overflow: hidden; }
@@ -435,3 +455,109 @@
 .wb-empty .ic { width: 30px; height: 30px; margin: 0 auto 10px; color: var(--color-sky-400); }
 .wb-empty h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 17px; color: var(--color-navy-800); }
 .wb-empty p { margin: 0; font-size: 13px; }
+
+/* minimap — overview + draggable viewport rect, bottom-right (mirrors .wb-zoom bottom-left) */
+.wb-minimap {
+  position: absolute; right: 16px; bottom: 16px; padding: 6px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
+  box-shadow: var(--shadow-md); z-index: 8;
+}
+.wb-minimap-inner {
+  position: relative; width: 176px; height: 120px; overflow: hidden; border-radius: 6px;
+  background: var(--color-bg-secondary); cursor: pointer;
+}
+.wb-minimap-el {
+  position: absolute; background: var(--color-navy-300); border-radius: 1px; pointer-events: none;
+}
+.wb-minimap-el.frame { background: transparent; border: 1px solid var(--color-navy-300); }
+.wb-minimap-viewport {
+  position: absolute; border: 1.5px solid var(--color-sky-500); background: rgba(77, 196, 232, .15);
+  border-radius: 2px; pointer-events: none;
+}
+
+/* on-board search overlay (Cmd/Ctrl+F) */
+.wb-search {
+  position: absolute; left: 50%; top: 66px; transform: translateX(-50%); width: 340px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
+  box-shadow: var(--shadow-xl); z-index: 95; overflow: hidden;
+}
+.wb-search-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; color: var(--color-text-tertiary); }
+.wb-search-row .ic { width: 15px; height: 15px; flex: none; }
+.wb-search-inp {
+  flex: 1; border: none; outline: none; background: transparent; font-size: 13px;
+  font-family: var(--font-sans); color: var(--color-text-primary);
+}
+.wb-search-count { font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; }
+.wb-search-close {
+  width: 24px; height: 24px; border: none; background: transparent; color: var(--color-text-secondary);
+  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none;
+}
+.wb-search-close:hover { background: var(--color-bg-secondary); }
+.wb-search-results { border-top: 1px solid var(--color-border-subtle); max-height: 220px; overflow-y: auto; }
+.wb-search-result {
+  padding: 8px 12px; font-size: 12.5px; color: var(--color-text-primary); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wb-search-result:hover { background: var(--color-bg-secondary); }
+
+/* Wave C Collaboration Extras */
+.wb-floating-reaction {
+  position: absolute;
+  font-size: 32px;
+  pointer-events: none;
+  user-select: none;
+  animation: wb-float-up-fade 1.5s ease-out forwards;
+  z-index: 100;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes wb-float-up-fade {
+  0% {
+    transform: translate(-50%, -50%) translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, -50%) translateY(-10px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) translateY(-80px) scale(1);
+    opacity: 0;
+  }
+}
+
+.wb-mention-picker {
+  position: absolute;
+  bottom: 50px;
+  left: 10px;
+  right: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+  padding: 4px 0;
+}
+
+.wb-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.wb-mention-item.active,
+.wb-mention-item:hover {
+  background: var(--color-bg-secondary);
+}
+
+.wb-mention-item .mn {
+  font-weight: 500;
+}

@@ -48,8 +48,23 @@ type WbEl = {
   italic?: boolean;
   textColor?: string;
   align?: "left" | "center" | "right";
+  mentions?: string[]; // user ids @mentioned in a comment's latest reply
 };
-type WbLink = { from: string; to: string };
+type ConnectorType = "straight" | "elbow" | "curved";
+type ConnectorCap = "none" | "arrow" | "openArrow" | "circle" | "diamond";
+type WbLinkLabel = { text: string; t: number };
+type WbLink = {
+  id?: string; // optional only for boards saved before connector IDs were introduced
+  from: string;
+  to: string;
+  connectorType?: ConnectorType;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeStyle?: "solid" | "dashed" | "dotted";
+  startCap?: ConnectorCap;
+  endCap?: ConnectorCap;
+  labels?: WbLinkLabel[];
+};
 export type WbDoc = { elements: WbEl[]; links: WbLink[] };
 
 type ConvRow = { srcId: string; title: string; assignedToId: string; due: string; priority: string; include: boolean };
@@ -89,6 +104,14 @@ type State = {
   shapeType: string; // pending shape type for the square tool's shape picker
   marquee: { x: number; y: number; w: number; h: number } | null; // rubber-band select rect (screen px)
   menu: { x: number; y: number } | null; // right-click context menu (screen px)
+  searchOpen: boolean; // on-board search overlay (Cmd/Ctrl+F) — view-only, never persisted
+  searchQuery: string;
+  reactionEmoji: string;
+  reactions: { id: string; emoji: string; x: number; y: number }[]; // ephemeral, never persisted
+  replyText: string;
+  mentionOpen: boolean;
+  mentionQuery: string;
+  mentionIndex: number;
 };
 
 // Undo/redo entry: the BEFORE snapshot of the touched elements (null = element didn't
@@ -126,11 +149,40 @@ type LiveOp =
   | { k: "delete"; ids: string[] }
   | { k: "links"; links: WbLink[] }
   | { k: "title"; title: string }
-  | { k: "order"; ids: string[] };
+  | { k: "order"; ids: string[] }
+  | { k: "reaction"; emoji: string; x: number; y: number };
 
 const STAMP_EMOJIS = ["👍", "🔥", "⭐", "✅", "❗", "❤️", "🎉", "👀", "💡", "❓"];
 // Shape types offered by the square-tool picker; each is rendered as a parametric SVG path.
 const SHAPE_TYPES = ["rectangle", "roundRect", "ellipse", "triangle", "diamond", "parallelogram", "hexagon", "star", "cylinder", "cloud"];
+const LINK_SELECTION_PREFIX = "link:";
+
+// Old boards have positional {from,to} links. Give those deterministic IDs on load so
+// they can participate in selection/restyling without changing their visual defaults.
+function legacyLinkId(link: WbLink, index: number): string {
+  const key = `${link.from}\u0000${link.to}\u0000${index}`;
+  let hash = 2166136261;
+  for (let i = 0; i < key.length; i++) hash = Math.imul(hash ^ key.charCodeAt(i), 16777619);
+  return `l_legacy_${(hash >>> 0).toString(36)}_${index}`;
+}
+function linkId(link: WbLink, index: number): string {
+  return link.id || legacyLinkId(link, index);
+}
+function normalizeLinks(links: WbLink[]): WbLink[] {
+  return links.map((link, index) => (link.id ? link : { ...link, id: legacyLinkId(link, index) }));
+}
+function linkSelectionId(id: string): string {
+  return LINK_SELECTION_PREFIX + id;
+}
+function selectedLinkId(selectionId: string): string | null {
+  return selectionId.startsWith(LINK_SELECTION_PREFIX) ? selectionId.slice(LINK_SELECTION_PREFIX.length) : null;
+}
+// Minimap drawing-area size (px), inside its own padded card — see .wb-minimap-inner.
+const MM_W = 176, MM_H = 120;
+// World→minimap projection for a layout computed by getMinimapLayout().
+function mmPoint(l: { minx: number; miny: number; scale: number; offX: number; offY: number }, wx: number, wy: number) {
+  return { x: (wx - l.minx) * l.scale + l.offX, y: (wy - l.miny) * l.scale + l.offY };
+}
 
 // Which selected elements a given style control targets.
 const isShapeEl = (e: WbEl) => e.type === "rect" || e.type === "circle";
@@ -175,6 +227,7 @@ const P: Record<string, string> = {
   smile: "M12 3a9 9 0 100 18 9 9 0 000-18z M9 10h.01 M15 10h.01 M8.5 14.5c1 1.2 5.5 1.2 7 0",
   comment: "M4 5h16v10H9l-4 4V5z",
   check: "M9 11l3 3L22 4 M21 12v7a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1h11",
+  heart: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z",
 };
 
 function Icon({ d, w }: { d: string; w?: number }) {
@@ -190,6 +243,7 @@ function Icon({ d, w }: { d: string; w?: number }) {
 class WhiteboardCanvas extends React.Component<Props, State> {
   canvasEl: HTMLDivElement | null = null;
   drag: DragState | null = null;
+  replyInputRef: React.RefObject<HTMLInputElement | null>;
   _mm?: (e: MouseEvent) => void;
   _mu?: () => void;
   saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -205,6 +259,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   clipboard: WbEl[] = [];
   undoStack: UndoEntry[] = [];
   redoStack: UndoEntry[] = [];
+  minimapEl: HTMLDivElement | null = null;
+  mmDragging = false;
+  searchInputEl: HTMLInputElement | null = null;
 
   constructor(props: Props) {
     super(props);
@@ -212,7 +269,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     const els = doc && Array.isArray(doc.elements) && doc.elements.length ? doc.elements : this.blankBoard();
     this.state = {
       elements: els,
-      links: doc && Array.isArray(doc.links) ? doc.links : [],
+      links: doc && Array.isArray(doc.links) ? normalizeLinks(doc.links) : [],
       title: props.initialTitle,
       tool: "select",
       selected: [],
@@ -234,7 +291,16 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       shapeType: "rectangle",
       marquee: null,
       menu: null,
+      searchOpen: false,
+      searchQuery: "",
+      reactionEmoji: "👍",
+      reactions: [],
+      replyText: "",
+      mentionOpen: false,
+      mentionQuery: "",
+      mentionIndex: 0,
     };
+    this.replyInputRef = React.createRef<HTMLInputElement>();
   }
 
   // A fresh board starts truly empty; the empty-state hint is a non-interactive
@@ -266,6 +332,8 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     if (this._kd) window.removeEventListener("keydown", this._kd);
     if (this._ku) window.removeEventListener("keyup", this._ku);
     if (this.canvasEl && this._wheel) this.canvasEl.removeEventListener("wheel", this._wheel);
+    window.removeEventListener("mousemove", this.onMinimapMove);
+    window.removeEventListener("mouseup", this.onMinimapUp);
     if (this.saveTimer) clearTimeout(this.saveTimer);
     if (this.titleEmitTimer) clearTimeout(this.titleEmitTimer);
     if (this.es) this.es.close();
@@ -307,6 +375,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       if (k === "d") { this.onDuplicate(); e.preventDefault(); return; }
       if (k === "a") { this.selectAll(); e.preventDefault(); return; }
       if (k === "g") { if (e.shiftKey) this.ungroupSelection(); else this.groupSelection(); e.preventDefault(); return; }
+      if (k === "f") { this.openSearch(); e.preventDefault(); return; }
       return; // leave other Cmd/Ctrl combos to the browser
     }
     if ((e.key === "Delete" || e.key === "Backspace") && this.state.selected.length) {
@@ -409,6 +478,10 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   // Apply a peer's op to local state WITHOUT re-emitting (no echo loop). Also schedules
   // an autosave so the receiver persists too — resilient if the origin disconnects.
   applyRemoteOp(op: LiveOp) {
+    if (op.k === "reaction") {
+      this.triggerLocalReaction(op.emoji, op.x, op.y);
+      return;
+    }
     this.setState((s) => {
       let elements = s.elements;
       let links = s.links;
@@ -431,7 +504,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
         elements = s.elements.filter((e) => !del.has(e.id));
         links = s.links.filter((l) => !del.has(l.from) && !del.has(l.to));
       } else if (op.k === "links") {
-        links = op.links;
+        links = normalizeLinks(op.links);
       } else if (op.k === "title") {
         title = op.title;
       } else if (op.k === "order") {
@@ -680,7 +753,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   // ── tools ────────────────────────────────────────────────────────────
   setTool = (t: string) => () => this.setState({ tool: t, connectFrom: null });
   clearSel() {
-    this.setState({ selected: [], editingId: null, threadId: null });
+    this.setState({ selected: [], editingId: null, threadId: null, replyText: "", mentionOpen: false, mentionQuery: "" });
   }
   onCanvasDown = (e: React.MouseEvent) => {
     if (this.state.shareOpen) this.setState({ shareOpen: false });
@@ -691,21 +764,56 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       e.preventDefault();
       return;
     }
-    const node = (e.target as HTMLElement).closest("[data-el-id]") as HTMLElement | null;
+    const target = e.target as Element;
+    const node = target.closest("[data-el-id]") as HTMLElement | null;
+    const linkNode = target.closest("[data-link-id]") as SVGElement | null;
     const tool = this.state.tool;
+    // Connector hit paths remain selectable from any active tool. Link selections share
+    // `selected` via a namespaced ID, so all existing element-only helpers keep working.
+    if (linkNode) {
+      const id = linkNode.getAttribute("data-link-id");
+      if (!id) return;
+      const selectionId = linkSelectionId(id);
+      const selected = e.shiftKey
+        ? this.state.selected.includes(selectionId)
+          ? this.state.selected.filter((x) => x !== selectionId)
+          : this.state.selected.concat(selectionId)
+        : [selectionId];
+      this.setState({ selected, editingId: null, threadId: null, connectFrom: null, tool: "select" });
+      e.preventDefault();
+      return;
+    }
     if (tool === "connector") {
       if (node) {
         const id = node.dataset.elId!;
         if (!this.state.connectFrom) this.setState({ connectFrom: id });
         else if (this.state.connectFrom !== id) {
-          const newLinks = this.state.links.concat({ from: this.state.connectFrom, to: id });
+          const newLink: WbLink = {
+            id: `l_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+            from: this.state.connectFrom,
+            to: id,
+            connectorType: "curved",
+            stroke: "#7180B5",
+            strokeWidth: 2.2,
+            strokeStyle: "solid",
+            startCap: "none",
+            endCap: "arrow",
+          };
+          const newLinks = this.state.links.concat(newLink);
           this.pushUndo([], true);
-          this.mutate(() => ({ links: newLinks, connectFrom: null, tool: "select" }));
+          this.mutate(() => ({ links: newLinks, connectFrom: null, tool: "select", selected: [linkSelectionId(newLink.id!)] }));
           this.emit({ k: "links", links: newLinks });
         }
       } else {
         this.setState({ connectFrom: null });
       }
+      return;
+    }
+    if (tool === "reaction") {
+      const w = this.toWorld(e.clientX, e.clientY);
+      const emoji = this.state.reactionEmoji || "👍";
+      this.triggerLocalReaction(emoji, w.x, w.y);
+      this.emit({ k: "reaction", emoji, x: w.x, y: w.y });
       return;
     }
     if (tool !== "select") {
@@ -723,9 +831,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       else sel = group.every((g) => this.state.selected.includes(g)) ? this.state.selected : group;
       const elx = this.el(id);
       if (elx && elx.type === "comment" && !add) {
-        this.setState({ selected: sel, threadId: this.state.threadId === id ? null : id, editingId: null });
+        this.setState({ selected: sel, threadId: this.state.threadId === id ? null : id, editingId: null, replyText: "", mentionOpen: false, mentionQuery: "" });
       } else {
-        this.setState({ selected: sel, editingId: null, threadId: null });
+        this.setState({ selected: sel, editingId: null, threadId: null, replyText: "", mentionOpen: false, mentionQuery: "" });
       }
       // Locked elements select (so you can unlock) but don't drag.
       if (!sel.some((sid) => this.el(sid)?.locked)) this.beginElDrag(e, sel);
@@ -1154,6 +1262,135 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       this.setState({ stampEmoji: emoji, tool: "stamp" });
     }
   };
+  // ── reactions (ephemeral — never persisted, bypasses pushUndo/mutate entirely) ──────
+  triggerLocalReaction(emoji: string, x: number, y: number) {
+    const id = Math.random().toString(36).slice(2, 9);
+    this.setState((s) => ({
+      reactions: (s.reactions || []).concat({ id, emoji, x, y }),
+    }));
+    setTimeout(() => {
+      this.setState((s) => ({
+        reactions: (s.reactions || []).filter((r) => r.id !== id),
+      }));
+    }, 1500);
+  }
+  setReaction = (emoji: string) => () => {
+    this.setState({ reactionEmoji: emoji, tool: "reaction" });
+  };
+
+  // ── @mentions in comment replies ─────────────────────────────────────
+  handleReplyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const selStart = e.target.selectionStart || 0;
+    const match = value.slice(0, selStart).match(/\B@(\w*)$/);
+    if (match) {
+      this.setState({
+        replyText: value,
+        mentionOpen: true,
+        mentionQuery: match[1],
+        mentionIndex: 0,
+      });
+    } else {
+      this.setState({
+        replyText: value,
+        mentionOpen: false,
+        mentionQuery: "",
+      });
+    }
+  };
+  handleReplyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const s = this.state;
+    if (s.mentionOpen) {
+      const query = (s.mentionQuery || "").toLowerCase();
+      const candidates = this.props.assignees.filter((u) => {
+        const name = (u.name || "").toLowerCase();
+        const email = (u.email || "").toLowerCase();
+        return name.includes(query) || email.includes(query);
+      });
+      if (candidates.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          this.setState({ mentionIndex: (s.mentionIndex + 1) % candidates.length });
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          this.setState({ mentionIndex: (s.mentionIndex - 1 + candidates.length) % candidates.length });
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.selectMention(candidates[s.mentionIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          this.setState({ mentionOpen: false });
+          return;
+        }
+      }
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      this.sendReply();
+    }
+  };
+  selectMention = (u: WbAssignee) => {
+    const input = this.replyInputRef.current;
+    if (!input) return;
+    const value = this.state.replyText;
+    const selStart = input.selectionStart || 0;
+    const match = value.slice(0, selStart).match(/\B@(\w*)$/);
+    if (!match) return;
+    const startIndex = selStart - match[0].length;
+    const textBefore = value.slice(0, startIndex);
+    const textAfter = value.slice(selStart);
+    const inserted = `@${u.name || u.email} `;
+    const newText = textBefore + inserted + textAfter;
+    this.setState(
+      {
+        replyText: newText,
+        mentionOpen: false,
+        mentionQuery: "",
+      },
+      () => {
+        input.focus();
+        const newCursorPos = startIndex + inserted.length;
+        input.setSelectionRange(newCursorPos, newCursorPos);
+      },
+    );
+  };
+  // Append the reply to the comment's text and record any @mentioned user ids — a normal
+  // document mutation, so it follows pushUndo -> mutate -> emit like every other one.
+  sendReply = () => {
+    const replyText = this.state.replyText.trim();
+    if (!replyText) return;
+    const commentId = this.state.threadId;
+    if (!commentId) return;
+    const comment = this.el(commentId);
+    if (!comment) return;
+    const mentionedIds: string[] = [];
+    this.props.assignees.forEach((u) => {
+      const name = u.name || u.email;
+      if (replyText.includes(`@${name}`)) {
+        mentionedIds.push(u.id);
+      }
+    });
+    const updatedComment = {
+      ...comment,
+      text: comment.text + "\n" + this.props.currentUserName + ": " + replyText,
+      count: (comment.count || 1) + 1,
+      mentions: Array.from(new Set([...(comment.mentions || []), ...mentionedIds])),
+    };
+    this.pushUndo([comment.id]);
+    this.mutate((s) => ({
+      elements: s.elements.map((e) => (e.id === comment.id ? updatedComment : e)),
+      replyText: "",
+      mentionOpen: false,
+      mentionQuery: "",
+    }));
+    this.emit({ k: "upsert", el: updatedComment });
+  };
   // Pick a shape type: if a shape is selected, restyle it (+broadcast); otherwise arm the
   // square tool with the pending shape for the next canvas click. Mirrors setStamp.
   setShape = (st: string) => () => {
@@ -1219,6 +1456,42 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     }
     return <path d={d} {...gp} />;
   }
+  // Where the ray from an element's center toward (tx,ty) exits its bounding box, plus a
+  // small gap so the connector line/arrowhead never overlaps the shape itself.
+  boundaryPoint(el: WbEl, cx: number, cy: number, tx: number, ty: number): { x: number; y: number } {
+    const hw = (el.w || 36) / 2, hh = (el.h || 36) / 2;
+    const dx = tx - cx, dy = ty - cy;
+    if (dx === 0 && dy === 0) return { x: cx, y: cy };
+    const tX = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+    const tY = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+    const t = Math.min(tX, tY);
+    const gap = 4 / Math.max(1e-6, Math.hypot(dx, dy)); // ~4px world-space clearance
+    const tt = Math.max(0, t - gap);
+    return { x: cx + dx * tt, y: cy + dy * tt };
+  }
+  linkMarker(id: string, cap: ConnectorCap, color: string): React.ReactNode {
+    if (cap === "none") return null;
+    let shape: React.ReactNode;
+    if (cap === "arrow") shape = <path d="M1 1 L9 5 L1 9 Z" fill={color} />;
+    else if (cap === "openArrow") shape = <path d="M1 1 L9 5 L1 9" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />;
+    else if (cap === "circle") shape = <circle cx="5" cy="5" r="2.7" fill={color} />;
+    else shape = <path d="M1 5 L5 1 L9 5 L5 9 Z" fill={color} />;
+    return (
+      <marker
+        id={id}
+        markerUnits="strokeWidth"
+        markerWidth="4.5"
+        markerHeight="4.5"
+        refX={cap === "arrow" || cap === "openArrow" ? 8.5 : 5}
+        refY="5"
+        viewBox="0 0 10 10"
+        orient="auto-start-reverse"
+        style={{ overflow: "visible" }}
+      >
+        {shape}
+      </marker>
+    );
+  }
   // Apply a style patch to every selected element matched by `match` — the canonical
   // pushUndo → mutate → emit sequence, so undo + live-collab stay correct.
   applyStyle(patch: Partial<WbEl>, match: (e: WbEl) => boolean) {
@@ -1230,6 +1503,34 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     this.mutate((s) => ({ elements: s.elements.map((e) => m.get(e.id) || e) }));
     this.emit({ k: "upsertMany", els: changed });
   }
+  // Restyle selected connectors using the same whole-links op used by creation and
+  // deletion. This exact pushUndo → mutate → emit ordering is required for collab-safe undo.
+  // `targetIds` lets a caller (e.g. commitLinkLabel) target a specific connector it
+  // already captured, instead of re-deriving from `selected` — selection may have moved
+  // on to a different connector by the time an async event like onBlur fires.
+  applyLinkStyle(patch: Partial<WbLink>, targetIds?: string[]) {
+    const ids = new Set(targetIds ?? this.state.selected.map(selectedLinkId).filter((id): id is string => !!id));
+    if (!ids.size) return;
+    let changed = false;
+    const newLinks = this.state.links.map((link, index) => {
+      const id = linkId(link, index);
+      if (!ids.has(id)) return link;
+      changed = true;
+      return { ...link, id, ...patch };
+    });
+    if (!changed) return;
+    this.pushUndo([], true);
+    this.mutate(() => ({ links: newLinks }));
+    this.emit({ k: "links", links: newLinks });
+  }
+  commitLinkLabel = (id: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.currentTarget.value.trim();
+    const index = this.state.links.findIndex((link, i) => linkId(link, i) === id);
+    if (index < 0) return;
+    const link = this.state.links[index];
+    if ((link.labels?.[0]?.text || "") === value) return;
+    this.applyLinkStyle({ labels: value ? [{ text: value, t: 0.5 }] : [] }, [id]);
+  };
   // Toggle bold/italic across the selected text/label elements (on unless all are already on).
   toggleTextStyle(prop: "bold" | "italic") {
     const ids = this.state.selected;
@@ -1258,19 +1559,25 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     this.emit({ k: "upsertMany", els: add });
   };
   onDelete = () => {
-    const ids = [...this.state.selected];
-    if (!ids.length) return;
-    this.pushUndo(ids, true);
-    this.mutate((s) => {
-      const del = new Set(ids);
-      return {
-        elements: s.elements.filter((e) => !del.has(e.id)),
-        links: s.links.filter((l) => !del.has(l.from) && !del.has(l.to)),
-        selected: [],
-        threadId: null,
-      };
+    if (!this.state.selected.length) return;
+    const elementIds = this.state.selected.filter((id) => !!this.el(id));
+    const delElements = new Set(elementIds);
+    const delLinks = new Set(this.state.selected.map(selectedLinkId).filter((id): id is string => !!id));
+    const newLinks = this.state.links.filter((link, index) => {
+      return !delLinks.has(linkId(link, index)) && !delElements.has(link.from) && !delElements.has(link.to);
     });
-    this.emit({ k: "delete", ids });
+    const linksChanged = newLinks.length !== this.state.links.length;
+    if (!elementIds.length && !linksChanged) return;
+    if (elementIds.length) this.pushUndo(elementIds, true);
+    else this.pushUndo([], true);
+    this.mutate((s) => ({
+      elements: s.elements.filter((e) => !delElements.has(e.id)),
+      links: newLinks,
+      selected: [],
+      threadId: null,
+    }));
+    if (elementIds.length) this.emit({ k: "delete", ids: elementIds });
+    if (linksChanged) this.emit({ k: "links", links: newLinks });
   };
   zoomBy(f: number) {
     if (!this.canvasEl) return;
@@ -1286,6 +1593,102 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   zoomIn = () => this.zoomBy(1.2);
   zoomOut = () => this.zoomBy(1 / 1.2);
   zoomFit = () => this.fitView();
+  // 100% preset: reset zoom without moving the world point currently at the viewport center.
+  zoomReset100 = () => {
+    if (!this.canvasEl) return;
+    const r = this.canvasEl.getBoundingClientRect();
+    const cx = r.width / 2, cy = r.height / 2;
+    const z = this.state.zoom;
+    const wx = (cx - this.state.pan.x) / z, wy = (cy - this.state.pan.y) / z;
+    this.setState({ zoom: 1, pan: { x: cx - wx, y: cy - wy } });
+  };
+
+  // ── minimap (view-only overview; click/drag pans the main canvas, never touches the doc) ──
+  getMinimapLayout() {
+    const els = this.state.elements;
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    els.forEach((e) => {
+      const w = e.w || 40, h = e.h || 40;
+      minx = Math.min(minx, e.x); miny = Math.min(miny, e.y);
+      maxx = Math.max(maxx, e.x + w); maxy = Math.max(maxy, e.y + h);
+    });
+    const c = this.canvasEl;
+    const cw = c ? c.getBoundingClientRect().width : 800;
+    const ch = c ? c.getBoundingClientRect().height : 500;
+    const vx = -this.state.pan.x / this.state.zoom, vy = -this.state.pan.y / this.state.zoom;
+    const vw = cw / this.state.zoom, vh = ch / this.state.zoom;
+    if (!els.length) { minx = vx; miny = vy; maxx = vx + vw; maxy = vy + vh; }
+    // Union with the current viewport so the viewport rect is always at least partly visible.
+    minx = Math.min(minx, vx); miny = Math.min(miny, vy);
+    maxx = Math.max(maxx, vx + vw); maxy = Math.max(maxy, vy + vh);
+    const pad = 60;
+    minx -= pad; miny -= pad; maxx += pad; maxy += pad;
+    const bw = Math.max(1, maxx - minx), bh = Math.max(1, maxy - miny);
+    const scale = Math.min(MM_W / bw, MM_H / bh);
+    return { minx, miny, scale, offX: (MM_W - bw * scale) / 2, offY: (MM_H - bh * scale) / 2, vx, vy, vw, vh };
+  }
+  minimapPanTo(clientX: number, clientY: number) {
+    if (!this.minimapEl || !this.canvasEl) return;
+    const l = this.getMinimapLayout();
+    const r = this.minimapEl.getBoundingClientRect();
+    const wx = (clientX - r.left - l.offX) / l.scale + l.minx;
+    const wy = (clientY - r.top - l.offY) / l.scale + l.miny;
+    const c = this.canvasEl.getBoundingClientRect();
+    const z = this.state.zoom;
+    this.setState({ pan: { x: c.width / 2 - wx * z, y: c.height / 2 - wy * z } });
+  }
+  onMinimapDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    this.mmDragging = true;
+    this.minimapPanTo(e.clientX, e.clientY);
+    window.addEventListener("mousemove", this.onMinimapMove);
+    window.addEventListener("mouseup", this.onMinimapUp);
+  };
+  onMinimapMove = (e: MouseEvent) => {
+    if (this.mmDragging) this.minimapPanTo(e.clientX, e.clientY);
+  };
+  onMinimapUp = () => {
+    this.mmDragging = false;
+    window.removeEventListener("mousemove", this.onMinimapMove);
+    window.removeEventListener("mouseup", this.onMinimapUp);
+  };
+
+  // ── on-board search (Cmd/Ctrl+F) — view-only ephemeral state, never mutates data.elements/links ──
+  openSearch = () => {
+    this.setState({ searchOpen: true });
+    setTimeout(() => this.searchInputEl?.focus(), 0);
+  };
+  closeSearch = () => this.setState({ searchOpen: false, searchQuery: "" });
+  onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => this.setState({ searchQuery: e.target.value });
+  getSearchMatches(query: string): WbEl[] {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return this.state.elements.filter((e) => {
+      const hay = [e.text, e.label, e.title].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  // Fly-to for a single element — same fit-to-bbox math as zoomToSelection, adapted for one id.
+  flyToElement = (id: string) => {
+    const el = this.el(id);
+    const c = this.canvasEl;
+    if (!el || !c) return;
+    const r = c.getBoundingClientRect();
+    const w = el.w || 40, h = el.h || 40;
+    const minx = el.x, miny = el.y, maxx = el.x + w, maxy = el.y + h;
+    const pad = 90, cw = maxx - minx + pad * 2, ch = maxy - miny + pad * 2;
+    const z = Math.max(0.2, Math.min(2.5, Math.min(r.width / cw, r.height / ch)));
+    this.setState({ zoom: z, pan: { x: r.width / 2 - ((minx + maxx) / 2) * z, y: r.height / 2 - ((miny + maxy) / 2) * z } });
+  };
+  onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") { this.closeSearch(); e.preventDefault(); return; }
+    if (e.key === "Enter") {
+      const first = this.getSearchMatches(this.state.searchQuery)[0];
+      if (first) this.flyToElement(first.id);
+      e.preventDefault();
+    }
+  };
 
   // ── convert to tasks ─────────────────────────────────────────────────
   defaultAssignee(name?: string): string {
@@ -1354,6 +1757,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   render() {
     const s = this.state;
     const selSet = new Set(s.selected);
+    // On-board search: derived each render from ephemeral view state, never stored on elements.
+    const searchMatches = s.searchOpen ? this.getSearchMatches(s.searchQuery) : [];
+    const searching = s.searchOpen && s.searchQuery.trim().length > 0;
     const toolDefs: [string, string, string, boolean?][] = [
       ["select", "cursor", "Select · V"],
       ["sticky", "sticky", "Sticky note · S"],
@@ -1364,35 +1770,53 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       ["card", "card", "Task card"],
       ["image", "image", "Image"],
       ["stamp", "smile", "Stamp"],
+      ["reaction", "heart", "Reaction"],
       ["comment", "comment", "Comment", true],
     ];
 
-    // links (curved connectors)
-    const linkPaths = s.links
-      .map((l) => {
-        const a = this.el(l.from),
-          b = this.el(l.to);
-        if (!a || !b) return "";
-        const ax = a.x + (a.w || 36) / 2,
-          ay = a.y + (a.h || 36) / 2,
-          bx = b.x + (b.w || 36) / 2,
-          by = b.y + (b.h || 36) / 2;
-        const mx = (ax + bx) / 2,
-          my = (ay + by) / 2 - 30;
-        return `M${ax} ${ay} Q${mx} ${my} ${bx} ${by}`;
-      })
-      .filter(Boolean);
+    // Connector geometry. Missing connectorType intentionally falls back to the exact
+    // quadratic path old boards used, including its raised midpoint.
+    const linkRenders: {
+      link: WbLink;
+      id: string;
+      index: number;
+      d: string;
+      ax: number;
+      ay: number;
+      bx: number;
+      by: number;
+    }[] = [];
+    s.links.forEach((link, index) => {
+      const a = this.el(link.from), b = this.el(link.to);
+      if (!a || !b) return;
+      const acx = a.x + (a.w || 36) / 2, acy = a.y + (a.h || 36) / 2;
+      const bcx = b.x + (b.w || 36) / 2, bcy = b.y + (b.h || 36) / 2;
+      // Clip each endpoint to its element's boundary (not the center) so the line and its
+      // arrowhead land just outside the shape instead of being hidden underneath it.
+      const aPt = this.boundaryPoint(a, acx, acy, bcx, bcy);
+      const bPt = this.boundaryPoint(b, bcx, bcy, acx, acy);
+      const ax = aPt.x, ay = aPt.y, bx = bPt.x, by = bPt.y;
+      const mx = (ax + bx) / 2, my = (ay + by) / 2 - 30;
+      const type = link.connectorType || "curved";
+      const d = type === "straight"
+        ? `M${ax} ${ay} L${bx} ${by}`
+        : type === "elbow"
+          ? `M${ax} ${ay} L${mx} ${ay} L${mx} ${by} L${bx} ${by}`
+          : `M${ax} ${ay} Q${mx} ${my} ${bx} ${by}`;
+      linkRenders.push({ link, id: linkId(link, index), index, d, ax, ay, bx, by });
+    });
 
     // selection context bar position + style toolbar (stacked just above it)
     let contextStyle: React.CSSProperties = { display: "none" };
     let styleBarStyle: React.CSSProperties = { display: "none" };
-    const hasSelection = s.selected.length > 0 && !s.convertOpen;
+    let connectorBarStyle: React.CSSProperties = { display: "none" };
+    const selEls = s.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    const hasSelection = selEls.length > 0 && !s.convertOpen;
     if (hasSelection) {
-      const els = s.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
       let minx = 1e9,
         miny = 1e9,
         maxx = -1e9;
-      els.forEach((e) => {
+      selEls.forEach((e) => {
         const w = e.w || (e.type === "stamp" || e.type === "comment" ? 36 : 120);
         minx = Math.min(minx, e.x);
         miny = Math.min(miny, e.y);
@@ -1403,7 +1827,13 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       contextStyle = { left: Math.max(8, cx - 150), top: Math.max(6, top) };
       styleBarStyle = { left: Math.max(8, cx - 190), top: Math.max(6, top - 46) };
     }
-    const selEls = s.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    const selectedLinkRenders = linkRenders.filter((item) => selSet.has(linkSelectionId(item.id)));
+    const selectedConnector = s.selected.length === 1 && selectedLinkRenders.length === 1 ? selectedLinkRenders[0] : null;
+    if (selectedConnector) {
+      const cx = ((selectedConnector.ax + selectedConnector.bx) / 2) * s.zoom + s.pan.x;
+      const cy = ((selectedConnector.ay + selectedConnector.by) / 2) * s.zoom + s.pan.y;
+      connectorBarStyle = { left: Math.max(8, cx - 340), top: Math.max(6, cy - 58) };
+    }
     // Contextual style toolbar: shows for selected shapes / text / stickies.
     const styleEls = selEls.filter((e) => e.type === "rect" || e.type === "circle" || e.type === "text" || e.type === "sticky");
     const shapeStyleEls = styleEls.filter(isShapeEl);
@@ -1415,8 +1845,8 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     const convertible = selEls.some((e) => e.type === "sticky" || e.type === "card") || hasFrame;
     const convertLabel = hasFrame
       ? "Convert to tasks"
-      : s.selected.length > 1
-        ? "Convert " + s.selected.length + " to tasks"
+      : selEls.length > 1
+        ? "Convert " + selEls.length + " to tasks"
         : "Convert to task";
     const swatches = ["#FFE8A3", "#C4EEF9", "#CFF3E0", "#FBD5E0", "#D5DAF4"];
 
@@ -1546,16 +1976,69 @@ class WhiteboardCanvas extends React.Component<Props, State> {
           onContextMenu={this.onContextMenu}
           onMouseMove={(e) => this.sendCursor(e.clientX, e.clientY)}
         >
+          {/* search highlight/dim — pure CSS overlay via data-el-id, no per-element JSX touched */}
+          {searching && (
+            <style>{
+              `.wb-canvas [data-el-id]{opacity:.32;filter:saturate(.55);transition:opacity .15s ease,filter .15s ease;}` +
+              (searchMatches.length
+                ? `${searchMatches.map((e) => `.wb-canvas [data-el-id="${e.id}"]`).join(",")}{opacity:1;filter:none;outline:2.5px solid var(--color-warning);outline-offset:3px;z-index:5;}`
+                : "")
+            }</style>
+          )}
           <div className="wb-world" style={{ transform: `translate(${s.pan.x}px,${s.pan.y}px) scale(${s.zoom})` }}>
             <svg className="wb-links" width="2400" height="1500" viewBox="0 0 2400 1500">
               <defs>
-                <marker id="wbarrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
-                  <path d="M1 1L8 4.5 1 8z" fill="var(--color-navy-300)" />
-                </marker>
+                {linkRenders.map(({ link, index }) => {
+                  const color = link.stroke || "var(--color-navy-300)";
+                  const startCap = link.startCap || "none";
+                  const endCap = link.endCap || "arrow";
+                  return (
+                    <React.Fragment key={`markers_${index}`}>
+                      {this.linkMarker(`wb-link-marker-${index}-start`, startCap, color)}
+                      {this.linkMarker(`wb-link-marker-${index}-end`, endCap, color)}
+                    </React.Fragment>
+                  );
+                })}
               </defs>
-              {linkPaths.map((d, i) => (
-                <path key={i} className="wb-link-path" d={d} markerEnd="url(#wbarrow)" />
-              ))}
+              {linkRenders.map(({ link, id, index, d }) => {
+                const stroke = link.stroke || "var(--color-navy-300)";
+                const strokeWidth = link.strokeWidth ?? 2.2;
+                const unit = Math.max(1, strokeWidth);
+                const dash = link.strokeStyle === "dashed"
+                  ? `${unit * 2.8} ${unit * 2}`
+                  : link.strokeStyle === "dotted"
+                    ? `${unit * 0.1} ${unit * 2}`
+                    : undefined;
+                const selected = selSet.has(linkSelectionId(id));
+                const pathId = `wb-link-path-${index}`;
+                const startCap = link.startCap || "none";
+                const endCap = link.endCap || "arrow";
+                return (
+                  <g key={id}>
+                    {selected && <path className="wb-link-selection" d={d} />}
+                    <path
+                      id={pathId}
+                      className="wb-link-path"
+                      d={d}
+                      stroke={stroke}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray={dash}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      markerStart={startCap !== "none" ? `url(#wb-link-marker-${index}-start)` : undefined}
+                      markerEnd={endCap !== "none" ? `url(#wb-link-marker-${index}-end)` : undefined}
+                    />
+                    <path className="wb-link-hit" d={d} data-link-id={id} />
+                    {(link.labels || []).map((label, labelIndex) => (
+                      <text key={`${id}_label_${labelIndex}`} className="wb-link-label" data-link-id={id}>
+                        <textPath href={`#${pathId}`} startOffset={`${Math.max(0, Math.min(1, label.t)) * 100}%`} textAnchor="middle">
+                          {label.text}
+                        </textPath>
+                      </text>
+                    ))}
+                  </g>
+                );
+              })}
             </svg>
 
             {/* frames */}
@@ -1753,6 +2236,13 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                   {e.count}
                 </div>
               ))}
+
+            {/* ephemeral reactions — never persisted, self-remove after their animation */}
+            {(s.reactions || []).map((r) => (
+              <div key={r.id} className="wb-floating-reaction" style={{ left: r.x, top: r.y }}>
+                {r.emoji}
+              </div>
+            ))}
           </div>
 
           {/* stamp emoji palette — appears with the stamp tool or a selected stamp */}
@@ -1764,6 +2254,22 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                   className={"wb-stamp-opt" + (s.stampEmoji === em ? " on" : "")}
                   onClick={this.setStamp(em)}
                   title={"Stamp " + em}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* reaction emoji palette — appears with the reaction tool */}
+          {s.tool === "reaction" && (
+            <div className="wb-stamp-palette">
+              {["👍", "🔥", "⭐", "🎉", "❤️", "👏", "😮", "😂", "💡", "❓"].map((em) => (
+                <button
+                  key={em}
+                  className={"wb-stamp-opt" + (s.reactionEmoji === em ? " on" : "")}
+                  onClick={this.setReaction(em)}
+                  title={"Reaction " + em}
                 >
                   {em}
                 </button>
@@ -1793,6 +2299,84 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             </div>
             );
           })()}
+
+          {/* selected connector style toolbar */}
+          {selectedConnector && (
+            <div className="wb-stylebar wb-link-stylebar" style={connectorBarStyle} onMouseDown={this.stop}>
+              <select
+                className="wb-sb-sel"
+                title="Connector type"
+                value={selectedConnector.link.connectorType || "curved"}
+                onChange={(e) => this.applyLinkStyle({ connectorType: e.target.value as ConnectorType })}
+              >
+                <option value="straight">Straight</option>
+                <option value="elbow">Elbow</option>
+                <option value="curved">Curved</option>
+              </select>
+              <label className="wb-sb-swatch" title="Line color">
+                <span className="wb-sb-chip ring" style={{ borderColor: toHex(selectedConnector.link.stroke, "#7180B5") }} />
+                <input type="color" value={toHex(selectedConnector.link.stroke, "#7180B5")} onChange={(e) => this.applyLinkStyle({ stroke: e.target.value })} />
+              </label>
+              <select
+                className="wb-sb-sel"
+                title="Line width"
+                value={selectedConnector.link.strokeWidth ?? 2.2}
+                onChange={(e) => this.applyLinkStyle({ strokeWidth: parseFloat(e.target.value) })}
+              >
+                {[1, 2, 2.2, 3, 4, 6, 8].map((n) => <option key={n} value={n}>{n}px</option>)}
+              </select>
+              <select
+                className="wb-sb-sel"
+                title="Line style"
+                value={selectedConnector.link.strokeStyle || "solid"}
+                onChange={(e) => this.applyLinkStyle({ strokeStyle: e.target.value as WbLink["strokeStyle"] })}
+              >
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+              </select>
+              <div className="wb-sb-sep" />
+              <select
+                className="wb-sb-sel"
+                title="Start arrowhead"
+                aria-label="Start arrowhead"
+                value={selectedConnector.link.startCap || "none"}
+                onChange={(e) => this.applyLinkStyle({ startCap: e.target.value as ConnectorCap })}
+              >
+                <option value="none">Start: none</option>
+                <option value="arrow">Start: arrow</option>
+                <option value="openArrow">Start: open</option>
+                <option value="circle">Start: circle</option>
+                <option value="diamond">Start: diamond</option>
+              </select>
+              <select
+                className="wb-sb-sel"
+                title="End arrowhead"
+                aria-label="End arrowhead"
+                value={selectedConnector.link.endCap || "arrow"}
+                onChange={(e) => this.applyLinkStyle({ endCap: e.target.value as ConnectorCap })}
+              >
+                <option value="none">End: none</option>
+                <option value="arrow">End: arrow</option>
+                <option value="openArrow">End: open</option>
+                <option value="circle">End: circle</option>
+                <option value="diamond">End: diamond</option>
+              </select>
+              <input
+                key={`${selectedConnector.id}_${selectedConnector.link.labels?.[0]?.text || ""}`}
+                className="wb-link-label-input"
+                defaultValue={selectedConnector.link.labels?.[0]?.text || ""}
+                placeholder="Label"
+                aria-label="Connector label"
+                title="Connector label"
+                onBlur={this.commitLinkLabel(selectedConnector.id)}
+                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+              />
+              <button className="wb-sb-btn wb-sb-danger" title="Delete connector" aria-label="Delete connector" onClick={this.onDelete}>
+                <Icon d="M4 7h16 M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2 M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" />
+              </button>
+            </div>
+          )}
 
           {/* contextual style toolbar (fill / border / radius + font controls) */}
           {showStyleBar && (
@@ -1992,30 +2576,64 @@ class WhiteboardCanvas extends React.Component<Props, State> {
           )}
 
           {/* comment thread */}
-          {thread && (
-            <div className="wb-thread" style={threadStyle}>
-              <div className="wb-thread-b">
-                <div className="cr">
-                  <span className="avatar" style={this.avStyle(thread.author, 28)}>
-                    {this.initials(thread.author)}
-                  </span>
-                  <div>
-                    <span className="cn">{thread.author}</span>{" "}
-                    <span className="mr" style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>
-                      now
+          {thread && (() => {
+            const query = (s.mentionQuery || "").toLowerCase();
+            const candidates = this.props.assignees.filter((u) => {
+              const name = (u.name || "").toLowerCase();
+              const email = (u.email || "").toLowerCase();
+              return name.includes(query) || email.includes(query);
+            });
+            const showPicker = s.mentionOpen && candidates.length > 0;
+            return (
+              <div className="wb-thread" style={threadStyle}>
+                {showPicker && (
+                  <div className="wb-mention-picker">
+                    {candidates.map((u, i) => (
+                      <div
+                        key={u.id}
+                        className={"wb-mention-item" + (s.mentionIndex === i ? " active" : "")}
+                        onClick={() => this.selectMention(u)}
+                        onMouseEnter={() => this.setState({ mentionIndex: i })}
+                      >
+                        <span className="avatar" style={this.avStyle(u.name ?? u.email, 20)}>
+                          {this.initials(u.name ?? u.email)}
+                        </span>
+                        <span className="mn">{u.name || u.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="wb-thread-b">
+                  <div className="cr">
+                    <span className="avatar" style={this.avStyle(thread.author, 28)}>
+                      {this.initials(thread.author)}
                     </span>
-                    <div className="ct">{thread.text}</div>
+                    <div>
+                      <span className="cn">{thread.author}</span>{" "}
+                      <span className="mr" style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>
+                        now
+                      </span>
+                      <div className="ct" style={{ whiteSpace: "pre-wrap" }}>{thread.text}</div>
+                    </div>
                   </div>
                 </div>
+                <div className="cm-in">
+                  <input
+                    ref={this.replyInputRef}
+                    className="wb-inp"
+                    style={{ height: 34 }}
+                    placeholder="Reply…"
+                    value={s.replyText || ""}
+                    onChange={this.handleReplyChange}
+                    onKeyDown={this.handleReplyKeyDown}
+                  />
+                  <button className="btn btn-secondary btn-sm" style={{ height: 34 }} onClick={this.sendReply}>
+                    Send
+                  </button>
+                </div>
               </div>
-              <div className="cm-in">
-                <input className="wb-inp" style={{ height: 34 }} placeholder="Reply…" />
-                <button className="btn btn-secondary btn-sm" style={{ height: 34 }}>
-                  Send
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* zoom */}
           <div className="wb-zoom">
@@ -2029,7 +2647,38 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             <button className="wb-zbtn" onClick={this.zoomFit} title="Fit">
               <Icon d="M4 9V5a1 1 0 011-1h4 M20 9V5a1 1 0 00-1-1h-4 M4 15v4a1 1 0 001 1h4 M20 15v4a1 1 0 01-1 1h-4" w={15} />
             </button>
+            <div className="wb-zoom-sep" />
+            <button className="wb-zbtn wb-zbtn-100" onClick={this.zoomReset100} title="Zoom to 100%">
+              100%
+            </button>
           </div>
+
+          {/* minimap — overview of all elements + draggable viewport rect; click/drag to pan */}
+          {(() => {
+            const l = this.getMinimapLayout();
+            const vp = mmPoint(l, l.vx, l.vy);
+            return (
+              <div className="wb-minimap">
+                <div className="wb-minimap-inner" ref={(el) => { this.minimapEl = el; }} onMouseDown={this.onMinimapDown}>
+                  {s.elements.map((e) => {
+                    const w = e.w || 40, h = e.h || 40;
+                    const p = mmPoint(l, e.x, e.y);
+                    return (
+                      <div
+                        key={e.id}
+                        className={"wb-minimap-el" + (e.type === "frame" ? " frame" : "")}
+                        style={{ left: p.x, top: p.y, width: Math.max(2, w * l.scale), height: Math.max(2, h * l.scale) }}
+                      />
+                    );
+                  })}
+                  <div
+                    className="wb-minimap-viewport"
+                    style={{ left: vp.x, top: vp.y, width: Math.max(4, l.vw * l.scale), height: Math.max(4, l.vh * l.scale) }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {toolHint && (
             <div className="wb-hint">
@@ -2038,6 +2687,41 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             </div>
           )}
         </div>
+
+        {/* on-board search (Cmd/Ctrl+F) — view-only overlay, never persisted */}
+        {s.searchOpen && (
+          <div className="wb-search" onMouseDown={this.stop}>
+            <div className="wb-search-row">
+              <Icon d="M11 19a8 8 0 100-16 8 8 0 000 16z M21 21l-4.3-4.3" w={15} />
+              <input
+                ref={(el) => { this.searchInputEl = el; }}
+                className="wb-search-inp"
+                autoFocus
+                placeholder="Search the board…"
+                value={s.searchQuery}
+                onChange={this.onSearchChange}
+                onKeyDown={this.onSearchKeyDown}
+              />
+              {s.searchQuery.trim() && (
+                <span className="wb-search-count">
+                  {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
+                </span>
+              )}
+              <button className="wb-search-close" onClick={this.closeSearch} title="Close (Esc)">
+                <Icon d="M6 6l12 12 M18 6L6 18" w={13} />
+              </button>
+            </div>
+            {searchMatches.length > 0 && (
+              <div className="wb-search-results">
+                {searchMatches.slice(0, 8).map((e) => (
+                  <div key={e.id} className="wb-search-result" onMouseDown={(ev) => { ev.preventDefault(); this.flyToElement(e.id); }}>
+                    {(e.label || e.title || e.text || e.type).slice(0, 60)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* marquee rubber-band (viewport-fixed) */}
         {s.marquee && (
@@ -2068,6 +2752,14 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                     item("Select all", () => { this.selectAll(); this.closeMenu(); }),
                     item("Fit to content", () => { this.fitView(); this.closeMenu(); }),
                   ];
+                }
+                // A selection made up entirely of connectors: element-only actions (copy,
+                // duplicate, lock, group, align, reorder, zoom-to-selection) either no-op or
+                // are meaningless for a link, so show just what actually applies. Connector
+                // styling itself is already covered by the dedicated connector toolbar.
+                const connectorOnly = s.selected.length > 0 && s.selected.every((id) => !!selectedLinkId(id));
+                if (connectorOnly) {
+                  return [item("Delete", () => { this.onDelete(); this.closeMenu(); }, true)];
                 }
                 return [
                   item("Copy", () => { this.copySelection(); this.closeMenu(); }),
