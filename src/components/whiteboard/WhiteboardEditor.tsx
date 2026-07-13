@@ -86,6 +86,7 @@ type State = {
   remoteCursors: Record<string, RemoteCursor>;
   connId: string | null;
   stampEmoji: string;
+  shapeType: string; // pending shape type for the square tool's shape picker
   marquee: { x: number; y: number; w: number; h: number } | null; // rubber-band select rect (screen px)
   menu: { x: number; y: number } | null; // right-click context menu (screen px)
 };
@@ -128,6 +129,30 @@ type LiveOp =
   | { k: "order"; ids: string[] };
 
 const STAMP_EMOJIS = ["👍", "🔥", "⭐", "✅", "❗", "❤️", "🎉", "👀", "💡", "❓"];
+// Shape types offered by the square-tool picker; each is rendered as a parametric SVG path.
+const SHAPE_TYPES = ["rectangle", "roundRect", "ellipse", "triangle", "diamond", "parallelogram", "hexagon", "star", "cylinder", "cloud"];
+
+// Which selected elements a given style control targets.
+const isShapeEl = (e: WbEl) => e.type === "rect" || e.type === "circle";
+const isTextEl = (e: WbEl) => e.type === "text" || e.type === "sticky" || e.type === "rect" || e.type === "circle";
+
+// Normalize a color for a native <input type="color"> (needs #rrggbb); legacy rgba() fills fall back.
+function toHex(c?: string, fallback = "#4DC4E8"): string {
+  if (!c) return fallback;
+  if (/^#[0-9a-fA-F]{6}$/.test(c)) return c;
+  if (/^#[0-9a-fA-F]{3}$/.test(c)) return `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`;
+  return fallback;
+}
+// Rounded-rect path (r=0 → sharp corners); one <path> so every shape shares the same element type.
+function roundRectPath(x: number, y: number, w: number, h: number, r: number): string {
+  r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  if (r <= 0) return `M${x},${y} H${x + w} V${y + h} H${x} Z`;
+  return `M${x + r},${y} H${x + w - r} A${r},${r} 0 0 1 ${x + w},${y + r} V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} H${x + r} A${r},${r} 0 0 1 ${x},${y + h - r} V${y + r} A${r},${r} 0 0 1 ${x + r},${y} Z`;
+}
+// Ellipse as a two-arc path (keeps everything a <path> so styling props spread onto one element type).
+function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
+  return `M${cx - rx},${cy} A${rx},${ry} 0 1 0 ${cx + rx},${cy} A${rx},${ry} 0 1 0 ${cx - rx},${cy} Z`;
+}
 const AVCOL = [
   "var(--color-navy-800)",
   "var(--color-sky-500)",
@@ -206,6 +231,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       remoteCursors: {},
       connId: null,
       stampEmoji: "👍",
+      shapeType: "rectangle",
       marquee: null,
       menu: null,
     };
@@ -252,6 +278,18 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     return tag === "INPUT" || tag === "TEXTAREA" || a.isContentEditable;
   }
   onKeyDown(e: KeyboardEvent) {
+    // Bold/Italic apply to the whole selected text/label element — allowed while editing
+    // that SAME canvas element's own contentEditable (preventDefault stops the browser's
+    // execCommand from also firing), but must never hijack Cmd+B/I typed into an unrelated
+    // field (board-title rename, comment reply, Convert-to-tasks modal, share invite…).
+    if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B" || e.key === "i" || e.key === "I")) {
+      const active = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+      const editingOwnElement = !!active && active.isContentEditable && !!active.closest("[data-el-id]");
+      if (!this.isTyping() || editingOwnElement) {
+        const hasText = this.state.selected.some((id) => { const el = this.el(id); return !!el && isTextEl(el); });
+        if (hasText) { this.toggleTextStyle(e.key.toLowerCase() === "b" ? "bold" : "italic"); e.preventDefault(); return; }
+      }
+    }
     if (this.isTyping()) return;
     if (e.code === "Space") {
       this.spaceDown = true;
@@ -713,7 +751,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     if (!node) return;
     const id = node.dataset.elId!;
     const el = this.el(id);
-    if (el && (el.type === "sticky" || el.type === "text" || el.type === "card")) {
+    if (el && (el.type === "sticky" || el.type === "text" || el.type === "card" || el.type === "rect" || el.type === "circle")) {
       this.setState({ editingId: id, selected: [id] });
     }
   };
@@ -901,8 +939,8 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     let el: WbEl | null = null;
     if (tool === "sticky") el = { id, type: "sticky", x: w.x - 86, y: w.y - 59, w: 172, h: 118, text: "New idea", color: "#FFE8A3" };
     else if (tool === "text") el = { id, type: "text", x: w.x - 40, y: w.y - 14, w: 200, h: 30, text: "Text", size: 18, weight: 600 };
-    else if (tool === "square") el = { id, type: "rect", x: w.x - 70, y: w.y - 45, w: 140, h: 90, color: "rgba(77,196,232,.16)" };
-    else if (tool === "circle") el = { id, type: "circle", x: w.x - 55, y: w.y - 55, w: 110, h: 110, color: "rgba(124,92,191,.16)" };
+    else if (tool === "square") el = { id, type: "rect", x: w.x - 70, y: w.y - 45, w: 140, h: 90, shapeType: this.state.shapeType, fill: "#4DC4E8", fillOpacity: 0.16, stroke: "#4DC4E8", strokeWidth: 2, strokeStyle: "solid", radius: this.state.shapeType === "roundRect" ? 14 : 0 };
+    else if (tool === "circle") el = { id, type: "circle", x: w.x - 55, y: w.y - 55, w: 110, h: 110, shapeType: "ellipse", fill: "#7C5CBF", fillOpacity: 0.16, stroke: "#7C5CBF", strokeWidth: 2, strokeStyle: "solid" };
     else if (tool === "frame") el = { id, type: "frame", x: w.x - 160, y: w.y - 120, w: 320, h: 240, title: "New frame", tint: "navy" };
     else if (tool === "card") el = { id, type: "card", x: w.x - 116, y: w.y - 75, w: 232, h: 150, text: "New task", assignee: "Unassigned", priority: "Medium", due: "" };
     else if (tool === "image") el = { id, type: "image", x: w.x - 115, y: w.y - 75, w: 230, h: 150, text: "screenshot.png" };
@@ -1092,14 +1130,16 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     return `/api/hr/whiteboards/${this.props.boardId}/image?key=${encodeURIComponent(el.imgKey!)}`;
   }
 
-  // Capture contentEditable edits back into the document on blur.
-  commitText = (id: string) => (e: React.FocusEvent<HTMLDivElement>) => {
-    const text = e.currentTarget.textContent ?? "";
+  // Capture contentEditable edits back into the document on blur. `field` is "text" for
+  // stickies/text, "label" for the centered text-in-shape label.
+  commitText = (id: string, field: "text" | "label" = "text") => (e: React.FocusEvent<HTMLDivElement>) => {
+    const value = e.currentTarget.textContent ?? "";
     const el = this.state.elements.find((x) => x.id === id);
-    if (el && el.text === text) { this.setState({ editingId: null }); return; }
+    if (el && (el[field] ?? "") === value) { this.setState({ editingId: null }); return; }
     this.pushUndo([id]);
-    this.mutate((s) => ({ elements: s.elements.map((x) => (x.id === id ? { ...x, text } : x)), editingId: null }));
-    if (el) this.emit({ k: "upsert", el: { ...el, text } });
+    const patch = (x: WbEl): WbEl => (field === "label" ? { ...x, label: value } : { ...x, text: value });
+    this.mutate((s) => ({ elements: s.elements.map((x) => (x.id === id ? patch(x) : x)), editingId: null }));
+    if (el) this.emit({ k: "upsert", el: patch(el) });
   };
   // Pick a stamp emoji: if a stamp is selected, recolor it (+broadcast); otherwise
   // set the pending emoji and arm the stamp tool for the next canvas click.
@@ -1114,6 +1154,90 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       this.setState({ stampEmoji: emoji, tool: "stamp" });
     }
   };
+  // Pick a shape type: if a shape is selected, restyle it (+broadcast); otherwise arm the
+  // square tool with the pending shape for the next canvas click. Mirrors setStamp.
+  setShape = (st: string) => () => {
+    const shapeEls = this.state.selected.map((id) => this.el(id)).filter((e): e is WbEl => !!e && isShapeEl(e));
+    if (shapeEls.length) {
+      const changed = shapeEls.map((e) => ({ ...e, shapeType: st, ...(st === "roundRect" && !e.radius ? { radius: 14 } : {}) }));
+      this.pushUndo(changed.map((e) => e.id));
+      const m = new Map(changed.map((c) => [c.id, c] as const));
+      this.mutate((s) => ({ elements: s.elements.map((e) => m.get(e.id) || e), shapeType: st }));
+      this.emit({ k: "upsertMany", els: changed });
+    } else {
+      this.setState({ shapeType: st, tool: "square" });
+    }
+  };
+  // Parametric SVG geometry for a shape element, rendered inside a box-filling <svg>.
+  // Everything resolves to <path> so fill/stroke props spread onto a single element type.
+  shapeGeom(e: WbEl): React.ReactNode {
+    const w = e.w || 140, h = e.h || 90;
+    const stroke = e.stroke || "none";
+    const sw = stroke === "none" ? 0 : (e.strokeWidth ?? 2);
+    const i = sw / 2, W = Math.max(0, w - sw), H = Math.max(0, h - sw);
+    const fill = e.fill || e.color || "#4DC4E8";
+    const fo = e.fillOpacity ?? 1;
+    const u = Math.max(1, sw);
+    const dash = e.strokeStyle === "dashed" ? `${u * 2.6} ${u * 2}` : e.strokeStyle === "dotted" ? `${u * 0.1} ${u * 1.9}` : undefined;
+    const cap: "round" | "butt" = e.strokeStyle === "dotted" ? "round" : "butt";
+    const gp: React.SVGProps<SVGPathElement> = { fill, fillOpacity: fo, stroke, strokeWidth: sw, strokeDasharray: dash, strokeLinecap: cap, strokeLinejoin: "round" };
+    const type = e.shapeType || (e.type === "circle" ? "ellipse" : "rectangle");
+    const poly = (ps: number[][]) => "M" + ps.map(([nx, ny]) => `${i + nx * W},${i + ny * H}`).join(" L ") + " Z";
+    let d = "";
+    switch (type) {
+      case "ellipse": d = ellipsePath(w / 2, h / 2, W / 2, H / 2); break;
+      case "triangle": d = poly([[0.5, 0], [1, 1], [0, 1]]); break;
+      case "diamond": d = poly([[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]]); break;
+      case "parallelogram": d = poly([[0.28, 0], [1, 0], [0.72, 1], [0, 1]]); break;
+      case "hexagon": d = poly([[0.25, 0], [0.75, 0], [1, 0.5], [0.75, 1], [0.25, 1], [0, 0.5]]); break;
+      case "star": {
+        const cx = w / 2, cy = h / 2, rx = W / 2, ry = H / 2, inr = 0.4;
+        const p: string[] = [];
+        for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5; const r = k % 2 === 0 ? 1 : inr; p.push(`${cx + Math.cos(a) * rx * r},${cy + Math.sin(a) * ry * r}`); }
+        d = "M" + p.join(" L ") + " Z";
+        break;
+      }
+      case "cylinder": {
+        const rx = W / 2, ey = Math.min(H * 0.16, W * 0.28), cx = w / 2, top = i + ey, bot = i + H - ey;
+        const body = `M${i},${top} A${rx},${ey} 0 0 1 ${i + W},${top} L${i + W},${bot} A${rx},${ey} 0 0 1 ${i},${bot} Z`;
+        return (<>
+          <path d={body} {...gp} />
+          <path d={ellipsePath(cx, top, rx, ey)} {...gp} />
+        </>);
+      }
+      case "cloud": {
+        const X = (n: number) => i + n * W, Y = (n: number) => i + n * H;
+        d = `M ${X(0.20)} ${Y(0.90)} C ${X(0.03)} ${Y(0.90)} ${X(0.02)} ${Y(0.60)} ${X(0.17)} ${Y(0.56)} C ${X(0.10)} ${Y(0.33)} ${X(0.35)} ${Y(0.22)} ${X(0.45)} ${Y(0.37)} C ${X(0.50)} ${Y(0.11)} ${X(0.81)} ${Y(0.14)} ${X(0.80)} ${Y(0.40)} C ${X(0.99)} ${Y(0.35)} ${X(1.00)} ${Y(0.69)} ${X(0.85)} ${Y(0.70)} C ${X(0.94)} ${Y(0.90)} ${X(0.66)} ${Y(0.95)} ${X(0.59)} ${Y(0.85)} C ${X(0.53)} ${Y(0.98)} ${X(0.28)} ${Y(0.98)} ${X(0.20)} ${Y(0.90)} Z`;
+        break;
+      }
+      case "roundRect": d = roundRectPath(i, i, W, H, e.radius ?? 14); break;
+      case "rectangle":
+      // Boards saved before shape styling existed have no `shapeType` at all — keep their
+      // original hardcoded 10px corner. New rectangles (shapeType explicitly set by
+      // createAt) honor `radius` as-is, including an explicit 0 for sharp corners.
+      default: d = roundRectPath(i, i, W, H, e.radius ?? (e.shapeType ? 0 : 10)); break;
+    }
+    return <path d={d} {...gp} />;
+  }
+  // Apply a style patch to every selected element matched by `match` — the canonical
+  // pushUndo → mutate → emit sequence, so undo + live-collab stay correct.
+  applyStyle(patch: Partial<WbEl>, match: (e: WbEl) => boolean) {
+    const ids = this.state.selected;
+    const changed = this.state.elements.filter((e) => ids.includes(e.id) && match(e)).map((e) => ({ ...e, ...patch }));
+    if (!changed.length) return;
+    this.pushUndo(changed.map((e) => e.id));
+    const m = new Map(changed.map((c) => [c.id, c] as const));
+    this.mutate((s) => ({ elements: s.elements.map((e) => m.get(e.id) || e) }));
+    this.emit({ k: "upsertMany", els: changed });
+  }
+  // Toggle bold/italic across the selected text/label elements (on unless all are already on).
+  toggleTextStyle(prop: "bold" | "italic") {
+    const ids = this.state.selected;
+    const targets = this.state.elements.filter((e) => ids.includes(e.id) && isTextEl(e));
+    if (!targets.length) return;
+    const on = !targets.every((e) => !!e[prop]);
+    this.applyStyle(prop === "bold" ? { bold: on } : { italic: on }, isTextEl);
+  }
   setColor = (c: string) => () => {
     const ids = this.state.selected;
     const changed = this.state.elements.filter((el) => ids.includes(el.id) && el.type === "sticky").map((el) => ({ ...el, color: c }));
@@ -1259,8 +1383,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       })
       .filter(Boolean);
 
-    // selection context bar position
+    // selection context bar position + style toolbar (stacked just above it)
     let contextStyle: React.CSSProperties = { display: "none" };
+    let styleBarStyle: React.CSSProperties = { display: "none" };
     const hasSelection = s.selected.length > 0 && !s.convertOpen;
     if (hasSelection) {
       const els = s.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
@@ -1276,8 +1401,16 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       const top = miny * s.zoom + s.pan.y - 50;
       const cx = ((minx + maxx) / 2) * s.zoom + s.pan.x;
       contextStyle = { left: Math.max(8, cx - 150), top: Math.max(6, top) };
+      styleBarStyle = { left: Math.max(8, cx - 190), top: Math.max(6, top - 46) };
     }
     const selEls = s.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    // Contextual style toolbar: shows for selected shapes / text / stickies.
+    const styleEls = selEls.filter((e) => e.type === "rect" || e.type === "circle" || e.type === "text" || e.type === "sticky");
+    const shapeStyleEls = styleEls.filter(isShapeEl);
+    const showStyleBar = styleEls.length > 0 && !s.convertOpen && s.tool === "select" && !s.editingId;
+    const rep = styleEls[0];
+    const repShape = shapeStyleEls[0];
+    const rectLike = !!repShape && (!repShape.shapeType || repShape.shapeType === "rectangle" || repShape.shapeType === "roundRect");
     const hasFrame = selEls.some((e) => e.type === "frame");
     const convertible = selEls.some((e) => e.type === "sticky" || e.type === "card") || hasFrame;
     const convertLabel = hasFrame
@@ -1441,17 +1574,51 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 </div>
               ))}
 
-            {/* shapes */}
+            {/* shapes — parametric SVG driven by shapeType, with an optional centered label */}
             {s.elements
               .filter((e) => e.type === "rect" || e.type === "circle")
-              .map((e) => (
-                <div
-                  key={e.id}
-                  className={"wb-el wb-shape" + (selSet.has(e.id) ? " sel" : "")}
-                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h, background: e.color, borderRadius: e.type === "circle" ? "50%" : 10 }}
-                  data-el-id={e.id}
-                />
-              ))}
+              .map((e) => {
+                const editing = s.editingId === e.id;
+                const lbl = e.label ?? "";
+                return (
+                  <div
+                    key={e.id}
+                    className={"wb-el wb-shape" + (selSet.has(e.id) ? " sel" : "") + (s.connectFrom === e.id ? " armed" : "")}
+                    style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h }}
+                    data-el-id={e.id}
+                  >
+                    <svg
+                      className="wb-shape-svg"
+                      width={e.w}
+                      height={e.h}
+                      viewBox={`0 0 ${e.w || 140} ${e.h || 90}`}
+                      style={{ position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none" }}
+                    >
+                      {this.shapeGeom(e)}
+                    </svg>
+                    {(editing || lbl) && (
+                      <div
+                        className={"wb-shape-label" + (editing ? " editing" : "")}
+                        style={{
+                          fontSize: e.fontSize || 15,
+                          fontWeight: e.bold ? 800 : 600,
+                          fontStyle: e.italic ? "italic" : "normal",
+                          color: e.textColor || "var(--color-navy-900)",
+                          textAlign: e.align || "center",
+                          justifyContent: e.align === "left" ? "flex-start" : e.align === "right" ? "flex-end" : "center",
+                        }}
+                        contentEditable={editing}
+                        suppressContentEditableWarning
+                        spellCheck={false}
+                        ref={editing ? (n) => { if (n && document.activeElement !== n) n.focus(); } : undefined}
+                        onBlur={editing ? this.commitText(e.id, "label") : undefined}
+                      >
+                        {lbl}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
             {/* images */}
             {s.elements
@@ -1496,7 +1663,14 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-sticky" + (selSet.has(e.id) ? " sel" : "") + (s.connectFrom === e.id ? " armed" : "")}
-                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h, background: e.color }}
+                  style={{
+                    ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h, background: e.color,
+                    fontSize: e.fontSize || undefined,
+                    fontWeight: e.bold ? 800 : undefined,
+                    fontStyle: e.italic ? "italic" : undefined,
+                    color: e.textColor || undefined,
+                    textAlign: e.align || undefined,
+                  }}
                   data-el-id={e.id}
                   contentEditable={s.editingId === e.id}
                   suppressContentEditableWarning
@@ -1544,7 +1718,14 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-text" + (e.muted ? " muted" : "") + (selSet.has(e.id) ? " sel" : "")}
-                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w || 220, fontSize: e.size || 18, fontWeight: e.weight || 700 }}
+                  style={{
+                    ...this.rot(e), left: e.x, top: e.y, width: e.w || 220,
+                    fontSize: e.fontSize || e.size || 18,
+                    fontWeight: e.bold ? 800 : e.weight || 700,
+                    fontStyle: e.italic ? "italic" : undefined,
+                    color: e.textColor || undefined,
+                    textAlign: e.align || undefined,
+                  }}
                   data-el-id={e.id}
                   contentEditable={s.editingId === e.id}
                   suppressContentEditableWarning
@@ -1585,6 +1766,121 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                   title={"Stamp " + em}
                 >
                   {em}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* shape picker palette — appears with the square tool or a selected shape */}
+          {(s.tool === "square" || (s.tool === "select" && shapeStyleEls.length > 0)) && (() => {
+            // Highlight the SELECTED shape's actual type when one is selected; otherwise
+            // the pending type armed on the square tool.
+            const activeType = repShape ? repShape.shapeType || (repShape.type === "circle" ? "ellipse" : "rectangle") : s.shapeType;
+            return (
+            <div className="wb-shape-palette">
+              {SHAPE_TYPES.map((st) => (
+                <button
+                  key={st}
+                  className={"wb-shape-opt" + (activeType === st ? " on" : "")}
+                  onClick={this.setShape(st)}
+                  title={st}
+                >
+                  <svg viewBox="0 0 24 20" width="24" height="20">
+                    {this.shapeGeom({ id: "m", type: "rect", x: 0, y: 0, w: 24, h: 20, shapeType: st, fill: "var(--color-sky-100)", fillOpacity: 1, stroke: "var(--color-navy-500)", strokeWidth: 1.5, strokeStyle: "solid" })}
+                  </svg>
+                </button>
+              ))}
+            </div>
+            );
+          })()}
+
+          {/* contextual style toolbar (fill / border / radius + font controls) */}
+          {showStyleBar && (
+            <div className="wb-stylebar" style={styleBarStyle} onMouseDown={this.stop}>
+              {shapeStyleEls.length > 0 && (
+                <>
+                  <label className="wb-sb-swatch" title="Fill color">
+                    <span className="wb-sb-chip" style={{ background: toHex(repShape.fill || repShape.color) }} />
+                    <input type="color" value={toHex(repShape.fill || repShape.color)} onChange={(e) => this.applyStyle({ fill: e.target.value }, isShapeEl)} />
+                  </label>
+                  <input
+                    className="wb-sb-range"
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={repShape.fillOpacity ?? 1}
+                    title="Fill opacity"
+                    onChange={(e) => this.applyStyle({ fillOpacity: parseFloat(e.target.value) }, isShapeEl)}
+                  />
+                  <div className="wb-sb-sep" />
+                  <label className="wb-sb-swatch" title="Border color">
+                    <span className="wb-sb-chip ring" style={{ background: toHex(repShape.stroke, "#132272") }} />
+                    <input type="color" value={toHex(repShape.stroke, "#132272")} onChange={(e) => this.applyStyle({ stroke: e.target.value, strokeWidth: repShape.strokeWidth ?? 2 }, isShapeEl)} />
+                  </label>
+                  <select
+                    className="wb-sb-sel"
+                    title="Border width"
+                    value={repShape.strokeWidth ?? 0}
+                    onChange={(e) => this.applyStyle({ strokeWidth: parseInt(e.target.value, 10), stroke: repShape.stroke || "#132272" }, isShapeEl)}
+                  >
+                    {[0, 1, 2, 3, 4, 6, 8].map((n) => (
+                      <option key={n} value={n}>{n}px</option>
+                    ))}
+                  </select>
+                  <select
+                    className="wb-sb-sel"
+                    title="Border style"
+                    value={repShape.strokeStyle || "solid"}
+                    onChange={(e) => this.applyStyle({ strokeStyle: e.target.value as "solid" | "dashed" | "dotted", stroke: repShape.stroke || "#132272", strokeWidth: repShape.strokeWidth ?? 2 }, isShapeEl)}
+                  >
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                  </select>
+                  {rectLike && (
+                    <input
+                      className="wb-sb-range"
+                      type="range"
+                      min={0}
+                      max={40}
+                      step={1}
+                      value={repShape.radius || 0}
+                      title="Corner radius"
+                      onChange={(e) => this.applyStyle({ radius: parseInt(e.target.value, 10) }, isShapeEl)}
+                    />
+                  )}
+                  <div className="wb-sb-sep" />
+                </>
+              )}
+              <select
+                className="wb-sb-sel"
+                title="Font size"
+                value={rep.fontSize || (rep.type === "text" ? rep.size || 18 : 15)}
+                onChange={(e) => this.applyStyle({ fontSize: parseInt(e.target.value, 10) }, isTextEl)}
+              >
+                {[12, 14, 15, 16, 18, 20, 24, 28, 32, 40, 48].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <button className={"wb-sb-btn" + (rep.bold ? " on" : "")} title="Bold · ⌘B" style={{ fontWeight: 800 }} onClick={() => this.toggleTextStyle("bold")}>B</button>
+              <button className={"wb-sb-btn" + (rep.italic ? " on" : "")} title="Italic · ⌘I" style={{ fontStyle: "italic", fontFamily: "var(--font-display)" }} onClick={() => this.toggleTextStyle("italic")}>I</button>
+              <label className="wb-sb-swatch" title="Text color">
+                <span className="wb-sb-chip" style={{ background: toHex(rep.textColor, "#132272") }} />
+                <input type="color" value={toHex(rep.textColor, "#132272")} onChange={(e) => this.applyStyle({ textColor: e.target.value }, isTextEl)} />
+              </label>
+              <div className="wb-sb-sep" />
+              {(["left", "center", "right"] as const).map((a) => (
+                <button
+                  key={a}
+                  className={"wb-sb-btn" + ((rep.align || "left") === a ? " on" : "")}
+                  title={"Align " + a}
+                  onClick={() => this.applyStyle({ align: a }, isTextEl)}
+                >
+                  <Icon
+                    d={a === "left" ? "M4 6h16 M4 10h10 M4 14h16 M4 18h10" : a === "center" ? "M4 6h16 M7 10h10 M4 14h16 M7 18h10" : "M4 6h16 M10 10h10 M4 14h16 M10 18h10"}
+                    w={15}
+                  />
                 </button>
               ))}
             </div>
