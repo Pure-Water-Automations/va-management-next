@@ -1539,12 +1539,24 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     const on = !targets.every((e) => !!e[prop]);
     this.applyStyle(prop === "bold" ? { bold: on } : { italic: on }, isTextEl);
   }
+  // Quick color swatch (top selection bar). Stickies use `color`; shapes render via
+  // `fill` (see shapeGeom) so they need that field set instead, or the swatch would
+  // silently no-op on anything but a sticky.
   setColor = (c: string) => () => {
     const ids = this.state.selected;
-    const changed = this.state.elements.filter((el) => ids.includes(el.id) && el.type === "sticky").map((el) => ({ ...el, color: c }));
+    const patchFor = (el: WbEl): WbEl | null => {
+      if (el.type === "sticky") return { ...el, color: c };
+      if (isShapeEl(el)) return { ...el, fill: c };
+      return null;
+    };
+    const changed = this.state.elements
+      .filter((el) => ids.includes(el.id))
+      .map((el) => patchFor(el))
+      .filter((el): el is WbEl => el !== null);
     if (!changed.length) return;
     this.pushUndo(changed.map((e) => e.id));
-    this.mutate((s) => ({ elements: s.elements.map((el) => (ids.includes(el.id) && el.type === "sticky" ? { ...el, color: c } : el)) }));
+    const m = new Map(changed.map((c) => [c.id, c] as const));
+    this.mutate((s) => ({ elements: s.elements.map((el) => m.get(el.id) || el) }));
     this.emit({ k: "upsertMany", els: changed });
   };
   onDuplicate = () => {
