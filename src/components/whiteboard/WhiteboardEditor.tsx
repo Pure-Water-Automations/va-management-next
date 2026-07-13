@@ -31,6 +31,7 @@ type WbEl = {
   frameId?: string;
   imgKey?: string; // R2 object key for an uploaded image
   uploading?: boolean; // image element mid-upload
+  rotation?: number; // degrees, rotate around center
 };
 type WbLink = { from: string; to: string };
 export type WbDoc = { elements: WbEl[]; links: WbLink[] };
@@ -69,6 +70,33 @@ type State = {
   remoteCursors: Record<string, RemoteCursor>;
   connId: string | null;
   stampEmoji: string;
+  marquee: { x: number; y: number; w: number; h: number } | null; // rubber-band select rect (screen px)
+};
+
+// Undo/redo entry: the BEFORE snapshot of the touched elements (null = element didn't
+// exist → undo removes it) plus optional links snapshot. Applied as ops, so undo is
+// per-user and collab-safe (it never wholesale-replaces the shared doc).
+type UndoEntry = { els: { id: string; el: WbEl | null }[]; links?: WbLink[] };
+
+type DragState = {
+  mode: "pan" | "el" | "resize" | "rotate" | "marquee";
+  sx: number;
+  sy: number;
+  px?: number;
+  py?: number;
+  snap?: { id: string; x: number; y: number }[];
+  moved?: boolean;
+  elId?: string;
+  nx?: number;
+  ny?: number;
+  box?: { x: number; y: number; w: number; h: number; rot: number };
+  center?: { x: number; y: number };
+  startAngle?: number;
+  startRot?: number;
+  mx?: number;
+  my?: number;
+  addTo?: string[];
+  undoIds?: string[];
 };
 
 type BoardUser = { userId: string; name: string; color: string };
@@ -118,15 +146,7 @@ function Icon({ d, w }: { d: string; w?: number }) {
 
 class WhiteboardCanvas extends React.Component<Props, State> {
   canvasEl: HTMLDivElement | null = null;
-  drag: {
-    mode: "pan" | "el";
-    sx: number;
-    sy: number;
-    px?: number;
-    py?: number;
-    snap?: { id: string; x: number; y: number }[];
-    moved?: boolean;
-  } | null = null;
+  drag: DragState | null = null;
   _mm?: (e: MouseEvent) => void;
   _mu?: () => void;
   saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -139,6 +159,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   _ku?: (e: KeyboardEvent) => void;
   spaceDown = false;
   fileInput: HTMLInputElement | null = null;
+  clipboard: WbEl[] = [];
+  undoStack: UndoEntry[] = [];
+  redoStack: UndoEntry[] = [];
 
   constructor(props: Props) {
     super(props);
@@ -165,6 +188,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       remoteCursors: {},
       connId: null,
       stampEmoji: "👍",
+      marquee: null,
     };
   }
 
@@ -215,6 +239,24 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       e.preventDefault();
       return;
     }
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod) {
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { this.undo(); e.preventDefault(); return; }
+      if ((k === "z" && e.shiftKey) || k === "y") { this.redo(); e.preventDefault(); return; }
+      if (k === "c") { this.copySelection(); e.preventDefault(); return; }
+      if (k === "x") { this.cutSelection(); e.preventDefault(); return; }
+      if (k === "v") { this.pasteClipboard(); e.preventDefault(); return; }
+      if (k === "d") { this.onDuplicate(); e.preventDefault(); return; }
+      if (k === "a") { this.selectAll(); e.preventDefault(); return; }
+      return; // leave other Cmd/Ctrl combos to the browser
+    }
+    if ((e.key === "Delete" || e.key === "Backspace") && this.state.selected.length) {
+      this.onDelete();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Escape") { this.clearSel(); return; }
     const step = e.shiftKey ? 200 : 70;
     switch (e.key) {
       case "ArrowLeft": this.setState((s) => ({ pan: { x: s.pan.x + step, y: s.pan.y } })); e.preventDefault(); break;
@@ -388,6 +430,103 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     );
   }
 
+  // ── undo / redo (per-user, op-based) ─────────────────────────────────
+  snapshotEls(ids: string[]): { id: string; el: WbEl | null }[] {
+    return ids.map((id) => {
+      const e = this.el(id);
+      return { id, el: e ? { ...e } : null };
+    });
+  }
+  commitUndo(entry: UndoEntry) {
+    this.undoStack.push(entry);
+    if (this.undoStack.length > 120) this.undoStack.shift();
+    this.redoStack = [];
+  }
+  // Capture the BEFORE state of `ids` (call right before a mutating action). Clears
+  // the redo stack. `includeLinks` also snapshots links (for connector add/delete).
+  pushUndo(ids: string[], includeLinks = false) {
+    const entry: UndoEntry = { els: this.snapshotEls(ids) };
+    if (includeLinks) entry.links = this.state.links.map((l) => ({ ...l }));
+    this.commitUndo(entry);
+  }
+  // Apply an entry (restore the snapshot) and return the inverse entry (current state
+  // of those ids) for the opposite stack. Emits ops so peers stay in sync.
+  applyUndoEntry(entry: UndoEntry): UndoEntry {
+    const inverse: UndoEntry = {
+      els: entry.els.map((e) => {
+        const cur = this.el(e.id);
+        return { id: e.id, el: cur ? { ...cur } : null };
+      }),
+    };
+    if (entry.links) inverse.links = this.state.links.map((l) => ({ ...l }));
+
+    this.setState(
+      (s) => {
+        let elements = [...s.elements];
+        for (const e of entry.els) {
+          const idx = elements.findIndex((x) => x.id === e.id);
+          if (e.el === null) {
+            if (idx >= 0) elements.splice(idx, 1);
+          } else if (idx >= 0) {
+            elements[idx] = e.el;
+          } else {
+            elements = elements.concat(e.el);
+          }
+        }
+        const links = entry.links ? entry.links : s.links;
+        return { elements, links, selected: [], editingId: null };
+      },
+      () => this.scheduleSave(),
+    );
+
+    // Broadcast the restored/removed elements to peers.
+    for (const e of entry.els) {
+      if (e.el === null) this.emit({ k: "delete", ids: [e.id] });
+      else this.emit({ k: "upsert", el: e.el });
+    }
+    if (entry.links) this.emit({ k: "links", links: entry.links });
+    return inverse;
+  }
+  undo = () => {
+    const entry = this.undoStack.pop();
+    if (!entry) return;
+    this.redoStack.push(this.applyUndoEntry(entry));
+  };
+  redo = () => {
+    const entry = this.redoStack.pop();
+    if (!entry) return;
+    this.undoStack.push(this.applyUndoEntry(entry));
+  };
+
+  // ── clipboard ────────────────────────────────────────────────────────
+  copySelection() {
+    const els = this.state.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    if (els.length) this.clipboard = els.map((e) => ({ ...e }));
+  }
+  pasteClipboard() {
+    if (!this.clipboard.length) return;
+    // Offset the batch and give fresh ids; paste near the viewport center.
+    const suffix = Date.now().toString(36).slice(-4);
+    const added: WbEl[] = this.clipboard.map((e, i) => ({
+      ...e,
+      id: `p_${suffix}_${i}`,
+      x: e.x + 28,
+      y: e.y + 28,
+      frameId: undefined,
+      uploading: false,
+    }));
+    this.pushUndo(added.map((a) => a.id));
+    this.mutate((s) => ({ elements: s.elements.concat(added), selected: added.map((a) => a.id) }));
+    if (added.length) this.emit({ k: "upsertMany", els: added });
+  }
+  cutSelection() {
+    this.copySelection();
+    this.onDelete();
+  }
+  selectAll() {
+    this.setState({ selected: this.state.elements.map((e) => e.id), editingId: null });
+  }
+
   // ── helpers ──────────────────────────────────────────────────────────
   el(id: string) {
     return this.state.elements.find((e) => e.id === id);
@@ -405,6 +544,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   avStyle(n: string | null | undefined, size?: number): React.CSSProperties {
     const z = size || 24;
     return { width: z, height: z, fontSize: Math.round(z * 0.4), background: this.avColor(n) };
+  }
+  rot(e: WbEl): React.CSSProperties {
+    return e.rotation ? { transform: `rotate(${e.rotation}deg)` } : {};
   }
   guessPri(t?: string) {
     const s = (t || "").toLowerCase();
@@ -492,6 +634,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
         if (!this.state.connectFrom) this.setState({ connectFrom: id });
         else if (this.state.connectFrom !== id) {
           const newLinks = this.state.links.concat({ from: this.state.connectFrom, to: id });
+          this.pushUndo([], true);
           this.mutate(() => ({ links: newLinks, connectFrom: null, tool: "select" }));
           this.emit({ k: "links", links: newLinks });
         }
@@ -520,9 +663,11 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       }
       this.beginElDrag(e, sel);
     } else {
+      // Empty canvas + Select tool → rubber-band marquee select (Figma/Miro trackpad
+      // style). Pan is available via Space+drag, middle-mouse, wheel, or arrows.
       if (!e.shiftKey) this.clearSel();
-      this.drag = { mode: "pan", sx: e.clientX, sy: e.clientY, px: this.state.pan.x, py: this.state.pan.y };
-      this.setState({ panning: true, shareOpen: false });
+      this.drag = { mode: "marquee", sx: e.clientX, sy: e.clientY, mx: e.clientX, my: e.clientY, addTo: e.shiftKey ? [...this.state.selected] : [] };
+      this.setState({ shareOpen: false });
     }
   };
   beginElDrag(e: React.MouseEvent, sel: string[]) {
@@ -530,8 +675,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     this.state.elements.forEach((el) => {
       if (el.frameId && ids.has(el.frameId)) ids.add(el.id);
     });
+    const idList = [...ids];
     const snap = this.state.elements.filter((el) => ids.has(el.id)).map((el) => ({ id: el.id, x: el.x, y: el.y }));
-    this.drag = { mode: "el", sx: e.clientX, sy: e.clientY, snap };
+    this.drag = { mode: "el", sx: e.clientX, sy: e.clientY, snap, undoIds: idList };
   }
   onCanvasDblClick = (e: React.MouseEvent) => {
     const node = (e.target as HTMLElement).closest("[data-el-id]") as HTMLElement | null;
@@ -548,6 +694,37 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       dy = e.clientY - this.drag.sy;
     if (this.drag.mode === "pan") {
       this.setState({ pan: { x: (this.drag.px || 0) + dx, y: (this.drag.py || 0) + dy } });
+    } else if (this.drag.mode === "marquee") {
+      this.drag.moved = true;
+      const x = Math.min(this.drag.mx!, e.clientX);
+      const y = Math.min(this.drag.my!, e.clientY);
+      const w = Math.abs(e.clientX - this.drag.mx!);
+      const h = Math.abs(e.clientY - this.drag.my!);
+      const hit = this.marqueeHits({ x, y, w, h });
+      const sel = Array.from(new Set([...(this.drag.addTo || []), ...hit]));
+      this.setState({ marquee: { x, y, w, h }, selected: sel });
+    } else if (this.drag.mode === "resize") {
+      this.drag.moved = true;
+      const p = this.toWorld(e.clientX, e.clientY);
+      const el = this.el(this.drag.elId!);
+      if (!el) return;
+      const box = this.resizeBox(this.drag, p, el.type, e.shiftKey);
+      this.setState(
+        (st) => ({ elements: st.elements.map((x) => (x.id === el.id ? { ...x, ...box } : x)) }),
+        () => this.throttleEmitEl(el.id),
+      );
+    } else if (this.drag.mode === "rotate") {
+      this.drag.moved = true;
+      const elId = this.drag.elId!;
+      const p = this.toWorld(e.clientX, e.clientY);
+      let ang = (Math.atan2(p.y - this.drag.center!.y, p.x - this.drag.center!.x) * 180) / Math.PI;
+      ang = (this.drag.startRot || 0) + (ang - this.drag.startAngle!);
+      if (e.shiftKey) ang = Math.round(ang / 15) * 15;
+      const rot = Math.round(ang);
+      this.setState(
+        (st) => ({ elements: st.elements.map((x) => (x.id === elId ? { ...x, rotation: rot } : x)) }),
+        () => this.throttleEmitEl(elId),
+      );
     } else if (this.drag.mode === "el") {
       if (!this.drag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
       this.drag.moved = true;
@@ -559,7 +736,6 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       this.setState(
         (st) => ({ elements: st.elements.map((el) => (map[el.id] ? { ...el, x: map[el.id].x, y: map[el.id].y } : el)) }),
         () => {
-          // Live-broadcast the moving elements to peers, throttled to ~20/sec.
           const now = Date.now();
           if (now - this.lastDragEmit < 50) return;
           this.lastDragEmit = now;
@@ -569,18 +745,127 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       );
     }
   }
+  throttleEmitEl(id: string) {
+    const now = Date.now();
+    if (now - this.lastDragEmit < 50) return;
+    this.lastDragEmit = now;
+    const el = this.el(id);
+    if (el) this.emit({ k: "upsert", el });
+  }
   onWinUp() {
-    const wasDrag = this.drag;
-    if (this.drag && this.drag.mode === "pan") this.setState({ panning: false });
-    const moved = this.drag && this.drag.mode === "el" && this.drag.moved;
-    const snapIds = wasDrag?.snap?.map((s) => s.id) ?? [];
+    const d = this.drag;
     this.drag = null;
-    if (moved) {
-      this.scheduleSave(); // element positions changed → persist
-      // Final authoritative positions to peers (in case the last throttle tick was skipped).
-      const finalEls = this.state.elements.filter((el) => snapIds.includes(el.id));
-      if (finalEls.length) this.emit({ k: "upsertMany", els: finalEls });
+    if (!d) return;
+    if (d.mode === "pan") this.setState({ panning: false });
+    if (d.mode === "marquee") {
+      this.setState({ marquee: null });
+      return;
     }
+    if ((d.mode === "resize" || d.mode === "rotate") && d.moved && d.elId) {
+      const before = d.box
+        ? [{ id: d.elId, el: { ...(this.el(d.elId) as WbEl), x: d.box.x, y: d.box.y, w: d.box.w, h: d.box.h, rotation: d.startRot ?? this.el(d.elId)?.rotation } }]
+        : this.snapshotEls([d.elId]);
+      // For rotate, restore rotation; for resize, restore box. Use the captured start box.
+      if (d.mode === "rotate" && d.box) before[0].el = { ...(this.el(d.elId) as WbEl), rotation: d.startRot };
+      this.commitUndo({ els: before });
+      const el = this.el(d.elId);
+      if (el) this.emit({ k: "upsert", el });
+      this.scheduleSave();
+      return;
+    }
+    if (d.mode === "el" && d.moved && d.snap) {
+      // Undo restores pre-drag positions (only x,y changed during a move).
+      const before = d.snap.map((s) => {
+        const cur = this.el(s.id);
+        return { id: s.id, el: cur ? { ...cur, x: s.x, y: s.y } : null };
+      });
+      this.commitUndo({ els: before });
+      const finalEls = this.state.elements.filter((el) => d.snap!.some((s) => s.id === el.id));
+      if (finalEls.length) this.emit({ k: "upsertMany", els: finalEls });
+      this.scheduleSave();
+    }
+  }
+
+  // ── resize / rotate transform math ───────────────────────────────────
+  // Which handles a type exposes: images = 4 corners (aspect-locked), text = E/W only, else 8.
+  handleSet(type: string): { nx: number; ny: number }[] {
+    if (type === "image") return [{ nx: -1, ny: -1 }, { nx: 1, ny: -1 }, { nx: 1, ny: 1 }, { nx: -1, ny: 1 }];
+    if (type === "text") return [{ nx: -1, ny: 0 }, { nx: 1, ny: 0 }];
+    return [
+      { nx: -1, ny: -1 }, { nx: 0, ny: -1 }, { nx: 1, ny: -1 }, { nx: 1, ny: 0 },
+      { nx: 1, ny: 1 }, { nx: 0, ny: 1 }, { nx: -1, ny: 1 }, { nx: -1, ny: 0 },
+    ];
+  }
+  minSize(type: string): { w: number; h: number } {
+    if (type === "text") return { w: 40, h: 24 };
+    if (type === "frame") return { w: 120, h: 100 };
+    if (type === "sticky") return { w: 60, h: 60 };
+    return { w: 24, h: 24 };
+  }
+  startResize = (nx: number, ny: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const id = this.state.selected[0];
+    const el = this.el(id);
+    if (!el) return;
+    this.drag = {
+      mode: "resize", sx: e.clientX, sy: e.clientY, elId: id, nx, ny,
+      box: { x: el.x, y: el.y, w: el.w || 40, h: el.h || 40, rot: el.rotation || 0 },
+    };
+  };
+  startRotate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const id = this.state.selected[0];
+    const el = this.el(id);
+    if (!el) return;
+    const cx = el.x + (el.w || 40) / 2, cy = el.y + (el.h || 40) / 2;
+    const p = this.toWorld(e.clientX, e.clientY);
+    this.drag = {
+      mode: "rotate", sx: e.clientX, sy: e.clientY, elId: id,
+      center: { x: cx, y: cy },
+      startAngle: (Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI,
+      startRot: el.rotation || 0,
+      box: { x: el.x, y: el.y, w: el.w || 40, h: el.h || 40, rot: el.rotation || 0 },
+    };
+  };
+  // Compute a new {x,y,w,h} for a resize drag, correct for the element's rotation.
+  resizeBox(d: DragState, p: { x: number; y: number }, type: string, shift: boolean) {
+    const b = d.box!;
+    const nx = d.nx!, ny = d.ny!;
+    const th = (b.rot * Math.PI) / 180;
+    const ux = Math.cos(th), uy = Math.sin(th); // local +x in world
+    const vx = -Math.sin(th), vy = Math.cos(th); // local +y in world
+    const c0x = b.x + b.w / 2, c0y = b.y + b.h / 2;
+    const cX = nx !== 0, cY = ny !== 0;
+    const flx = cX ? -nx * (b.w / 2) : 0, fly = cY ? -ny * (b.h / 2) : 0; // fixed point (local)
+    const fwx = c0x + flx * ux + fly * vx, fwy = c0y + flx * uy + fly * vy; // fixed (world)
+    const du = (p.x - fwx) * ux + (p.y - fwy) * uy;
+    const dv = (p.x - fwx) * vx + (p.y - fwy) * vy;
+    const min = this.minSize(type);
+    let w = cX ? Math.max(min.w, Math.abs(du)) : b.w;
+    let h = cY ? Math.max(min.h, Math.abs(dv)) : b.h;
+    const lock = type === "image" || (shift && (type === "rect" || type === "circle"));
+    if (lock && cX && cY) {
+      const asp = b.w / b.h;
+      if (w / b.w > h / b.h) h = w / asp;
+      else w = h * asp;
+    }
+    const ccx = fwx + (cX ? nx * (w / 2) * ux : 0) + (cY ? ny * (h / 2) * vx : 0);
+    const ccy = fwy + (cX ? nx * (w / 2) * uy : 0) + (cY ? ny * (h / 2) * vy : 0);
+    return { x: ccx - w / 2, y: ccy - h / 2, w, h };
+  }
+  // Elements whose bounding boxes intersect the marquee rect (screen px → world).
+  marqueeHits(rect: { x: number; y: number; w: number; h: number }): string[] {
+    const a = this.toWorld(rect.x, rect.y);
+    const b = this.toWorld(rect.x + rect.w, rect.y + rect.h);
+    const rx0 = Math.min(a.x, b.x), ry0 = Math.min(a.y, b.y), rx1 = Math.max(a.x, b.x), ry1 = Math.max(a.y, b.y);
+    return this.state.elements
+      .filter((e) => {
+        const ex1 = e.x + (e.w || 36), ey1 = e.y + (e.h || 36);
+        return e.x < rx1 && ex1 > rx0 && e.y < ry1 && ey1 > ry0;
+      })
+      .map((e) => e.id);
   }
   createAt(tool: string, w: { x: number; y: number }) {
     const id = tool[0] + "_" + Date.now().toString(36);
@@ -596,6 +881,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     else if (tool === "comment") el = { id, type: "comment", x: w.x - 17, y: w.y - 17, count: 1, author: "You", text: "New comment" };
     if (!el) return;
     const editing = tool === "sticky" || tool === "text";
+    this.pushUndo([id]);
     this.mutate((s) => ({
       elements: s.elements.concat(el!),
       tool: "select",
@@ -669,8 +955,10 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   // Capture contentEditable edits back into the document on blur.
   commitText = (id: string) => (e: React.FocusEvent<HTMLDivElement>) => {
     const text = e.currentTarget.textContent ?? "";
-    this.mutate((s) => ({ elements: s.elements.map((el) => (el.id === id ? { ...el, text } : el)), editingId: null }));
     const el = this.state.elements.find((x) => x.id === id);
+    if (el && el.text === text) { this.setState({ editingId: null }); return; }
+    this.pushUndo([id]);
+    this.mutate((s) => ({ elements: s.elements.map((x) => (x.id === id ? { ...x, text } : x)), editingId: null }));
     if (el) this.emit({ k: "upsert", el: { ...el, text } });
   };
   // Pick a stamp emoji: if a stamp is selected, recolor it (+broadcast); otherwise
@@ -679,6 +967,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     const sel = this.state.selected.length === 1 ? this.el(this.state.selected[0]) : null;
     if (sel && sel.type === "stamp") {
       const updated = { ...sel, emoji };
+      this.pushUndo([sel.id]);
       this.mutate((s) => ({ elements: s.elements.map((e) => (e.id === sel.id ? updated : e)), stampEmoji: emoji }));
       this.emit({ k: "upsert", el: updated });
     } else {
@@ -687,9 +976,11 @@ class WhiteboardCanvas extends React.Component<Props, State> {
   };
   setColor = (c: string) => () => {
     const ids = this.state.selected;
-    this.mutate((s) => ({ elements: s.elements.map((el) => (ids.includes(el.id) && el.type === "sticky" ? { ...el, color: c } : el)) }));
     const changed = this.state.elements.filter((el) => ids.includes(el.id) && el.type === "sticky").map((el) => ({ ...el, color: c }));
-    if (changed.length) this.emit({ k: "upsertMany", els: changed });
+    if (!changed.length) return;
+    this.pushUndo(changed.map((e) => e.id));
+    this.mutate((s) => ({ elements: s.elements.map((el) => (ids.includes(el.id) && el.type === "sticky" ? { ...el, color: c } : el)) }));
+    this.emit({ k: "upsertMany", els: changed });
   };
   onDuplicate = () => {
     const add: WbEl[] = [];
@@ -698,11 +989,14 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       if (el) add.push({ ...el, id: el.id + "_c" + Date.now().toString(36).slice(-3), x: el.x + 34, y: el.y + 34, frameId: undefined });
     });
     if (!add.length) return;
+    this.pushUndo(add.map((a) => a.id));
     this.mutate((s) => ({ elements: s.elements.concat(add), selected: add.map((a) => a.id) }));
     this.emit({ k: "upsertMany", els: add });
   };
   onDelete = () => {
     const ids = [...this.state.selected];
+    if (!ids.length) return;
+    this.pushUndo(ids, true);
     this.mutate((s) => {
       const del = new Set(ids);
       return {
@@ -712,7 +1006,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
         threadId: null,
       };
     });
-    if (ids.length) this.emit({ k: "delete", ids });
+    this.emit({ k: "delete", ids });
   };
   zoomBy(f: number) {
     if (!this.canvasEl) return;
@@ -871,6 +1165,10 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       s.presenceUsers.length > 0
         ? s.presenceUsers
         : [{ userId: this.props.currentUserId, name: this.props.currentUserName, color: this.avColor(this.props.currentUserName) }];
+    // Single-selection transform box (resize + rotate handles), in canvas-screen space.
+    const RESIZABLE = new Set(["rect", "circle", "image", "text", "sticky", "card", "frame"]);
+    const single = s.selected.length === 1 ? this.el(s.selected[0]) : null;
+    const showBox = !!single && RESIZABLE.has(single.type) && !s.editingId && s.tool === "select" && !s.convertOpen;
     // Peer cursors positioned in screen space via the current pan/zoom.
     const remoteCursorList = Object.entries(s.remoteCursors).map(([connId, c]) => ({
       connId,
@@ -993,7 +1291,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-frame tint-" + (e.tint || "navy") + (selSet.has(e.id) ? " sel" : "") + (s.connectFrom === e.id ? " armed" : "")}
-                  style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
+                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h }}
                   data-el-id={e.id}
                 >
                   <span className="wb-frame-tab" data-el-id={e.id}>
@@ -1009,7 +1307,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-shape" + (selSet.has(e.id) ? " sel" : "")}
-                  style={{ left: e.x, top: e.y, width: e.w, height: e.h, background: e.color, borderRadius: e.type === "circle" ? "50%" : 10 }}
+                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h, background: e.color, borderRadius: e.type === "circle" ? "50%" : 10 }}
                   data-el-id={e.id}
                 />
               ))}
@@ -1021,7 +1319,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-image" + (selSet.has(e.id) ? " sel" : "")}
-                  style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
+                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h }}
                   data-el-id={e.id}
                 >
                   {e.imgKey ? (
@@ -1057,7 +1355,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-sticky" + (selSet.has(e.id) ? " sel" : "") + (s.connectFrom === e.id ? " armed" : "")}
-                  style={{ left: e.x, top: e.y, width: e.w, height: e.h, background: e.color }}
+                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w, height: e.h, background: e.color }}
                   data-el-id={e.id}
                   contentEditable={s.editingId === e.id}
                   suppressContentEditableWarning
@@ -1075,7 +1373,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-card" + (selSet.has(e.id) ? " sel" : "")}
-                  style={{ left: e.x, top: e.y, width: e.w }}
+                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w }}
                   data-el-id={e.id}
                 >
                   <div className="wb-card-t">{e.text}</div>
@@ -1105,7 +1403,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
                 <div
                   key={e.id}
                   className={"wb-el wb-text" + (e.muted ? " muted" : "") + (selSet.has(e.id) ? " sel" : "")}
-                  style={{ left: e.x, top: e.y, width: e.w || 220, fontSize: e.size || 18, fontWeight: e.weight || 700 }}
+                  style={{ ...this.rot(e), left: e.x, top: e.y, width: e.w || 220, fontSize: e.size || 18, fontWeight: e.weight || 700 }}
                   data-el-id={e.id}
                   contentEditable={s.editingId === e.id}
                   suppressContentEditableWarning
@@ -1120,7 +1418,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             {s.elements
               .filter((e) => e.type === "stamp")
               .map((e) => (
-                <div key={e.id} className={"wb-el wb-stamp" + (selSet.has(e.id) ? " sel" : "")} style={{ left: e.x, top: e.y }} data-el-id={e.id}>
+                <div key={e.id} className={"wb-el wb-stamp" + (selSet.has(e.id) ? " sel" : "")} style={{ ...this.rot(e), left: e.x, top: e.y }} data-el-id={e.id}>
                   {e.emoji}
                 </div>
               ))}
@@ -1129,7 +1427,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             {s.elements
               .filter((e) => e.type === "comment")
               .map((e) => (
-                <div key={e.id} className={"wb-el wb-comment" + (selSet.has(e.id) ? " sel" : "")} style={{ left: e.x, top: e.y }} data-el-id={e.id}>
+                <div key={e.id} className={"wb-el wb-comment" + (selSet.has(e.id) ? " sel" : "")} style={{ ...this.rot(e), left: e.x, top: e.y }} data-el-id={e.id}>
                   {e.count}
                 </div>
               ))}
@@ -1150,6 +1448,34 @@ class WhiteboardCanvas extends React.Component<Props, State> {
               ))}
             </div>
           )}
+
+          {/* selection transform box: resize + rotate handles */}
+          {showBox && (() => {
+            const e = single!;
+            const w = (e.w || 40) * s.zoom, h = (e.h || 40) * s.zoom;
+            const cx = (e.x + (e.w || 40) / 2) * s.zoom + s.pan.x;
+            const cy = (e.y + (e.h || 40) / 2) * s.zoom + s.pan.y;
+            return (
+              <div
+                className="wb-tbox"
+                style={{ left: cx, top: cy, width: w, height: h, transform: `translate(-50%,-50%) rotate(${e.rotation || 0}deg)` }}
+              >
+                <div className="wb-rotate" onMouseDown={this.startRotate} title="Rotate" />
+                {this.handleSet(e.type).map((hd) => {
+                  const cursor =
+                    hd.nx && hd.ny ? (hd.nx * hd.ny > 0 ? "nwse-resize" : "nesw-resize") : hd.nx ? "ew-resize" : "ns-resize";
+                  return (
+                    <div
+                      key={`${hd.nx}_${hd.ny}`}
+                      className="wb-handle"
+                      style={{ left: `${50 + hd.nx * 50}%`, top: `${50 + hd.ny * 50}%`, cursor }}
+                      onMouseDown={this.startResize(hd.nx, hd.ny)}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* peer cursors (live collaboration) */}
           {remoteCursorList.length > 0 && (
@@ -1275,6 +1601,14 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             </div>
           )}
         </div>
+
+        {/* marquee rubber-band (viewport-fixed) */}
+        {s.marquee && (
+          <div
+            className="wb-marquee"
+            style={{ position: "fixed", left: s.marquee.x, top: s.marquee.y, width: s.marquee.w, height: s.marquee.h }}
+          />
+        )}
 
         {/* convert modal */}
         {s.convertOpen && (
