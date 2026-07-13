@@ -247,6 +247,23 @@
   border-top: 1px solid var(--color-border-subtle); padding: 9px 12px; display: flex; gap: 7px; align-items: center;
 }
 
+/* right-click context menu */
+.wb-menu-backdrop { position: fixed; inset: 0; z-index: 90; }
+.wb-menu {
+  position: fixed; z-index: 91; min-width: 190px; padding: 6px;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: 12px; box-shadow: var(--shadow-xl); animation: pwa-scale-in .12s var(--ease-spring);
+  max-height: 80vh; overflow-y: auto;
+}
+.wb-menu-item {
+  padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  color: var(--color-text-primary); cursor: pointer; white-space: nowrap; user-select: none;
+}
+.wb-menu-item:hover { background: var(--color-bg-secondary); }
+.wb-menu-item.danger { color: var(--color-error-dark); }
+.wb-menu-item.danger:hover { background: var(--color-error-light); }
+.wb-menu-sep { height: 1px; background: var(--color-border-subtle); margin: 5px 8px; }
+
 /* image upload spinner */
 .wb-spin {
   width: 22px; height: 22px; border-radius: 50%;

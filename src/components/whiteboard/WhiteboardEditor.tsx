@@ -32,6 +32,22 @@ type WbEl = {
   imgKey?: string; // R2 object key for an uploaded image
   uploading?: boolean; // image element mid-upload
   rotation?: number; // degrees, rotate around center
+  locked?: boolean; // can't move/resize until unlocked
+  groupId?: string; // members of the same group select/move together
+  // shape/text styling (Wave 2)
+  shapeType?: string;
+  fill?: string;
+  fillOpacity?: number;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeStyle?: "solid" | "dashed" | "dotted";
+  radius?: number;
+  label?: string;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  textColor?: string;
+  align?: "left" | "center" | "right";
 };
 type WbLink = { from: string; to: string };
 export type WbDoc = { elements: WbEl[]; links: WbLink[] };
@@ -71,6 +87,7 @@ type State = {
   connId: string | null;
   stampEmoji: string;
   marquee: { x: number; y: number; w: number; h: number } | null; // rubber-band select rect (screen px)
+  menu: { x: number; y: number } | null; // right-click context menu (screen px)
 };
 
 // Undo/redo entry: the BEFORE snapshot of the touched elements (null = element didn't
@@ -107,7 +124,8 @@ type LiveOp =
   | { k: "upsertMany"; els: WbEl[] }
   | { k: "delete"; ids: string[] }
   | { k: "links"; links: WbLink[] }
-  | { k: "title"; title: string };
+  | { k: "title"; title: string }
+  | { k: "order"; ids: string[] };
 
 const STAMP_EMOJIS = ["👍", "🔥", "⭐", "✅", "❗", "❤️", "🎉", "👀", "💡", "❓"];
 const AVCOL = [
@@ -189,6 +207,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       connId: null,
       stampEmoji: "👍",
       marquee: null,
+      menu: null,
     };
   }
 
@@ -249,6 +268,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       if (k === "v") { this.pasteClipboard(); e.preventDefault(); return; }
       if (k === "d") { this.onDuplicate(); e.preventDefault(); return; }
       if (k === "a") { this.selectAll(); e.preventDefault(); return; }
+      if (k === "g") { if (e.shiftKey) this.ungroupSelection(); else this.groupSelection(); e.preventDefault(); return; }
       return; // leave other Cmd/Ctrl combos to the browser
     }
     if ((e.key === "Delete" || e.key === "Backspace") && this.state.selected.length) {
@@ -256,7 +276,11 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       e.preventDefault();
       return;
     }
-    if (e.key === "Escape") { this.clearSel(); return; }
+    if (e.key === "Escape") { this.clearSel(); this.setState({ menu: null }); return; }
+    // Single-key tool hotkeys (Miro-style), when not typing.
+    const toolKeys: Record<string, string> = { v: "select", s: "sticky", n: "sticky", t: "text", r: "square", o: "circle", f: "frame", l: "connector", c: "comment" };
+    if (toolKeys[e.key]) { this.setTool(toolKeys[e.key])(); e.preventDefault(); return; }
+    if (e.key === "i") { this.openImagePicker(); e.preventDefault(); return; }
     const step = e.shiftKey ? 200 : 70;
     switch (e.key) {
       case "ArrowLeft": this.setState((s) => ({ pan: { x: s.pan.x + step, y: s.pan.y } })); e.preventDefault(); break;
@@ -372,6 +396,9 @@ class WhiteboardCanvas extends React.Component<Props, State> {
         links = op.links;
       } else if (op.k === "title") {
         title = op.title;
+      } else if (op.k === "order") {
+        const pos = new Map(op.ids.map((id, i) => [id, i]));
+        elements = [...s.elements].sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0));
       }
       return { elements, links, title };
     }, () => this.scheduleSave());
@@ -652,16 +679,18 @@ class WhiteboardCanvas extends React.Component<Props, State> {
       const id = node.dataset.elId!;
       if (this.state.editingId === id) return;
       const add = e.shiftKey;
+      const group = this.withGroup(id); // clicking a grouped element selects the whole group
       let sel: string[];
-      if (add) sel = this.state.selected.includes(id) ? this.state.selected.filter((x) => x !== id) : this.state.selected.concat(id);
-      else sel = this.state.selected.includes(id) ? this.state.selected : [id];
+      if (add) sel = this.state.selected.includes(id) ? this.state.selected.filter((x) => !group.includes(x)) : Array.from(new Set([...this.state.selected, ...group]));
+      else sel = group.every((g) => this.state.selected.includes(g)) ? this.state.selected : group;
       const elx = this.el(id);
       if (elx && elx.type === "comment" && !add) {
         this.setState({ selected: sel, threadId: this.state.threadId === id ? null : id, editingId: null });
       } else {
         this.setState({ selected: sel, editingId: null, threadId: null });
       }
-      this.beginElDrag(e, sel);
+      // Locked elements select (so you can unlock) but don't drag.
+      if (!sel.some((sid) => this.el(sid)?.locked)) this.beginElDrag(e, sel);
     } else {
       // Empty canvas + Select tool → rubber-band marquee select (Figma/Miro trackpad
       // style). Pan is available via Space+drag, middle-mouse, wheel, or arrows.
@@ -891,6 +920,117 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     }));
     this.emit({ k: "upsert", el });
   }
+
+  // ── arrange: z-order, lock, group, align/distribute, zoom-to-selection ─
+  reorderSelection(mode: "front" | "back" | "forward" | "backward") {
+    const sel = new Set(this.state.selected);
+    if (!sel.size) return;
+    this.mutate((s) => {
+      let elements = [...s.elements];
+      if (mode === "front") elements = [...elements.filter((e) => !sel.has(e.id)), ...elements.filter((e) => sel.has(e.id))];
+      else if (mode === "back") elements = [...elements.filter((e) => sel.has(e.id)), ...elements.filter((e) => !sel.has(e.id))];
+      else {
+        const idxs = elements.map((e, i) => (sel.has(e.id) ? i : -1)).filter((i) => i >= 0);
+        if (mode === "forward") {
+          for (let j = idxs.length - 1; j >= 0; j--) {
+            const i = idxs[j];
+            if (i < elements.length - 1 && !sel.has(elements[i + 1].id)) [elements[i], elements[i + 1]] = [elements[i + 1], elements[i]];
+          }
+        } else {
+          for (const i of idxs) if (i > 0 && !sel.has(elements[i - 1].id)) [elements[i], elements[i - 1]] = [elements[i - 1], elements[i]];
+        }
+      }
+      return { elements };
+    });
+    setTimeout(() => this.emit({ k: "order", ids: this.state.elements.map((e) => e.id) }), 0);
+    this.setState({ menu: null });
+  }
+  toggleLock = () => {
+    const ids = this.state.selected;
+    if (!ids.length) return;
+    const locked = ids.some((id) => !this.el(id)?.locked); // lock all if any unlocked, else unlock
+    this.pushUndo(ids);
+    const changed = this.state.elements.filter((e) => ids.includes(e.id)).map((e) => ({ ...e, locked }));
+    this.mutate((s) => ({ elements: s.elements.map((e) => (ids.includes(e.id) ? { ...e, locked } : e)), menu: null }));
+    this.emit({ k: "upsertMany", els: changed });
+  };
+  groupSelection = () => {
+    const ids = this.state.selected;
+    if (ids.length < 2) return;
+    const gid = "g_" + Date.now().toString(36);
+    this.pushUndo(ids);
+    const changed = this.state.elements.filter((e) => ids.includes(e.id)).map((e) => ({ ...e, groupId: gid }));
+    this.mutate((s) => ({ elements: s.elements.map((e) => (ids.includes(e.id) ? { ...e, groupId: gid } : e)), menu: null }));
+    this.emit({ k: "upsertMany", els: changed });
+  };
+  ungroupSelection = () => {
+    const ids = this.state.selected;
+    if (!ids.length) return;
+    this.pushUndo(ids);
+    const changed = this.state.elements.filter((e) => ids.includes(e.id)).map((e) => ({ ...e, groupId: undefined }));
+    this.mutate((s) => ({ elements: s.elements.map((e) => (ids.includes(e.id) ? { ...e, groupId: undefined } : e)), menu: null }));
+    this.emit({ k: "upsertMany", els: changed });
+  };
+  alignSelection = (edge: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") => {
+    const els = this.state.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    if (els.length < 2) return;
+    const minx = Math.min(...els.map((e) => e.x)), maxr = Math.max(...els.map((e) => e.x + (e.w || 0)));
+    const miny = Math.min(...els.map((e) => e.y)), maxb = Math.max(...els.map((e) => e.y + (e.h || 0)));
+    const cx = (minx + maxr) / 2, cy = (miny + maxb) / 2;
+    this.pushUndo(this.state.selected);
+    const changed = els.map((e) => {
+      const w = e.w || 0, h = e.h || 0;
+      let x = e.x, y = e.y;
+      if (edge === "left") x = minx; else if (edge === "right") x = maxr - w; else if (edge === "hcenter") x = cx - w / 2;
+      else if (edge === "top") y = miny; else if (edge === "bottom") y = maxb - h; else if (edge === "vcenter") y = cy - h / 2;
+      return { ...e, x, y };
+    });
+    this.mutate((s) => ({ elements: s.elements.map((e) => changed.find((c) => c.id === e.id) || e), menu: null }));
+    this.emit({ k: "upsertMany", els: changed });
+  };
+  distributeSelection = (axis: "h" | "v") => {
+    const els = this.state.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    if (els.length < 3) return;
+    const sorted = [...els].sort((a, b) => (axis === "h" ? a.x - b.x : a.y - b.y));
+    const start = axis === "h" ? sorted[0].x : sorted[0].y;
+    const end = axis === "h" ? sorted[sorted.length - 1].x : sorted[sorted.length - 1].y;
+    const gap = (end - start) / (sorted.length - 1);
+    this.pushUndo(this.state.selected);
+    const changed = sorted.map((e, i) => (axis === "h" ? { ...e, x: start + gap * i } : { ...e, y: start + gap * i }));
+    this.mutate((s) => ({ elements: s.elements.map((e) => changed.find((c) => c.id === e.id) || e), menu: null }));
+    this.emit({ k: "upsertMany", els: changed });
+  };
+  zoomToSelection = () => {
+    const els = this.state.selected.map((id) => this.el(id)).filter(Boolean) as WbEl[];
+    const c = this.canvasEl;
+    if (!els.length || !c) return this.fitView();
+    const r = c.getBoundingClientRect();
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    els.forEach((e) => {
+      const w = e.w || 40, h = e.h || 40;
+      minx = Math.min(minx, e.x); miny = Math.min(miny, e.y); maxx = Math.max(maxx, e.x + w); maxy = Math.max(maxy, e.y + h);
+    });
+    const pad = 90, cw = maxx - minx + pad * 2, ch = maxy - miny + pad * 2;
+    const z = Math.max(0.2, Math.min(2.5, Math.min(r.width / cw, r.height / ch)));
+    this.setState({ zoom: z, pan: { x: r.width / 2 - ((minx + maxx) / 2) * z, y: r.height / 2 - ((miny + maxy) / 2) * z }, menu: null });
+  };
+  // Expand a clicked id to its whole group (for group-aware selection).
+  withGroup(id: string): string[] {
+    const g = this.el(id)?.groupId;
+    if (!g) return [id];
+    return this.state.elements.filter((e) => e.groupId === g).map((e) => e.id);
+  }
+  onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const node = (e.target as HTMLElement).closest("[data-el-id]") as HTMLElement | null;
+    if (node) {
+      const id = node.dataset.elId!;
+      if (!this.state.selected.includes(id)) this.setState({ selected: this.withGroup(id) });
+    }
+    this.setState({ menu: { x: e.clientX, y: e.clientY } });
+  };
+  closeMenu = () => this.setState({ menu: null });
+
   // ── image upload ─────────────────────────────────────────────────────
   openImagePicker = () => {
     this.setState({ tool: "select" });
@@ -1168,7 +1308,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
     // Single-selection transform box (resize + rotate handles), in canvas-screen space.
     const RESIZABLE = new Set(["rect", "circle", "image", "text", "sticky", "card", "frame"]);
     const single = s.selected.length === 1 ? this.el(s.selected[0]) : null;
-    const showBox = !!single && RESIZABLE.has(single.type) && !s.editingId && s.tool === "select" && !s.convertOpen;
+    const showBox = !!single && RESIZABLE.has(single.type) && !single.locked && !s.editingId && s.tool === "select" && !s.convertOpen;
     // Peer cursors positioned in screen space via the current pan/zoom.
     const remoteCursorList = Object.entries(s.remoteCursors).map(([connId, c]) => ({
       connId,
@@ -1270,6 +1410,7 @@ class WhiteboardCanvas extends React.Component<Props, State> {
           ref={this.setCanvasRef}
           onMouseDown={this.onCanvasDown}
           onDoubleClick={this.onCanvasDblClick}
+          onContextMenu={this.onContextMenu}
           onMouseMove={(e) => this.sendCursor(e.clientX, e.clientY)}
         >
           <div className="wb-world" style={{ transform: `translate(${s.pan.x}px,${s.pan.y}px) scale(${s.zoom})` }}>
@@ -1608,6 +1749,59 @@ class WhiteboardCanvas extends React.Component<Props, State> {
             className="wb-marquee"
             style={{ position: "fixed", left: s.marquee.x, top: s.marquee.y, width: s.marquee.w, height: s.marquee.h }}
           />
+        )}
+
+        {/* right-click context menu */}
+        {s.menu && (
+          <>
+            <div className="wb-menu-backdrop" onMouseDown={this.closeMenu} onContextMenu={(e) => { e.preventDefault(); this.closeMenu(); }} />
+            <div className="wb-menu" style={{ left: Math.min(s.menu.x, window.innerWidth - 210), top: Math.min(s.menu.y, window.innerHeight - 380) }}>
+              {(() => {
+                const n = s.selected.length;
+                const anyLocked = s.selected.some((id) => this.el(id)?.locked);
+                const inGroup = s.selected.some((id) => this.el(id)?.groupId);
+                const item = (label: string, onClick: () => void, danger?: boolean) => (
+                  <div key={label} className={"wb-menu-item" + (danger ? " danger" : "")} onMouseDown={(e) => { e.preventDefault(); onClick(); }}>
+                    {label}
+                  </div>
+                );
+                const sep = (k: string) => <div key={k} className="wb-menu-sep" />;
+                if (n === 0) {
+                  return [
+                    this.clipboard.length ? item("Paste", () => { this.pasteClipboard(); this.closeMenu(); }) : null,
+                    item("Select all", () => { this.selectAll(); this.closeMenu(); }),
+                    item("Fit to content", () => { this.fitView(); this.closeMenu(); }),
+                  ];
+                }
+                return [
+                  item("Copy", () => { this.copySelection(); this.closeMenu(); }),
+                  item("Duplicate", () => { this.onDuplicate(); this.closeMenu(); }),
+                  this.clipboard.length ? item("Paste", () => { this.pasteClipboard(); this.closeMenu(); }) : null,
+                  sep("s1"),
+                  item("Bring to front", () => this.reorderSelection("front")),
+                  item("Bring forward", () => this.reorderSelection("forward")),
+                  item("Send backward", () => this.reorderSelection("backward")),
+                  item("Send to back", () => this.reorderSelection("back")),
+                  sep("s2"),
+                  item(anyLocked ? "Unlock" : "Lock", () => this.toggleLock()),
+                  n >= 2 ? item("Group", () => this.groupSelection()) : null,
+                  inGroup ? item("Ungroup", () => this.ungroupSelection()) : null,
+                  item("Zoom to selection", () => this.zoomToSelection()),
+                  n >= 2 ? sep("s3") : null,
+                  n >= 2 ? item("Align left", () => this.alignSelection("left")) : null,
+                  n >= 2 ? item("Align center", () => this.alignSelection("hcenter")) : null,
+                  n >= 2 ? item("Align right", () => this.alignSelection("right")) : null,
+                  n >= 2 ? item("Align top", () => this.alignSelection("top")) : null,
+                  n >= 2 ? item("Align middle", () => this.alignSelection("vcenter")) : null,
+                  n >= 2 ? item("Align bottom", () => this.alignSelection("bottom")) : null,
+                  n >= 3 ? item("Distribute horizontally", () => this.distributeSelection("h")) : null,
+                  n >= 3 ? item("Distribute vertically", () => this.distributeSelection("v")) : null,
+                  sep("s4"),
+                  item("Delete", () => { this.onDelete(); this.closeMenu(); }, true),
+                ];
+              })()}
+            </div>
+          </>
         )}
 
         {/* convert modal */}
