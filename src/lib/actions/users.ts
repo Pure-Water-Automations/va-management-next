@@ -2,22 +2,24 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import type { Role } from "@prisma/client";
 
+// Assignable roles = specialized functions + the all-access Tester. SENIOR_VA /
+// TEAM_LEAD are retired (seniority is tier-driven) and can no longer be assigned.
 const ROLES: Role[] = [
   "HR_MANAGER",
   "PEOPLE_OPS",
-  "TEAM_LEAD",
   "BOOKKEEPER",
   "RECRUITER",
-  "SENIOR_VA",
+  "SALES",
   "VA",
+  "TESTER",
 ];
 
 async function requireAdmin() {
   const user = await getCurrentUser();
-  if (!user.isAdmin) throw new Error("Forbidden");
+  if (!isAllAccess(user)) throw new Error("Forbidden");
 }
 
 export async function createUser(data: {

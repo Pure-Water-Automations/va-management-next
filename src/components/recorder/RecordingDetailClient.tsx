@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import type { RecordingDetail } from "@/lib/reads/recordings";
+import { RecordingVideo } from "@/components/recorder/RecordingVideo";
 
 const REACTIONS = ["👍", "❤️", "🎉", "👀", "🔥"];
 
@@ -237,11 +238,12 @@ export function RecordingDetailClient({
         <div>
           {ready ? (
             // eslint-disable-next-line jsx-a11y/media-has-caption
-            <video
+            <RecordingVideo
               ref={videoRef}
               src={streamUrl}
               poster={detail.thumbnailUrl ?? undefined}
               controls
+              playsInline
               onLoadedMetadata={hasTrim ? clampToTrimStart : undefined}
               onTimeUpdate={hasTrim ? clampToTrimEnd : undefined}
               style={{ width: "100%", borderRadius: "var(--radius-card)", background: "#000" }}
@@ -280,10 +282,11 @@ export function RecordingDetailClient({
               {detail.enhanceStatus === "done" && detail.enhancedUrl && (
                 <>
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                  <video
+                  <RecordingVideo
                     src={detail.enhancedUrl}
                     poster={detail.thumbnailUrl ?? undefined}
                     controls
+                    playsInline
                     style={{ width: "100%", borderRadius: "var(--radius-card)", background: "#000" }}
                   />
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>

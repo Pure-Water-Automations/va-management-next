@@ -33,7 +33,7 @@ export default async function VaEvaluationPage() {
 
       {nothing && (
         <Card>
-          <p className="small" style={{ margin: 0 }}>Nothing to complete right now. When an evaluation is started for you — or for someone you supervise — it’ll show up here.</p>
+          <p className="small" style={{ margin: 0 }}>Nothing to complete right now. Evaluations you need to complete will show up here.</p>
         </Card>
       )}
 

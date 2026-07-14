@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type View = "HR" | "PAYROLL" | "RECRUITMENT" | "VA";
+type View = "ADMIN" | "HR" | "PAYROLL" | "RECRUITMENT" | "SALES" | "VA";
 const VIEWS: { key: View; label: string; home: string }[] = [
+  { key: "ADMIN", label: "Admin", home: "/admin/users" },
   { key: "HR", label: "HR", home: "/hr" },
   { key: "PAYROLL", label: "Payroll", home: "/payroll" },
   { key: "RECRUITMENT", label: "Recruitment", home: "/recruitment" },
+  { key: "SALES", label: "Sales", home: "/sales" },
   { key: "VA", label: "VA", home: "/va" },
 ];
 
@@ -81,7 +82,6 @@ export function AdminBar({
           <span style={betaDot(betaOn)} /> Beta {betaOn ? "On" : "Off"}
         </button>
       )}
-      <Link href="/admin/email" style={{ marginLeft: showBetaToggle ? 0 : "auto", color: "rgba(255,255,255,.75)", fontSize: "var(--text-xs)", textDecoration: "none" }}>⚙ Email sender</Link>
     </div>
   );
 }

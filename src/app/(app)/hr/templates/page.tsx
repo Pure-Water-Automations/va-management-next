@@ -1,5 +1,4 @@
 import { getCurrentUser } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
 import { getTemplates } from "@/lib/reads/templates";
 import { TemplateManager } from "@/components/TemplateManager";
 
@@ -7,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HrTemplatesPage() {
   const user = await getCurrentUser();
-  if (!user.isAdmin && !canManageTasks(user.role)) {
+  if (!user.caps.manageTasks) {
     return <p style={{ padding: 32 }}>Not authorized.</p>;
   }
 

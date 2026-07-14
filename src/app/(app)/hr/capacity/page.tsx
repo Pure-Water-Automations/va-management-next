@@ -39,7 +39,7 @@ export default async function CapacityPage() {
               <div>
                 <div style={{ fontWeight: 600 }}>{c.va.name}</div>
                 <div className="small">
-                  {Math.round(c.utilizationPct)}% utilization · {c.last14dHours.toFixed(1)}h logged / 2wk · {formatExpected14d(c.va.targetHoursWeekly)} · {formatTarget(c.va.targetHoursWeekly)}
+                  {Math.round(c.utilizationPct)}% utilization · {c.last14dHours.toFixed(1)}h logged · {c.atWork14dHours.toFixed(1)}h at work / 2wk · {formatExpected14d(c.va.targetHoursWeekly)} · {formatTarget(c.va.targetHoursWeekly)}
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

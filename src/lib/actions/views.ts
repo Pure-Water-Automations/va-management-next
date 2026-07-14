@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import type { Role } from "@prisma/client";
 
 /** Save the current task/project filter+sort+group querystring as a named view. */
@@ -8,7 +9,8 @@ export async function createSavedView(
   actorRole: Role,
   input: { name: unknown; scope?: unknown; query?: unknown },
 ) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Not allowed to save views");
+  if (!(await canUserDelegateTasks(actorId, actorRole)))
+    throw new AuthorizationError("Not allowed to save views");
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (!name) throw new Error("View name is required");
   const scope = typeof input.scope === "string" && input.scope ? input.scope : "tasks";

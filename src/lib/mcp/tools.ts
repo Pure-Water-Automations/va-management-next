@@ -1,22 +1,33 @@
-import type { DealStage, Role, TaskStatus } from "@prisma/client";
+import type { DealStage, TaskStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getProjectsList } from "@/lib/reads/projects";
+import { getMyTasks, getTaskDetail, getAvailableTasks } from "@/lib/reads/tasks";
+import { getPayrollDashboard } from "@/lib/reads/payroll";
+import { getPipeline } from "@/lib/reads/recruitment";
 import { createProject, updateProject } from "@/lib/actions/projects";
-import { createTask, updateTaskStatus, reassignTask, updateTask } from "@/lib/actions/tasks";
+import { createTask, updateTaskStatus, reassignTask, claimTask, resolveClaim, updateTask } from "@/lib/actions/tasks";
 import { addTaskComment } from "@/lib/actions/comments";
-import { getTaskDetail } from "@/lib/reads/tasks";
 import { createDeal, convertDealToClient, DEAL_STAGES } from "@/lib/sales/deal";
 import { sendClientAgreement } from "@/lib/sales/agreement";
+import { viewForRole } from "@/lib/auth/roles";
+import { canUserActOnTask } from "@/lib/services/tasks";
+import { filterProjectsByClientOrg, taskClientOrgWhere } from "./scoping";
+import { visibleTools, isAllAccess, type McpActor } from "./access";
+import { MCP_TOOLS } from "./protocol";
+
+export type McpCtx = McpActor;
 
 /** Base URL for links returned to the AI client (prod domain fallback). */
 const BASE_URL = env.APP_BASE_URL ?? env.NEXTAUTH_URL ?? "https://team.purewaterautomations.com";
 
-export type McpCtx = { actorId: string; actorRole: Role };
-
 function str(args: Record<string, unknown>, key: string): string | undefined {
   const v = args[key];
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
+}
+
+function bool(args: Record<string, unknown>, key: string): boolean | undefined {
+  return typeof args[key] === "boolean" ? (args[key] as boolean) : undefined;
 }
 
 /** Resolve a project reference (id or name) to a project id. */
@@ -65,81 +76,157 @@ function enumArg(args: Record<string, unknown>, key: string, allowed: Set<string
   return { value: v };
 }
 
+type TaskRow = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: string | null;
+  dueDate: Date | null;
+  client?: string | null;
+  assignedTo?: { name: string | null; email: string } | null;
+  project?: { name: string } | null;
+};
+
+function taskSummary(t: TaskRow) {
+  return {
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    priority: t.priority,
+    dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
+    client: t.client ?? null,
+    assignee: t.assignedTo ? (t.assignedTo.name ?? t.assignedTo.email) : null,
+    project: t.project?.name ?? null,
+  };
+}
+
 export async function executeTool(name: string, args: Record<string, unknown>, ctx: McpCtx): Promise<{ text: string; isError?: boolean }> {
   const json = (v: unknown) => ({ text: JSON.stringify(v, null, 2) });
   const fail = (msg: string) => ({ text: msg, isError: true });
+  const isManager = isAllAccess(ctx) || ctx.canDelegate;
 
   switch (name) {
-    case "list_projects": {
-      const status = str(args, "status");
-      const all = await getProjectsList();
-      const rows = all
-        .filter((p) => !status || p.status === status)
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          status: p.status,
-          client: p.client,
-          owner: p.owner.name ?? p.owner.email,
-          openTasks: p.openTaskCount,
-          totalTasks: p.taskCount,
-        }));
-      return json({ count: rows.length, projects: rows });
+    // ── Everyone ────────────────────────────────────────────────────────────
+    case "whoami": {
+      return json({
+        email: ctx.actorEmail,
+        name: ctx.actorName,
+        role: ctx.actorRole,
+        isAdmin: ctx.isAdmin,
+        canDelegateTasks: ctx.canDelegate,
+        consoleView: viewForRole(ctx.actorRole),
+        tools: visibleTools(MCP_TOOLS, ctx).map((t) => t.name),
+        note: "Writes made through this MCP are attributed to you in the console's activity log.",
+      });
     }
 
-    case "create_project": {
-      const name_ = str(args, "name");
-      if (!name_) return fail("name is required");
-      const priority = enumArg(args, "priority", PRIORITY);
-      const status = enumArg(args, "status", PROJECT_STATUS);
-      const type = enumArg(args, "type", PROJECT_TYPE);
-      const bad = priority.error ?? status.error ?? type.error;
-      if (bad) return fail(bad);
-      const project = await createProject(ctx.actorId, ctx.actorRole, {
-        name: name_,
-        description: str(args, "description"),
-        client: str(args, "client"),
-        priority: priority.value,
-        status: status.value,
-        type: type.value,
-        dueDate: str(args, "dueDate"),
-        ownerId: ctx.actorId,
-      });
-      return json({ created: true, id: project.id, name: project.name, url: `${BASE_URL}/hr/projects/${project.id}` });
+    case "my_tasks": {
+      const status = str(args, "status");
+      const tasks = await getMyTasks(ctx.actorId);
+      const rows = tasks
+        .filter((t) => !status || t.status === status)
+        .map((t) => ({ ...taskSummary(t), comments: t.comments.length }));
+      return json({ count: rows.length, tasks: rows });
     }
 
-    case "list_tasks": {
-      const ref = str(args, "project");
-      const status = str(args, "status");
-      const projectId = ref ? await resolveProjectId(ref) : undefined;
-      if (ref && !projectId) return fail(`No project matched "${ref}"`);
-      const tasks = await db.task.findMany({
-        where: { ...(projectId ? { projectId } : {}), ...(status && VALID_STATUS.has(status) ? { status: status as TaskStatus } : {}) },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-        select: { id: true, title: true, status: true, priority: true, dueDate: true, client: true, assignedTo: { select: { name: true, email: true } }, project: { select: { name: true } } },
+    case "get_task": {
+      const taskId = str(args, "taskId");
+      if (!taskId) return fail("taskId is required");
+      const t = await getTaskDetail(taskId);
+      if (!t) return fail(`No task with id "${taskId}"`);
+      // Managers/admins can inspect any task; VAs only tasks they're part of (or open-pool ones).
+      if (!isManager && !t.claimable && !canUserActOnTask(ctx.actorId, false, t)) {
+        return fail("You can only view tasks assigned to you, created by you, or open to claim.");
+      }
+      return json({
+        ...taskSummary(t),
+        instructions: t.instructions,
+        claimable: t.claimable,
+        assignedBy: t.assignedBy?.name ?? null,
+        checklist: t.checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
+        dependencies: t.dependencies.map((d) => ({ id: d.dependsOn.id, title: d.dependsOn.title, status: d.dependsOn.status })),
+        comments: t.comments.map((c) => ({ author: c.author.name, body: c.body, at: c.createdAt.toISOString() })),
+        url: `${BASE_URL}/${isManager ? "hr" : "va"}/tasks/${t.id}`,
       });
+    }
+
+    case "update_task_status": {
+      const taskId = str(args, "taskId");
+      const status = str(args, "status");
+      if (!taskId || !status || !VALID_STATUS.has(status)) return fail("taskId and a valid status (NotStarted|InProgress|Done|Blocked) are required");
+      const updated = await updateTaskStatus(ctx.actorId, ctx.actorRole, taskId, status as TaskStatus);
+      return json({ updated: true, id: updated.id, title: updated.title, status: updated.status });
+    }
+
+    case "add_task_comment": {
+      const taskId = str(args, "taskId");
+      const body = str(args, "body");
+      if (!taskId || !body) return fail("taskId and body are required");
+      const comment = await addTaskComment(ctx.actorId, ctx.actorRole, taskId, body);
+      return json({ commented: true, taskId, author: comment.author.name, at: comment.createdAt.toISOString() });
+    }
+
+    case "list_available_tasks": {
+      const tasks = await getAvailableTasks();
       return json({
         count: tasks.length,
         tasks: tasks.map((t) => ({
           id: t.id,
           title: t.title,
-          status: t.status,
+          instructions: t.instructions,
           priority: t.priority,
           dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null,
           client: t.client,
-          assignee: t.assignedTo.name ?? t.assignedTo.email,
           project: t.project?.name ?? null,
+          postedBy: t.assignedBy?.name ?? null,
+          pendingClaimBy: t.claimRequestedBy ? (t.claimRequestedBy.name ?? t.claimRequestedBy.email) : null,
         })),
       });
+    }
+
+    case "claim_task": {
+      const taskId = str(args, "taskId");
+      if (!taskId) return fail("taskId is required");
+      await claimTask(ctx.actorId, taskId);
+      return json({ claimRequested: true, taskId, note: "A manager will approve or deny the claim." });
+    }
+
+    case "my_notifications": {
+      const unreadOnly = bool(args, "unreadOnly") ?? true;
+      const limit = typeof args.limit === "number" ? Math.min(Math.max(1, args.limit), 50) : 20;
+      const rows = await db.notification.findMany({
+        where: { userId: ctx.actorId, ...(unreadOnly ? { read: false } : {}) },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      });
+      return json({
+        count: rows.length,
+        unreadOnly,
+        notifications: rows.map((n) => ({ id: n.id, type: n.type, body: n.body, link: n.link ? `${BASE_URL}${n.link}` : null, read: n.read, at: n.createdAt.toISOString() })),
+      });
+    }
+
+    case "list_projects": {
+      const status = str(args, "status");
+      const clientOrgId = str(args, "clientOrgId");
+      const all = await getProjectsList();
+      const statusFiltered = all.filter((p) => !status || p.status === status);
+      const rows = filterProjectsByClientOrg(statusFiltered, clientOrgId).map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        client: p.client,
+        clientOrganizationId: p.clientOrganizationId,
+        owner: p.owner.name ?? p.owner.email,
+        openTasks: p.openTaskCount,
+        totalTasks: p.taskCount,
+      }));
+      return json({ count: rows.length, projects: rows });
     }
 
     case "create_task": {
       const title = str(args, "title");
       if (!title) return fail("title is required");
-      const priority = enumArg(args, "priority", PRIORITY);
-      const strategy = enumArg(args, "strategy", TASK_STRATEGY);
-      if (priority.error ?? strategy.error) return fail((priority.error ?? strategy.error)!);
       const projectRef = str(args, "project");
       let projectId: string | undefined;
       if (projectRef) {
@@ -147,41 +234,84 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         if (!resolved) return fail(`No project matched "${projectRef}"`);
         projectId = resolved;
       }
-      const claimable = args.claimable === true;
       const assigneeRef = str(args, "assignee");
-      // claimable → open pool (no specific assignee). Otherwise default to the caller.
-      let assignedToId: string | undefined = claimable ? undefined : ctx.actorId;
+      let assignedToId = ctx.actorId; // default: yourself
       if (assigneeRef) {
         const resolved = await resolveAssigneeId(assigneeRef);
         if (!resolved) return fail(`No assignee matched "${assigneeRef}" — call list_assignees to see valid VAs`);
+        if (!isManager && resolved !== ctx.actorId) {
+          return fail("Your role can only create tasks for yourself. Ask a team lead to assign tasks to others.");
+        }
         assignedToId = resolved;
       }
       const task = await createTask(ctx.actorId, ctx.actorRole, {
         title,
         instructions: str(args, "instructions"),
-        priority: priority.value,
-        strategy: strategy.value,
-        client: str(args, "client"),
+        priority: str(args, "priority"),
         dueDate: str(args, "dueDate"),
         projectId,
         assignedToId,
-        claimable,
+      });
+      return json({ created: true, id: task.id, title: task.title, assignedTo: task.assignedTo.name ?? task.assignedTo.email, emailSent: task.emailSent, url: `${BASE_URL}/hr/tasks/${task.id}` });
+    }
+
+    // ── Task delegators ─────────────────────────────────────────────────────
+    case "list_tasks": {
+      const ref = str(args, "project");
+      const status = str(args, "status");
+      const clientOrgId = str(args, "clientOrgId");
+      const assigneeRef = str(args, "assignee");
+      const projectId = ref ? await resolveProjectId(ref) : undefined;
+      if (ref && !projectId) return fail(`No project matched "${ref}"`);
+      let assignedToId: string | undefined;
+      if (assigneeRef) {
+        const resolved = await resolveAssigneeId(assigneeRef);
+        if (!resolved) return fail(`No assignee matched "${assigneeRef}"`);
+        assignedToId = resolved;
+      }
+      const tasks = await db.task.findMany({
+        where: {
+          ...(projectId ? { projectId } : {}),
+          ...(assignedToId ? { assignedToId } : {}),
+          ...(status && VALID_STATUS.has(status) ? { status: status as TaskStatus } : {}),
+          ...taskClientOrgWhere(clientOrgId),
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          client: true,
+          clientOrganizationId: true,
+          assignedTo: { select: { name: true, email: true } },
+          project: { select: { name: true } },
+        },
       });
       return json({
-        created: true,
-        id: task.id,
-        title: task.title,
-        claimable,
-        assignedTo: task.assignedTo?.name ?? task.assignedTo?.email ?? (claimable ? "(open pool)" : null),
-        emailSent: task.emailSent,
-        url: `${BASE_URL}/hr/tasks/${task.id}`,
+        count: tasks.length,
+        tasks: tasks.map((t) => ({ ...taskSummary(t), clientOrganizationId: t.clientOrganizationId })),
       });
     }
 
     case "list_assignees": {
       const client = str(args, "client");
+      // Explicit ClientAssignment (who's formally on this account) outranks derived history.
+      let assignedSet = new Set<string>();
+      if (client) {
+        const org = await db.clientOrganization.findFirst({
+          where: { OR: [{ name: { equals: client, mode: "insensitive" } }, { slug: client.toLowerCase() }] },
+          select: { id: true },
+        });
+        if (org) {
+          const a = await db.clientAssignment.findMany({ where: { clientOrganizationId: org.id }, select: { userId: true } });
+          assignedSet = new Set(a.map((x) => x.userId));
+        }
+      }
       const vas = await db.user.findMany({
-        where: { role: { in: ["VA", "SENIOR_VA"] }, active: true },
+        where: { role: "VA", active: true },
         select: {
           id: true, name: true, email: true, role: true,
           va: { select: { compensationRole: true, skillSpecs: true, availabilityNotes: true, targetHoursWeekly: true } },
@@ -208,66 +338,60 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
             openTasks,
             recentTasks: recent.map((t) => t.title),
             clientsWorkedWith: clients,
-            ...(client ? { workedWithClient: clients.some((c) => c.toLowerCase() === client.toLowerCase()) } : {}),
+            ...(client
+              ? {
+                  assignedToClient: assignedSet.has(va.id),
+                  workedWithClient: clients.some((c) => c.toLowerCase() === client.toLowerCase()),
+                }
+              : {}),
           };
         }),
       );
       // Best-fit ordering: prior experience with the client first, then least loaded.
       rows.sort((a, b) => {
         if (client) {
+          const aa = "assignedToClient" in a && a.assignedToClient ? 1 : 0;
+          const ba = "assignedToClient" in b && b.assignedToClient ? 1 : 0;
+          if (aa !== ba) return ba - aa;
           const aw = "workedWithClient" in a && a.workedWithClient ? 1 : 0;
           const bw = "workedWithClient" in b && b.workedWithClient ? 1 : 0;
           if (aw !== bw) return bw - aw;
         }
         return a.openTasks - b.openTasks;
       });
-      return json({ count: rows.length, assignees: rows, note: client ? `Ordered by prior experience with "${client}", then lowest workload.` : "Ordered by lowest current workload." });
-    }
-
-    case "update_task_status": {
-      const taskId = str(args, "taskId");
-      const status = str(args, "status");
-      if (!taskId || !status || !VALID_STATUS.has(status)) return fail("taskId and a valid status (NotStarted|InProgress|Done|Blocked) are required");
-      const updated = await updateTaskStatus(ctx.actorId, ctx.actorRole, taskId, status as TaskStatus);
-      return json({ updated: true, id: updated.id, title: updated.title, status: updated.status });
-    }
-
-    case "get_task": {
-      const taskId = str(args, "taskId");
-      if (!taskId) return fail("taskId is required");
-      const t = await getTaskDetail(taskId);
-      if (!t) return fail(`No task with id "${taskId}"`);
-      return json({
-        id: t.id,
-        title: t.title,
-        status: t.status,
-        priority: t.priority,
-        client: t.client,
-        project: t.project ? { id: t.project.id, name: t.project.name } : null,
-        assignedTo: t.assignedTo ? (t.assignedTo.name ?? t.assignedTo.email) : null,
-        assignedBy: t.assignedBy?.name ?? null,
-        dueDate: t.dueDate,
-        instructions: t.instructions,
-        comments: t.comments.map((c) => ({ author: c.author.name ?? "Someone", body: c.body, at: c.createdAt })),
-      });
+      return json({ count: rows.length, assignees: rows, note: client ? `Ordered by who's assigned to "${client}", then prior experience, then lowest workload.` : "Ordered by lowest current workload." });
     }
 
     case "reassign_task": {
       const taskId = str(args, "taskId");
       const assigneeRef = str(args, "assignee");
       if (!taskId || !assigneeRef) return fail("taskId and assignee are required");
-      const newAssigneeId = await resolveAssigneeId(assigneeRef);
-      if (!newAssigneeId) return fail(`No assignee matched "${assigneeRef}" — call list_assignees to see valid VAs`);
-      const t = await reassignTask(ctx.actorId, ctx.actorRole, taskId, newAssigneeId);
-      return json({ reassigned: true, id: t.id, title: t.title });
+      const assigneeId = await resolveAssigneeId(assigneeRef);
+      if (!assigneeId) return fail(`No assignee matched "${assigneeRef}" — call list_assignees to see valid VAs`);
+      const updated = await reassignTask(ctx.actorId, ctx.actorRole, taskId, assigneeId);
+      return json({ reassigned: true, id: updated.id, title: updated.title, assignedTo: updated.assignee });
     }
 
-    case "add_task_comment": {
+    case "resolve_claim": {
       const taskId = str(args, "taskId");
-      const body = str(args, "body");
-      if (!taskId || !body) return fail("taskId and body are required");
-      const c = await addTaskComment(ctx.actorId, ctx.actorRole, taskId, body);
-      return json({ added: true, id: c.id, at: c.createdAt });
+      const approve = bool(args, "approve");
+      if (!taskId || approve === undefined) return fail("taskId and approve (true/false) are required");
+      await resolveClaim(ctx.actorId, ctx.actorRole, taskId, approve);
+      return json({ resolved: true, taskId, approved: approve });
+    }
+
+    case "create_project": {
+      const name_ = str(args, "name");
+      if (!name_) return fail("name is required");
+      const project = await createProject(ctx.actorId, ctx.actorRole, {
+        name: name_,
+        description: str(args, "description"),
+        client: str(args, "client"),
+        priority: str(args, "priority"),
+        dueDate: str(args, "dueDate"),
+        ownerId: ctx.actorId,
+      });
+      return json({ created: true, id: project.id, name: project.name, url: `${BASE_URL}/hr/projects/${project.id}` });
     }
 
     case "update_project": {
@@ -314,6 +438,129 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       return json({ updated: true, id: t.id, title: t.title, url: `${BASE_URL}/hr/tasks/${t.id}` });
     }
 
+    // ── HR ──────────────────────────────────────────────────────────────────
+    case "team_overview": {
+      const includeDeparted = bool(args, "includeDeparted") ?? false;
+      const vas = await db.va.findMany({
+        where: includeDeparted ? {} : { status: { in: ["active", "training"] } },
+        orderBy: [{ status: "asc" }, { name: "asc" }],
+        select: {
+          vaId: true, name: true, email: true, compensationRole: true, status: true,
+          targetHoursWeekly: true, lastCheckinDate: true, skillSpecs: true,
+          supervisor: { select: { name: true } },
+          users: { select: { id: true, role: true } },
+        },
+      });
+      const rows = await Promise.all(
+        vas.map(async (v) => {
+          const userIds = v.users.map((u) => u.id);
+          const openTasks = userIds.length
+            ? await db.task.count({ where: { assignedToId: { in: userIds }, status: { not: "Done" } } })
+            : 0;
+          return {
+            name: v.name,
+            email: v.email,
+            tier: v.compensationRole,
+            status: v.status,
+            consoleRole: v.users[0]?.role ?? null,
+            supervisor: v.supervisor?.name ?? null,
+            targetHoursWeekly: v.targetHoursWeekly,
+            lastCheckin: v.lastCheckinDate?.toISOString().slice(0, 10) ?? null,
+            skills: v.skillSpecs,
+            openTasks,
+          };
+        }),
+      );
+      return json({ count: rows.length, team: rows });
+    }
+
+    case "get_va_profile": {
+      const ref = str(args, "va");
+      if (!ref) return fail("va (name or email) is required");
+      const va = await db.va.findFirst({
+        where: { OR: [{ email: { equals: ref, mode: "insensitive" } }, { name: { contains: ref, mode: "insensitive" } }] },
+        select: {
+          vaId: true, name: true, email: true, compensationRole: true, status: true,
+          targetHoursWeekly: true, skillSpecs: true, availabilityNotes: true, lastCheckinDate: true,
+          whatsappNumber: true, notifyChannel: true, roleStartedDate: true, notionProfileUrl: true,
+          supervisor: { select: { name: true, email: true } },
+          users: { select: { id: true, role: true } },
+        },
+      });
+      if (!va) return fail(`No VA matched "${ref}" — try team_overview to see the roster.`);
+      const userIds = va.users.map((u) => u.id);
+      const [openTasks, recentTasks] = userIds.length
+        ? await Promise.all([
+            db.task.findMany({ where: { assignedToId: { in: userIds }, status: { not: "Done" } }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, title: true, status: true, priority: true, dueDate: true, client: true } }),
+            db.task.findMany({ where: { assignedToId: { in: userIds }, status: "Done" }, orderBy: { createdAt: "desc" }, take: 10, select: { title: true, client: true } }),
+          ])
+        : [[], []];
+      return json({
+        name: va.name,
+        email: va.email,
+        tier: va.compensationRole,
+        status: va.status,
+        consoleRole: va.users[0]?.role ?? null,
+        supervisor: va.supervisor ? { name: va.supervisor.name, email: va.supervisor.email } : null,
+        targetHoursWeekly: va.targetHoursWeekly,
+        skills: va.skillSpecs,
+        availability: va.availabilityNotes,
+        lastCheckin: va.lastCheckinDate?.toISOString().slice(0, 10) ?? null,
+        roleStarted: va.roleStartedDate?.toISOString().slice(0, 10) ?? null,
+        whatsapp: va.whatsappNumber,
+        notifyChannel: va.notifyChannel,
+        notionProfile: va.notionProfileUrl,
+        openTasks: openTasks.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null, client: t.client })),
+        recentlyCompleted: recentTasks.map((t) => t.title),
+      });
+    }
+
+    // ── Payroll ─────────────────────────────────────────────────────────────
+    case "payroll_summary": {
+      const d = await getPayrollDashboard();
+      return json({
+        openPeriod: d.openPeriod
+          ? { start: d.openPeriod.periodStart.toISOString().slice(0, 10), end: d.openPeriod.periodEnd.toISOString().slice(0, 10), status: d.openPeriod.status }
+          : null,
+        totals: { grossPay: Math.round(d.totalGross * 100) / 100, hours: Math.round(d.totalHours * 100) / 100 },
+        rows: d.calcRows.map((r) => ({
+          name: r.name,
+          tier: r.compensationRole,
+          type: r.compensationType,
+          hours: r.hoursInPeriod,
+          hourlyRate: r.hourlyRate,
+          salaryPerPeriod: r.salaryPerPeriod,
+          grossPay: r.grossPay,
+        })),
+        recentApprovedRateChanges: d.rateChanges.map((rc) => ({ vaId: rc.vaId, decidedAt: rc.hrDecisionDate?.toISOString().slice(0, 10) ?? null })),
+        pastPeriods: d.pastPeriods.map((p) => ({ start: p.periodStart.toISOString().slice(0, 10), end: p.periodEnd.toISOString().slice(0, 10), status: p.status })),
+      });
+    }
+
+    // ── Recruitment ─────────────────────────────────────────────────────────
+    case "recruitment_pipeline": {
+      const includeClosed = bool(args, "includeClosed") ?? false;
+      const p = await getPipeline(includeClosed);
+      return json({
+        countsByStage: p.counts,
+        count: p.candidates.length,
+        candidates: p.candidates.map((c) => ({
+          id: c.candidateId,
+          name: c.name,
+          email: c.email,
+          country: c.country,
+          stage: c.currentStage,
+          source: c.source,
+          skills: c.skillsRoleTags,
+          scores: { ai: c.aiSkillScore, communication: c.commScore, reliability: c.reliabilityScore, ownership: c.ownershipScore, skillFit: c.skillFitScore },
+          recruiterRecommendation: c.recruiterRecommendation,
+          finalDecision: c.finalDecision,
+          lastUpdated: c.lastUpdated.toISOString().slice(0, 10),
+        })),
+      });
+    }
+
+    // ── Sales ───────────────────────────────────────────────────────────────
     case "list_deals": {
       const stage = str(args, "stage");
       const deals = await db.deal.findMany({

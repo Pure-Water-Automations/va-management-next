@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, getEffectiveActor, isBetaVisible } from "@/lib/auth/access";
-import { canManageProjects, canManageTasks } from "@/lib/auth/roles";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
+import { listProjectWhiteboards } from "@/lib/reads/whiteboards";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
@@ -12,30 +12,59 @@ import { StatusBadge, DueChip, Avatar } from "@/components/ui/task-format";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
+import { ProjectWhiteboards } from "@/components/ProjectWhiteboards";
 import { EnhanceButton } from "@/components/EnhanceButton";
+import { NotionItemControls } from "@/components/NotionItemControls";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ converted?: string }>;
+}) {
   const { id } = await params;
+  const { converted } = await searchParams;
   const user = await getCurrentUser();
-  const actor = await getEffectiveActor(user);
-  if (!actor.isAdmin && !canManageTasks(actor.role)) {
+  if (!user.caps.manageTasks) {
     redirect("/hr/projects");
   }
-  const canEdit = actor.isAdmin || canManageProjects(actor.role);
+  const canEdit = user.caps.manageProjects;
 
-  const [project, feed, assignees] = await Promise.all([
+  // Auto-suggest: VAs assigned to this project's client float to the top of the picker.
+  const projectClientId = (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))?.clientOrganizationId ?? null;
+  const [project, feed, assignees, whiteboards] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
-    getDelegationAssignees(),
+    getDelegationAssignees(projectClientId),
+    listProjectWhiteboards(id),
   ]);
+  const convertedCount = converted ? parseInt(converted, 10) : 0;
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
 
   const progress = computeProjectProgress(project.tasks);
   const openTaskCount = project.tasks.filter((t) => t.status !== "Done").length;
-  const betaVisible = await isBetaVisible(actor.email);
+  const betaVisible = await isBetaVisible(user.email);
+
+  // Notion sync (beta): linked-page info + whether this client has a projects connection.
+  const notionInfo = betaVisible
+    ? await db.project.findUnique({
+        where: { id },
+        select: {
+          notionUrl: true,
+          notionStatus: true,
+          clientOrganizationId: true,
+          clientOrganization: { select: { notionConnection: { select: { active: true, projectsDataSourceId: true } } } },
+        },
+      })
+    : null;
+  const notionConnected =
+    !!notionInfo?.clientOrganization?.notionConnection?.active &&
+    !!notionInfo.clientOrganization.notionConnection.projectsDataSourceId;
 
   return (
     <>
@@ -61,6 +90,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           {betaVisible && (
             <EnhanceButton projectId={project.id} projectName={project.name} assignees={assignees} />
           )}
+          {betaVisible && notionInfo?.clientOrganizationId && (
+            <NotionItemControls
+              kind="project"
+              id={project.id}
+              notionUrl={notionInfo.notionUrl}
+              notionStatus={notionInfo.notionStatus}
+              connected={notionConnected}
+            />
+          )}
           {canEdit && (
             <Button href={`/hr/projects/${id}/edit`} variant="ghost" size="sm">
               Edit
@@ -82,6 +120,33 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           value={<span style={{ fontSize: "var(--text-lg)" }}>{project.owner.name ?? project.owner.email}</span>}
         />
       </div>
+
+      {convertedCount > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "14px 18px",
+            marginBottom: 20,
+            borderRadius: "var(--radius-card)",
+            background: "linear-gradient(150deg,#eef0fa 0%,#e7f8fd 100%)",
+            border: "1px solid var(--color-sky-100)",
+          }}
+        >
+          <span style={{ fontSize: 22 }}>✅</span>
+          <div>
+            <div style={{ fontWeight: 700, color: "var(--color-navy-900)" }}>
+              {convertedCount} task{convertedCount === 1 ? "" : "s"} added from a whiteboard
+            </div>
+            <div className="small" style={{ color: "var(--color-navy-700)" }}>
+              Promoted from the board. Owners were notified and can start right away.
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ProjectWhiteboards projectId={project.id} boards={whiteboards} canCreate={user.caps.manageTasks} />
 
       <div className="dash-grid">
         {/* Task list */}

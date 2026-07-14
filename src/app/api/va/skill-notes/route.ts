@@ -4,5 +4,5 @@ import { saveSkillNotes } from "@/lib/actions/va";
 
 export const POST = action(
   async ({ user, body }) => saveSkillNotes(await getEffectiveVaId(user), body.skills),
-  { allow: (r) => r === "VA" || r === "SENIOR_VA" },
+  { allow: (r) => r === "VA" },
 );

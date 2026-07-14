@@ -1,11 +1,59 @@
-import type { Role } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
+import type { Role, CompRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth/nextauth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { viewForRole, type ConsoleView } from "@/lib/auth/roles";
+import { flagsForCompRole } from "@/lib/auth/delegation";
+
+/**
+ * Delegation / meeting-actions capabilities, precomputed once per request so guards
+ * read a plain flag instead of doing role math. Tier-driven for VAs; all-on for
+ * all-access users; off for specialized roles (HR, Recruiter, Sales, Bookkeeper).
+ */
+export type Caps = { manageTasks: boolean; manageProjects: boolean; reviewMeetingActions: boolean };
+
+/** All-access = platform admin OR the QA `TESTER` role. Sees and does everything. */
+export function isAllAccess(user: { isAdmin: boolean; role: Role }): boolean {
+  return user.isAdmin || user.role === "TESTER";
+}
+
+async function capsFor(
+  user: { isAdmin: boolean; role: Role; va: { compensationRole: CompRole } | null },
+  email: string,
+): Promise<Caps> {
+  if (isAllAccess(user)) return { manageTasks: true, manageProjects: true, reviewMeetingActions: true };
+  let va: { compensationRole: CompRole } | null = user.va;
+  if (!va) {
+    va = await db.va.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { compensationRole: true },
+    });
+  }
+  if (!va) return { manageTasks: false, manageProjects: false, reviewMeetingActions: false };
+  const f = await flagsForCompRole(va.compensationRole);
+  return {
+    manageTasks: f.canDelegateTasks,
+    manageProjects: f.canDelegateProjects,
+    reviewMeetingActions: f.canReviewMeetingActions,
+  };
+}
+
+/**
+ * Caps for a user record loaded OUTSIDE a console session — e.g. the in-meeting
+ * Zoom panel, whose viewers authenticate via the Zoom App context instead of
+ * NextAuth/CF-Access. Same math as getCurrentUser().
+ */
+export async function capsForUser(user: {
+  isAdmin: boolean;
+  role: Role;
+  email: string;
+  va: { compensationRole: CompRole } | null;
+}): Promise<Caps> {
+  return capsFor(user, user.email);
+}
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -27,7 +75,8 @@ export async function getCurrentUser() {
     throw new Error(`No active VA Management account for ${email}`);
   }
 
-  return user;
+  const caps = await capsFor(user, email);
+  return { ...user, caps };
 }
 
 export type CurrentUser = Awaited<ReturnType<typeof getCurrentUser>>;
@@ -73,22 +122,25 @@ export async function isBetaVisible(email: string | null | undefined): Promise<b
  * The whole feature can be killed per-deployment with `RECORDINGS_ENABLED=false`
  * (the production/official deployment sets this) so it's hidden even from admins.
  */
-export function isRecordingsVisible(user: { isAdmin: boolean; email: string | null }): boolean {
+export function isRecordingsVisible(user: CurrentUser): boolean {
   if (!env.RECORDINGS_ENABLED) return false;
-  return user.isAdmin || isFounder(user.email);
+  return isAllAccess(user) || isFounder(user.email);
 }
 
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
-const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "VA"];
+const VIEWS: ConsoleView[] = ["ADMIN", "HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
 
 /**
- * The console an admin is currently viewing. Admins can switch consoles via the
- * `va_view` cookie; everyone else gets the view their role implies.
+ * The console an all-access user is currently viewing. They can switch consoles via
+ * the `va_view` cookie and default to the Admin console; everyone else gets the view
+ * their role implies. ADMIN is only ever reachable by all-access users (the cookie
+ * check lives inside the isAllAccess branch).
  */
 export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> {
-  if (user.isAdmin) {
+  if (isAllAccess(user)) {
     const picked = (await cookies()).get("va_view")?.value as ConsoleView | undefined;
     if (picked && VIEWS.includes(picked)) return picked;
+    return "ADMIN";
   }
   // A non-admin user who is also linked to a VA record (e.g. Riza, Princess) can
   // flip into their OWN VA console via the `va_self_view` cookie. This grants no
@@ -108,7 +160,7 @@ export async function getEffectiveView(user: CurrentUser): Promise<ConsoleView> 
  */
 export async function getEffectiveVaId(user: CurrentUser): Promise<string | null> {
   if (user.vaId) return user.vaId;
-  if (!user.isAdmin) return null;
+  if (!isAllAccess(user)) return null;
   const picked = (await cookies()).get("va_as_va")?.value;
   // Validate the cookie still points to an active/training VA — a stale value
   // (e.g. a VA that was removed or deactivated) would otherwise yield a blank

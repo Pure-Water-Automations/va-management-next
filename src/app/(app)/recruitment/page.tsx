@@ -1,5 +1,6 @@
+import { redirect } from "next/navigation";
 import { getPipeline } from "@/lib/reads/recruitment";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { pluralize } from "@/lib/labels";
 import { canDecideHire, isRecruiter, isGateReviewer } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
@@ -29,8 +30,11 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 export default async function RecruitmentConsole() {
-  const [user, p, linkSettings] = await Promise.all([
-    getCurrentUser(),
+  const user = await getCurrentUser();
+  // Guard using isAllAccess + isRecruiter, matching the /sales guard (Phase 0 guard
+  // sweep) — /recruitment previously had no route guard at all.
+  if (!isRecruiter(user.role) && !isAllAccess(user)) redirect("/");
+  const [p, linkSettings] = await Promise.all([
     getPipeline(),
     db.setting.findMany({ where: { key: { in: ["interview_booking_url", "intro_video_url"] } } }),
   ]);

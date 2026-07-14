@@ -13,10 +13,10 @@ import {
   IconListChecks,
   IconInbox,
   IconFolder,
+  IconBarChart,
+  IconTemplate,
   IconMessageSquare,
-  IconBell,
-  IconVideo,
-  IconFilm,
+  IconUsers,
   IconLogOut,
 } from "./icons";
 
@@ -29,20 +29,20 @@ function isActivePath(pathname: string, href: string): boolean {
 
 export function VaTopNav({
   name,
+  photoSrc,
   roleLabel,
   canDelegate = false,
   showMeetingActions = false,
   meetingActionsCount = 0,
-  showRecordings = false,
   notifications,
   unreadCount,
 }: {
   name: string;
+  photoSrc?: string | null;
   roleLabel: string;
   canDelegate?: boolean;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
-  showRecordings?: boolean;
   notifications: NotificationItem[];
   unreadCount: number;
 }) {
@@ -55,24 +55,21 @@ export function VaTopNav({
     { href: "/va/tier", label: "Tier", icon: <IconAward /> },
     { href: "/va/evaluation", label: "Evaluation", icon: <IconClipboardCheck /> },
     { href: "/va/checkin", label: "Check-in", icon: <IconCalendarCheck /> },
-    { href: "/va/notifications", label: "Notifications", icon: <IconBell /> },
+    { href: "/directory", label: "Team", icon: <IconUsers /> },
   ];
   if (canDelegate) {
-    // Delegating VAs get All Tasks + Projects; "Delegate" itself is reachable via
-    // the + Delegate Task button on those pages, so no separate nav item.
+    // Delegating (senior-tier) VAs get the full delegation surface — All Tasks,
+    // Projects, Workload, Templates. "Delegate" itself is reachable via the
+    // + Delegate Task button on those pages, so no separate nav item.
     items.push(
       { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
       { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
+      { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },
+      { href: "/hr/templates", label: "Templates", icon: <IconTemplate /> },
     );
   }
   if (showMeetingActions) {
     items.push({ href: "/meeting-actions", label: "Meetings", icon: <IconMessageSquare />, badge: meetingActionsCount });
-  }
-  if (showRecordings) {
-    items.push(
-      { href: "/record", label: "Record", icon: <IconVideo /> },
-      { href: "/recordings", label: "Recordings", icon: <IconFilm /> },
-    );
   }
 
   return (
@@ -92,10 +89,11 @@ export function VaTopNav({
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               className={`topnav-item${isActivePath(pathname, item.href) ? " active" : ""}`}
             >
               <span className="nav-icon">{item.icon}</span>
-              {item.label}
+              <span className="nav-label">{item.label}</span>
               {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
             </Link>
           ))}
@@ -106,7 +104,9 @@ export function VaTopNav({
             {roleLabel}
           </span>
           <NotificationBell notifications={notifications} unreadCount={unreadCount} />
-          <Avatar name={name} size={34} />
+          <Link href="/va/profile" title="My profile" style={{ display: "inline-flex" }}>
+            <Avatar name={name} size={34} src={photoSrc} />
+          </Link>
           <a href="/api/logout" title="Sign out" aria-label="Sign out" className="icon-btn round" style={{ width: 34, height: 34 }}>
             <IconLogOut size={16} />
           </a>

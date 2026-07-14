@@ -11,5 +11,5 @@ export const POST = action(
       daysOff: body.daysOff,
       notes: body.notes,
     }),
-  { allow: (r) => r === "VA" || r === "SENIOR_VA" },
+  { allow: (r) => r === "VA" },
 );

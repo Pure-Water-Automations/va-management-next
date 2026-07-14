@@ -4,22 +4,28 @@ import { computeUtilization, computeFlags } from "@/lib/services/capacity";
 const DAY = 24 * 60 * 60 * 1000;
 
 export async function getCapacity() {
-  const [vas, hours, events] = await Promise.all([
+  const [vas, hours, atWorkRows, events] = await Promise.all([
     db.va.findMany({ where: { status: { in: ["active", "training"] } }, orderBy: { name: "asc" } }),
     db.deskLogHours.groupBy({
       by: ["vaId"],
       where: { date: { gte: new Date(Date.now() - 14 * DAY) } },
-      _sum: { taskSpentHrs: true },
+      _sum: { taskSpentHrs: true }, // primary = task hours (intended metric; payroll/tier aligned)
+    }),
+    db.deskLogHours.groupBy({
+      by: ["vaId"],
+      where: { date: { gte: new Date(Date.now() - 14 * DAY) } },
+      _sum: { timeAtWorkHrs: true }, // shown alongside to expose a clocked-in-but-not-logging gap
     }),
     db.capacityFlagEvent.findMany({ orderBy: { timestamp: "desc" }, take: 30 }),
   ]);
   const last14 = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
+  const atWork14 = new Map(atWorkRows.map((h) => [h.vaId, h._sum.timeAtWorkHrs ?? 0]));
   const flagged = vas
     .map((va) => {
       const last = last14.get(va.vaId) ?? 0;
       const { utilizationPct } = computeUtilization(va.targetHoursWeekly ?? 0, last);
       const f = computeFlags(va.targetHoursWeekly ?? 0, last);
-      return { va, last14dHours: last, utilizationPct, ...f };
+      return { va, last14dHours: last, atWork14dHours: atWork14.get(va.vaId) ?? 0, utilizationPct, ...f };
     })
     .filter((r) => r.overburdened || r.underutilized);
   return { flagged, events };

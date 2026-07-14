@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { z } from "zod";
 
 const AddMemberSchema = z.object({
@@ -15,7 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !user.isAdmin) {
+  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !isAllAccess(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { slug } = await params;
@@ -23,12 +23,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const org = await db.clientOrganization.findUnique({ where: { slug }, select: { id: true } });
   if (!org) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Parse body once — either form-urlencoded or JSON
+  // Parse body once — either form-urlencoded (browser <form> post) or JSON (fetch).
   const contentType = req.headers.get("content-type") ?? "";
+  const isFormPost = contentType.includes("application/x-www-form-urlencoded");
   let email: string;
   let role: "CLIENT_ADMIN" | "CLIENT_MEMBER" = "CLIENT_MEMBER";
 
-  if (contentType.includes("application/x-www-form-urlencoded")) {
+  if (isFormPost) {
     const text = await req.text();
     const fd = new URLSearchParams(text);
     email = fd.get("email") ?? "";
@@ -78,5 +79,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     update: {},
   });
 
+  // A browser <form> post navigates to this URL, so returning JSON left the user
+  // staring at a raw `{"ok":true}` page (tester report: "add-member raw-JSON page").
+  // Send them back to the org page with a 303 (GET) instead. JSON callers still get JSON.
+  if (isFormPost) {
+    return NextResponse.redirect(new URL(`/hr/clients/${slug}`, req.url), 303);
+  }
   return NextResponse.json({ ok: true });
 }

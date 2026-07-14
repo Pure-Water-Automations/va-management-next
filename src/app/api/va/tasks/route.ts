@@ -18,5 +18,5 @@ export const POST = action(
       assignedToId: actor.id,
       claimable: false,
     }),
-  { allow: (r) => r === "VA" || r === "SENIOR_VA" },
+  { allow: (r) => r === "VA" },
 );

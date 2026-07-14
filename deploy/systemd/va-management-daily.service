@@ -21,4 +21,7 @@ ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_module
 # nudge is gated by the `nudge_enabled` setting (off by default). Purii can flip
 # it on/off; this line only sends when it's TRUE.
 ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/nudge.ts || true'
+# birthday is gated by the `birthday_enabled` setting (off by default); sends a
+# happy-birthday email + team bell notifications for VAs whose birthday is today.
+ExecStart=/bin/sh -c '/app/SecondBrain/va-management-console/current/node_modules/.bin/tsx worker/birthday.ts || true'
 User=root

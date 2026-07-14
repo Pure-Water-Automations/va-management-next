@@ -14,6 +14,7 @@ import path from "node:path";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { openrouterChat } from "@/lib/matrix/openrouter";
+import { persistMeetingActions } from "@/lib/meetings/persist";
 import {
   parseMeetingFile,
   shouldProcess,
@@ -108,23 +109,12 @@ async function main() {
       }
 
       // Valid (possibly empty) → write the cursor row so it's never reprocessed.
-      await db.meetingAction.create({
-        data: {
-          meetingFile: fullPath,
-          meetingTitle: meta.title || file.replace(/\.md$/, ""),
-          meetingDate: meta.date,
-          zoomAccount: meta.zoomAccount,
-          status: items.length === 0 ? "RESOLVED" : "PENDING",
-          items: {
-            create: items.map((it) => ({
-              title: it.title,
-              description: it.description ?? null,
-              suggestedAssignee: it.suggestedAssignee ?? null,
-              suggestedDueDate: it.suggestedDueDate ? new Date(it.suggestedDueDate) : null,
-              clientContext: it.clientContext ?? null,
-            })),
-          },
-        },
+      await persistMeetingActions({
+        meetingFile: fullPath,
+        meetingTitle: meta.title || file.replace(/\.md$/, ""),
+        meetingDate: meta.date,
+        zoomAccount: meta.zoomAccount,
+        items,
       });
       processed++;
       if (items.length > 0) withItems++;

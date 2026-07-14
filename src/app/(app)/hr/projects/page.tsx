@@ -1,6 +1,4 @@
-import { getCurrentUser, getEffectiveActor, isBetaVisible } from "@/lib/auth/access";
-import { canManageTasks, canManageProjects } from "@/lib/auth/roles";
-import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { getProjectsList } from "@/lib/reads/projects";
 import { Stat } from "@/components/ui/Stat";
 import { Card } from "@/components/ui/Card";
@@ -11,17 +9,16 @@ export const dynamic = "force-dynamic";
 
 export default async function HrProjectsPage() {
   const user = await getCurrentUser();
-  const actor = await getEffectiveActor(user);
-  if (!actor.isAdmin && !canManageTasks(actor.role)) {
+  if (!user.caps.manageTasks) {
     return <p style={{ padding: 32 }}>Not authorized.</p>;
   }
 
   const projects = await getProjectsList();
-  const canCreate = actor.isAdmin || canManageProjects(actor.role);
-  // Delegating tasks needs delegation authority (SENIOR_VA passes canManageTasks
-  // but isn't a delegator), so the destination /hr/tasks/new would bounce them.
-  const canDelegate = await canUserDelegateTasks(actor.id, actor.role);
-  const betaVisible = await isBetaVisible(actor.email);
+  const canCreate = user.caps.manageProjects;
+  // The top guard already requires manageTasks (== delegation authority), so this
+  // is always true here — kept as a named alias for the JSX below.
+  const canDelegate = user.caps.manageTasks;
+  const betaVisible = await isBetaVisible(user.email);
 
   const activeCount = projects.filter((p) => p.status === "Active").length;
   const openTaskCount = projects.reduce((s, p) => s + p.openTaskCount, 0);

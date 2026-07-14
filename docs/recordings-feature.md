@@ -107,7 +107,7 @@ Ordered steps to take this live as the admin-only preview. R2 must be enabled fi
 1. **Enable R2** (dashboard, one-time): Cloudflare → R2 → Enable (needs a billing
    profile; 10 GB free tier). Can't be done via API.
 2. **Bucket + CORS** (scriptable with the stored global key, or dashboard): create bucket
-   `va-recordings`; CORS rule — `AllowedOrigins: ["https://team.pwasecondbrain.uk"]`,
+   `va-recordings`; CORS rule — `AllowedOrigins: ["https://dev-team.pwasecondbrain.uk"]`,
    `AllowedMethods: ["PUT","GET","HEAD"]`, `AllowedHeaders: ["content-type"]`,
    `ExposeHeaders: ["ETag"]`. (Add `http://localhost:3032` to origins for local upload tests.)
 3. **S3 API token**: R2 → Manage R2 API Tokens → Object Read & Write, scoped to the bucket
@@ -129,5 +129,5 @@ Ordered steps to take this live as the admin-only preview. R2 must be enabled fi
    scp deploy/systemd/va-management-recordings.{service,timer} root@74.208.40.108:/etc/systemd/system/
    ssh root@74.208.40.108 "systemctl daemon-reload && systemctl enable --now va-management-recordings.timer"
    ```
-8. **Smoke**: open `/record` at team.pwasecondbrain.uk (as an allow-listed admin), record a
+8. **Smoke**: open `/record` at dev-team.pwasecondbrain.uk (as an allow-listed admin), record a
    short clip, Save → plays back from R2; within ~2 min the transcript/summary populate.

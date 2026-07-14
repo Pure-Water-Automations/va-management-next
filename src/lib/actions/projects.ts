@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { AuthorizationError } from "@/lib/auth/roles";
 import { canUserDelegateProjects } from "@/lib/auth/delegation";
+import { pushProjectStatusSafe } from "@/lib/notion-engine";
 import type { Role, ProjectStatus, ProjectType, Priority } from "@prisma/client";
 
 export type CreateProjectInput = {
@@ -99,6 +100,9 @@ export async function updateProject(
     severity: "info",
     summary: `Project "${project.name}" updated.`,
   });
+
+  // Notion two-way sync (beta): mirror a status change to the linked Notion page.
+  if (input.status !== undefined) pushProjectStatusSafe(project.id);
 
   return project;
 }

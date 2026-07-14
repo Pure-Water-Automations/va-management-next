@@ -57,7 +57,18 @@ export async function POST(request: Request) {
     return rpcError(-32003, "This account doesn't have delegation authority — ask an admin to enable it.", 403);
   }
 
-  const ctx: McpCtx = { actorId: actor.actorId, actorRole: actor.actorRole };
+  // McpCtx is the shared, role-gated McpActor shape (also used by /api/mcp), but
+  // this route only ever exposes DELEGATION_TOOLS (project/task tools) — none of
+  // which read isAdmin/vaId — so those fields are safe stand-ins here.
+  const ctx: McpCtx = {
+    actorId: actor.actorId,
+    actorEmail: actor.actorEmail,
+    actorName: actor.actorName,
+    actorRole: actor.actorRole,
+    isAdmin: false,
+    canDelegate: actor.canDelegateTasks || actor.canDelegateProjects,
+    vaId: null,
+  };
 
   let body: unknown;
   try {

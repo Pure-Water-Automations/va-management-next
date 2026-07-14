@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/access";
-import { generateMcpToken, hashMcpToken, isMcpEligibleRole } from "@/lib/mcp/token-auth";
+import { generateMcpToken, hashMcpToken } from "@/lib/mcp/auth";
+import { isMcpEligibleRole } from "@/lib/mcp/access";
 import { logActivity } from "@/lib/activity";
 
 async function requireAdmin() {
@@ -13,8 +14,8 @@ async function requireAdmin() {
 }
 
 /**
- * Mint a per-user Delegation MCP token. Returns the PLAINTEXT token exactly once —
- * only the sha256 hash is stored, so it can never be shown again.
+ * Mint a per-user MCP token. Returns the PLAINTEXT token exactly once — only
+ * the sha256 hash is stored, so it can never be shown again.
  */
 export async function mintMcpToken(userId: string, label: string): Promise<{ token: string }> {
   const admin = await requireAdmin();

@@ -1,0 +1,11 @@
+/* Pure Water Automations — Global Design System Entry Point
+   Link this single file in any consuming project. */
+
+@import "./tokens/fonts.css";
+@import "./tokens/base.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/radius.css";
+@import "./tokens/shadows.css";
+@import "./tokens/motion.css";

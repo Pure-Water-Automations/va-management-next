@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
-import { canManageProjects } from "@/lib/auth/roles";
+import { getCurrentUser } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { ProjectForm } from "@/components/ProjectForm";
 import { getClients } from "@/lib/reads/clients";
@@ -10,8 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewProjectPage() {
   const user = await getCurrentUser();
-  const actor = await getEffectiveActor(user);
-  if (!actor.isAdmin && !canManageProjects(actor.role)) {
+  if (!user.caps.manageProjects) {
     redirect("/hr/projects");
   }
 

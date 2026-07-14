@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
-import { canManageTasks } from "@/lib/auth/roles";
+import { getCurrentUser } from "@/lib/auth/access";
 import { getAllTasks } from "@/lib/reads/tasks";
 import { TaskViewTabs } from "@/components/TaskViewTabs";
 import { TaskBoard } from "@/components/TaskBoard";
@@ -10,8 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HrTaskBoardPage() {
   const user = await getCurrentUser();
-  const actor = await getEffectiveActor(user);
-  if (!actor.isAdmin && !canManageTasks(actor.role)) redirect("/hr/tasks");
+  if (!user.caps.manageTasks) redirect("/hr/tasks");
 
   const tasks = await getAllTasks({});
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Badge } from "@/components/ui/Badge";
 
 type Request = {
   id: string;
@@ -18,6 +19,50 @@ type Request = {
   clientOrganization: { name: string };
   assignedTask: { id: string; title: string; status: string } | null;
 };
+
+type BadgeVariant = "default" | "sky" | "success" | "warning" | "danger";
+
+function statusMeta(s: string): { variant: BadgeVariant; label: string } {
+  switch (s) {
+    case "RECEIVED":
+      return { variant: "sky", label: "New" };
+    case "TRIAGE_NEEDED":
+      return { variant: "warning", label: "Needs triage" };
+    case "READY_TO_ASSIGN":
+      return { variant: "default", label: "Ready to assign" };
+    case "ASSIGNED":
+      return { variant: "success", label: "Assigned" };
+    case "DECLINED":
+      return { variant: "danger", label: "Declined" };
+    default:
+      return { variant: "default", label: s.replace(/_/g, " ") };
+  }
+}
+
+function priorityChip(p: string) {
+  const map: Record<string, { c: string; bg: string }> = {
+    High: { c: "var(--color-error-dark)", bg: "var(--color-error-light)" },
+    Medium: { c: "var(--color-warning-dark)", bg: "var(--color-warning-light)" },
+    Low: { c: "var(--color-text-tertiary)", bg: "var(--color-bg-tertiary)" },
+  };
+  const m = map[p] ?? map.Low;
+  return (
+    <span
+      style={{
+        fontSize: "var(--text-2xs)",
+        fontWeight: 700,
+        letterSpacing: ".03em",
+        textTransform: "uppercase",
+        color: m.c,
+        background: m.bg,
+        padding: "3px 8px",
+        borderRadius: 999,
+      }}
+    >
+      {p}
+    </span>
+  );
+}
 
 export default function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,39 +108,56 @@ export default function RequestDetailPage() {
     }
   }
 
-  if (loading) return <p style={{ padding: 32 }}>Loading…</p>;
+  if (loading) return <p style={{ padding: 32, color: "var(--color-text-secondary)" }}>Loading…</p>;
   if (error) return <p style={{ padding: 32, color: "var(--color-error)" }}>{error}</p>;
   if (!request) return <p style={{ padding: 32 }}>Not found.</p>;
 
+  const meta = statusMeta(request.status);
+  const isTriage = request.status === "RECEIVED" || request.status === "TRIAGE_NEEDED";
+
   return (
-    <>
+    <div className="dash-stage">
       <div className="page-head">
         <div>
           <div className="crumb">
-            <Link href="/hr/requests">Client Requests</Link> / {request.title}
+            <Link href="/hr/requests">Client requests</Link> / {request.title}
           </div>
           <h1>{request.title}</h1>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, marginTop: 24 }}>
-        {/* Details */}
-        <div style={card}>
-          <h2 style={cardTitle}>Request details</h2>
-          <dl style={dlGrid}>
-            <dt style={dtStyle}>Client</dt>
-            <dd style={ddStyle}>{request.clientOrganization.name}</dd>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
+        {/* Details card */}
+        <div className="surface" style={card}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              flexWrap: "wrap",
+              marginBottom: 16,
+            }}
+          >
+            <span
+              style={{
+                fontSize: "var(--text-2xs)",
+                fontWeight: 700,
+                letterSpacing: ".05em",
+                textTransform: "uppercase",
+                color: "var(--color-sky-700)",
+              }}
+            >
+              {request.clientOrganization.name}
+            </span>
+            {priorityChip(request.priorityPreference)}
+            <Badge variant={meta.variant} size="sm">
+              {meta.label}
+            </Badge>
+          </div>
 
+          <dl style={dlGrid}>
             <dt style={dtStyle}>Submitted by</dt>
             <dd style={ddStyle}>{request.submittedBy.name ?? request.submittedBy.email}</dd>
-
-            <dt style={dtStyle}>Status</dt>
-            <dd style={ddStyle}>
-              <span style={statusPill(request.status)}>{request.status.replace(/_/g, " ")}</span>
-            </dd>
-
-            <dt style={dtStyle}>Priority preference</dt>
-            <dd style={ddStyle}>{request.priorityPreference}</dd>
 
             <dt style={dtStyle}>Due date preference</dt>
             <dd style={ddStyle}>
@@ -117,7 +179,9 @@ export default function RequestDetailPage() {
             {request.declineReason && (
               <>
                 <dt style={dtStyle}>Decline reason</dt>
-                <dd style={{ ...ddStyle, color: "var(--color-error)" }}>{request.declineReason}</dd>
+                <dd style={{ ...ddStyle, color: "var(--color-error-dark)" }}>
+                  {request.declineReason}
+                </dd>
               </>
             )}
 
@@ -125,56 +189,75 @@ export default function RequestDetailPage() {
               <>
                 <dt style={dtStyle}>Linked task</dt>
                 <dd style={ddStyle}>
-                  <a href={`/hr/tasks/${request.assignedTask.id}`}>
+                  <a
+                    href={`/hr/tasks/${request.assignedTask.id}`}
+                    style={{ color: "var(--color-navy-500)", fontWeight: 600 }}
+                  >
                     {request.assignedTask.title}
                   </a>{" "}
-                  <span className="small">({request.assignedTask.status})</span>
+                  <span style={{ color: "var(--color-text-tertiary)", fontSize: "var(--text-xs)" }}>
+                    ({request.assignedTask.status})
+                  </span>
                 </dd>
               </>
             )}
           </dl>
 
           <div style={{ marginTop: 20 }}>
-            <div style={dtStyle}>Description</div>
-            <p style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: "var(--text-sm)" }}>
+            <div style={sectionLabel}>Description</div>
+            <p
+              style={{
+                marginTop: 8,
+                whiteSpace: "pre-wrap",
+                fontSize: "var(--text-sm)",
+                color: "var(--color-text-secondary)",
+                lineHeight: 1.55,
+              }}
+            >
               {request.description}
             </p>
           </div>
         </div>
 
-        {/* Actions (only for RECEIVED / TRIAGE_NEEDED) */}
-        {(request.status === "RECEIVED" || request.status === "TRIAGE_NEEDED") && (
-          <div style={card}>
+        {/* Triage actions (RECEIVED / TRIAGE_NEEDED) */}
+        {isTriage && (
+          <div className="surface" style={card}>
             <h2 style={cardTitle}>Triage actions</h2>
 
             {actionError && (
-              <p style={{ color: "var(--color-error)", marginBottom: 16 }}>{actionError}</p>
+              <p style={{ color: "var(--color-error-dark)", marginBottom: 16, fontSize: "var(--text-sm)" }}>
+                {actionError}
+              </p>
             )}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               {/* Accept */}
               <div>
                 <h3 style={actionHead}>Accept</h3>
-                <p className="small" style={{ color: "var(--color-text-secondary)", marginBottom: 8 }}>
+                <p style={helpText}>
                   Mark this request as accepted. You can link a task afterwards.
                 </p>
                 <button
-                  className="btn btn-primary"
+                  style={navyBtn(busy)}
                   disabled={busy}
                   onClick={() => doAction("accept")}
+                  onMouseEnter={(e) => {
+                    if (!busy) e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "";
+                  }}
                 >
                   Accept request
                 </button>
               </div>
 
-              <hr style={{ border: "none", borderTop: "1px solid var(--color-border-subtle)" }} />
+              <hr style={{ border: "none", borderTop: "1px solid var(--color-border-subtle)", margin: 0 }} />
 
               {/* Decline */}
               <div>
                 <h3 style={actionHead}>Decline</h3>
-                <p className="small" style={{ color: "var(--color-text-secondary)", marginBottom: 8 }}>
-                  Decline this request. A reason is required.
-                </p>
+                <p style={helpText}>Decline this request. A reason is required.</p>
                 <textarea
                   value={declineReason}
                   onChange={(e) => setDeclineReason(e.target.value)}
@@ -184,10 +267,9 @@ export default function RequestDetailPage() {
                   style={textarea}
                 />
                 <button
-                  className="btn btn-danger"
+                  style={{ ...dangerBtn(busy || declineReason.trim().length === 0), marginTop: 8 }}
                   disabled={busy || declineReason.trim().length === 0}
                   onClick={() => doAction("decline", { reason: declineReason })}
-                  style={{ marginTop: 8 }}
                 >
                   Decline request
                 </button>
@@ -196,16 +278,18 @@ export default function RequestDetailPage() {
           </div>
         )}
 
-        {/* Link task (only for READY_TO_ASSIGN) */}
+        {/* Link task (READY_TO_ASSIGN) */}
         {request.status === "READY_TO_ASSIGN" && (
-          <div style={card}>
+          <div className="surface" style={card}>
             <h2 style={cardTitle}>Link to task</h2>
-            <p className="small" style={{ color: "var(--color-text-secondary)", marginBottom: 12 }}>
+            <p style={{ ...helpText, marginBottom: 12 }}>
               Enter the ID of an existing task to link to this request. Status will move to Assigned.
             </p>
 
             {actionError && (
-              <p style={{ color: "var(--color-error)", marginBottom: 12 }}>{actionError}</p>
+              <p style={{ color: "var(--color-error-dark)", marginBottom: 12, fontSize: "var(--text-sm)" }}>
+                {actionError}
+              </p>
             )}
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -217,7 +301,7 @@ export default function RequestDetailPage() {
                 style={{ ...inputStyle, flex: 1 }}
               />
               <button
-                className="btn btn-primary"
+                style={navyBtn(busy || assignTaskId.trim().length === 0)}
                 disabled={busy || assignTaskId.trim().length === 0}
                 onClick={() => doAction("assign", { taskId: assignTaskId.trim() })}
               >
@@ -227,15 +311,13 @@ export default function RequestDetailPage() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-primary)",
-  border: "1px solid var(--color-border)",
+  padding: "22px 24px",
   borderRadius: "var(--radius-lg)",
-  padding: 24,
 };
 
 const cardTitle: React.CSSProperties = {
@@ -243,72 +325,107 @@ const cardTitle: React.CSSProperties = {
   fontSize: "var(--text-xl)",
   fontWeight: 600,
   margin: "0 0 16px",
+  color: "var(--color-text-primary)",
+  letterSpacing: "-.01em",
+};
+
+const sectionLabel: React.CSSProperties = {
+  fontSize: "var(--text-xs)",
+  fontWeight: 700,
+  letterSpacing: ".06em",
+  textTransform: "uppercase",
+  color: "var(--color-text-tertiary)",
 };
 
 const actionHead: React.CSSProperties = {
   fontSize: "var(--text-base)",
   fontWeight: 600,
   margin: "0 0 4px",
+  color: "var(--color-text-primary)",
+};
+
+const helpText: React.CSSProperties = {
+  fontSize: "var(--text-sm)",
+  color: "var(--color-text-secondary)",
+  margin: "0 0 8px",
 };
 
 const dlGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "160px 1fr",
-  gap: "8px 16px",
+  gap: "10px 16px",
   margin: 0,
 };
 
 const dtStyle: React.CSSProperties = {
   fontWeight: 600,
   fontSize: "var(--text-sm)",
-  color: "var(--color-text-secondary)",
+  color: "var(--color-text-tertiary)",
   paddingTop: 2,
 };
 
 const ddStyle: React.CSSProperties = {
   margin: 0,
   fontSize: "var(--text-sm)",
+  color: "var(--color-text-primary)",
 };
 
 const textarea: React.CSSProperties = {
   width: "100%",
-  padding: "8px 12px",
+  padding: "9px 12px",
   border: "1px solid var(--color-border)",
   borderRadius: "var(--radius-md)",
   fontSize: "var(--text-sm)",
   resize: "vertical",
-  background: "var(--color-bg-primary)",
+  background: "var(--color-surface)",
   color: "var(--color-text-primary)",
   boxSizing: "border-box",
+  font: "inherit",
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "8px 12px",
+  padding: "9px 12px",
   border: "1px solid var(--color-border)",
   borderRadius: "var(--radius-md)",
   fontSize: "var(--text-sm)",
-  background: "var(--color-bg-primary)",
+  background: "var(--color-surface)",
   color: "var(--color-text-primary)",
+  font: "inherit",
 };
 
-function statusPill(s: string): React.CSSProperties {
-  const bg =
-    s === "RECEIVED" || s === "TRIAGE_NEEDED"
-      ? "#f59e0b"
-      : s === "READY_TO_ASSIGN"
-        ? "#3b82f6"
-        : s === "DECLINED"
-          ? "#ef4444"
-          : s === "ASSIGNED"
-            ? "#22c55e"
-            : "#6b7280";
+const baseBtn: React.CSSProperties = {
+  appearance: "none",
+  font: "inherit",
+  fontWeight: 600,
+  fontSize: "var(--text-sm)",
+  padding: "0 16px",
+  height: 38,
+  borderRadius: 999,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  transition: "transform .16s",
+};
+
+function navyBtn(disabled: boolean): React.CSSProperties {
   return {
-    display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: 99,
-    fontSize: "var(--text-xs)",
-    fontWeight: 600,
-    background: bg,
+    ...baseBtn,
     color: "#fff",
+    background: "var(--color-navy-900)",
+    border: "none",
+    boxShadow: disabled ? "none" : "var(--shadow-navy-sm)",
+    opacity: disabled ? 0.5 : 1,
+    cursor: disabled ? "default" : "pointer",
+  };
+}
+
+function dangerBtn(disabled: boolean): React.CSSProperties {
+  return {
+    ...baseBtn,
+    color: "#fff",
+    background: "var(--color-error)",
+    border: "none",
+    opacity: disabled ? 0.5 : 1,
+    cursor: disabled ? "default" : "pointer",
   };
 }

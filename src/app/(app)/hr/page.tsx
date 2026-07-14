@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { getCurrentUser } from "@/lib/auth/access";
+import { redirect } from "next/navigation";
+import { getCurrentUser, getEffectiveView, isAllAccess } from "@/lib/auth/access";
 import { humanRole } from "@/lib/labels";
 import { getHrDashboard } from "@/lib/reads/hr";
 import { Stat } from "@/components/ui/Stat";
@@ -14,6 +15,9 @@ import {
   IconClipboardCheck,
   IconMessageSquare,
 } from "@/components/icons";
+import { db } from "@/lib/db";
+import { loadSettings, str } from "@/lib/settings";
+import { upcomingBirthdays, birthdayLabel, DEFAULT_BIRTHDAY_TZ } from "@/lib/birthdays";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +47,24 @@ type Decision = {
 };
 
 export default async function HrDashboard() {
-  await getCurrentUser();
-  const d = await getHrDashboard();
+  const user = await getCurrentUser();
+  // Guard the HR console using the SAME source of truth the root router uses to
+  // send people here (`getEffectiveView`), not `viewForRole` alone. All-access
+  // users (admins AND the QA `TESTER` role) can switch consoles via the `va_view`
+  // cookie, so an all-access user viewing HR must be admitted — otherwise the root
+  // router (which honors the cookie) sends them to /hr while this guard bounces
+  // them to /, an infinite redirect loop (TESTER → "view as HR" → reload/404).
+  if ((await getEffectiveView(user)) !== "HR" && !isAllAccess(user)) redirect("/");
+  const [d, settings, birthdayVas] = await Promise.all([
+    getHrDashboard(),
+    loadSettings(),
+    db.va.findMany({
+      where: { status: { in: ["active", "training"] }, birthdayMonth: { not: null } },
+      select: { vaId: true, name: true, photoKey: true, birthdayMonth: true, birthdayDay: true, updatedAt: true },
+    }),
+  ]);
+  const birthdayTz = str(settings, "birthday_timezone", DEFAULT_BIRTHDAY_TZ);
+  const birthdays = upcomingBirthdays(birthdayVas, new Date(), birthdayTz, 7);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
@@ -81,7 +101,7 @@ export default async function HrDashboard() {
       iconColor: c.overburdened ? "var(--color-error-dark)" : "var(--color-sky-700)",
       icon: <IconAlertTriangle size={18} />,
       title: c.va.name,
-      sub: `${Math.round(c.utilizationPct)}% utilization · ${c.last14dHours.toFixed(1)}h / 2wk`,
+      sub: `${Math.round(c.utilizationPct)}% utilization · ${c.last14dHours.toFixed(1)}h logged · ${c.atWork14dHours.toFixed(1)}h at work / 2wk`,
       href: "/hr/capacity",
       cta: "Review",
     })),
@@ -190,6 +210,40 @@ export default async function HrDashboard() {
           ))
         )}
       </div>
+
+      {/* ── Upcoming birthdays ─────────────────────────────────────── */}
+      {birthdays.length > 0 && (
+        <div>
+          <div className="sec-head">
+            <h3 className="sec-title">Upcoming birthdays 🎂</h3>
+            <span className="small" style={{ color: "var(--color-text-tertiary)" }}>next 7 days</span>
+          </div>
+          <div className="surface" style={{ padding: "6px 18px" }}>
+            {birthdays.map((b, i) => (
+              <div key={b.va.vaId} style={{ display: "flex", alignItems: "center", gap: 13, padding: "12px 0", borderBottom: i < birthdays.length - 1 ? "1px solid var(--color-border-subtle)" : "none" }}>
+                <Avatar
+                  name={b.va.name}
+                  size={34}
+                  src={b.va.photoKey ? `/api/people/photo/${b.va.vaId}?v=${b.va.updatedAt.getTime()}` : null}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>{b.va.name}</div>
+                  <div style={{ fontSize: "var(--text-2xs)", color: "var(--color-text-tertiary)" }}>
+                    {birthdayLabel(b.month, b.day)} ({b.date.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })})
+                  </div>
+                </div>
+                {b.inDays === 0 ? (
+                  <Badge variant="sky" size="sm" dot>Today!</Badge>
+                ) : (
+                  <span className="small" style={{ color: "var(--color-text-tertiary)" }}>
+                    in {b.inDays} {b.inDays === 1 ? "day" : "days"}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Workload glance + recent activity ──────────────────────── */}
       <div className="glance-row">

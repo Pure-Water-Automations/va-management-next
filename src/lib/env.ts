@@ -49,6 +49,20 @@ const envSchema = z.object({
     if (typeof value !== "string" || value.trim() === "") return true; // default ON
     return !["false", "0", "off", "no"].includes(value.trim().toLowerCase());
   }, z.boolean()),
+  // NVIDIA NIM — FREE default backend (see SecondBrain/tools/nvidia-nim/AGENTS.md).
+  // openrouterChat sends open-weight, non-tool-calling calls here first (free), with
+  // OpenRouter as the runtime fallback. Closed models (Claude/GPT) and tool-calling
+  // agents stay on OpenRouter. Wired via systemd EnvironmentFile=/etc/secondbrain/nvidia.env.
+  NVIDIA_API_KEY: optionalEnvString(z.string()),
+  NVIDIA_BASE_URL: optionalEnvString(z.string()),
+  NVIDIA_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Notion two-way sync — public OAuth integration (one-click "Connect with
+  // Notion"). All optional: when unset, the connect UI falls back to the manual
+  // internal-integration-token flow. Redirect URI defaults to
+  // ${APP_BASE_URL}/api/notion/oauth/callback.
+  NOTION_OAUTH_CLIENT_ID: optionalEnvString(z.string()),
+  NOTION_OAUTH_CLIENT_SECRET: optionalEnvString(z.string()),
+  NOTION_OAUTH_REDIRECT_URI: optionalEnvString(z.string().url()),
   // MCP endpoint: shared bearer token + the service identity it acts as. The
   // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
   MCP_API_TOKEN: optionalEnvString(z.string()),
@@ -95,6 +109,17 @@ const envSchema = z.object({
   VIDEO_CORE_BASE_URL: optionalEnvString(z.string().url()),
   VIDEO_CORE_API_KEY: optionalEnvString(z.string()),
   VIDEO_CORE_WORKSPACE_ID: optionalEnvString(z.string()),
+  // Zoom Meeting App (Marketplace app). All optional so the app boots without Zoom
+  // configured: the OAuth connect route redirects back with ?zoom=unconfigured and
+  // the webhook route returns 503 until the secret token is set. Create the app in
+  // the Zoom Marketplace (General / User-Managed) to obtain these — see
+  // docs/zoom-app.md. Redirect URI defaults to ${APP_BASE_URL}/api/zoom/oauth/callback.
+  ZOOM_CLIENT_ID: optionalEnvString(z.string()),
+  ZOOM_CLIENT_SECRET: optionalEnvString(z.string()),
+  // Secret Token from the app's Feature → Event Subscriptions config. Verifies the
+  // x-zm-signature on inbound webhooks AND signs the endpoint.url_validation reply.
+  ZOOM_WEBHOOK_SECRET_TOKEN: optionalEnvString(z.string()),
+  ZOOM_REDIRECT_URI: optionalEnvString(z.string().url()),
 });
 
 export const env = envSchema.parse(process.env);

@@ -1,29 +1,37 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, getEffectiveActor, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
-import { canUserDelegateTasks, canVaDelegateTasks } from "@/lib/auth/delegation";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isAllAccess } from "@/lib/auth/access";
+import { canUserDelegateTasks, canVaDelegateTasks, canUserReviewMeetingActions, canVaReviewMeetingActions } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { VaTopNav } from "@/components/VaTopNav";
 import { AdminBar } from "@/components/AdminBar";
-import { SelfViewToggle } from "@/components/SelfViewToggle";
 import { CommandPalette } from "@/components/CommandPalette";
-import { viewForRole } from "@/lib/auth/roles";
-import { humanRole } from "@/lib/labels";
+import { DemoBanner } from "@/components/DemoBanner";
 import { Purii } from "@/components/Purii";
 import { tourForView } from "@/lib/purii";
 
 const EYEBROW: Record<string, string> = {
+  ADMIN: "Administration",
   HR: "HR Operations",
   PAYROLL: "Payroll",
   RECRUITMENT: "Recruitment",
+  SALES: "Sales",
   VA: "My Console",
 };
 
-function vaRoleLabel(role: string): string {
-  if (role === "SENIOR_VA") return "Senior VA";
+// A VA's console pill shows their TIER (seniority), not their role — "Senior VA" is
+// Tier 3, "Lead VA" is Tier 4. Non-VA logins fall back to a humanized role.
+const VA_TIER_LABEL: Record<string, string> = {
+  TRAINEE: "Trainee",
+  TIER_1: "Tier 1 VA",
+  TIER_2: "Tier 2 VA",
+  TIER_3: "Senior VA",
+  TIER_4: "Lead VA",
+};
+function humanizeRole(role: string): string {
   if (role === "VA") return "Virtual Assistant";
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -39,7 +47,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (view === "CLIENT") redirect("/client");
   let adminVas: { vaId: string; name: string }[] = [];
   let impersonatedVaId: string | null = null;
-  if (user.isAdmin) {
+  if (isAllAccess(user)) {
     [adminVas, impersonatedVaId] = await Promise.all([
       db.va.findMany({
         where: { status: { in: ["active", "training"] } },
@@ -50,40 +58,62 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ]);
   }
 
-  // Every VA-console capability/identity gate runs against the EFFECTIVE actor, so
-  // an admin's "View as → as VA" preview matches exactly what that VA sees and can
-  // do. Outside VA-impersonation (and for non-admins) the actor IS the logged-in
-  // user, so HR/Payroll/Recruitment views are unchanged. Delegation authority is
-  // comp-role-driven (canUserDelegateTasks reads the actor's tier flag).
-  const actor = await getEffectiveActor(user);
-  let canDelegate = await canUserDelegateTasks(actor.id, actor.role);
-  // Additive fallback: when impersonating a VA with no login, getEffectiveActor
-  // sets actor.id to the admin's own id (so the user-based check is wrong), but
-  // actor.vaId still points to the impersonated VA. Some VA logins also aren't
-  // linked via User.vaId. In both cases judge delegation straight from the VA's
-  // comp tier so the All Tasks / Projects nav matches what that tier grants.
-  if (!canDelegate && actor.vaId) {
-    canDelegate = await canVaDelegateTasks(actor.vaId);
+  // Delegation authority is comp-role-driven (a Senior VA / any tier flagged on the
+  // Compensation Roles screen), so the VA-console Delegation nav follows it, not the role.
+  // When an admin uses "View as → as VA", reflect the IMPERSONATED VA's own authority so
+  // the preview matches what that VA actually sees — otherwise the admin's always-allowed
+  // authority wrongly shows the Delegation nav for a plain VA (e.g. a trainee).
+  // Delegation + meeting-actions authority are comp-tier-driven (a senior-tier VA, or
+  // any tier flagged on the Compensation Roles screen), so the VA-console nav follows
+  // the tier, not the role. When an all-access user uses "View as → a VA", reflect the
+  // IMPERSONATED VA's own authority so the preview matches what that VA actually sees.
+  let canDelegate: boolean;
+  let showMeetingActions: boolean;
+  // When an all-access user is previewing "as VA", the top-nav pill should read as the
+  // VA they're impersonating (their tier), not the admin's own role — otherwise the
+  // preview is misleading. Populated in the impersonation branch below.
+  let impersonatedRoleLabel: string | null = null;
+  if (isAllAccess(user) && view === "VA" && impersonatedVaId && impersonatedVaId !== user.vaId) {
+    // Map the impersonated VA → its login by EMAIL (Va.email is unique and matches
+    // User.email). Keying on User.vaId is unreliable — some logins aren't linked to
+    // their VA row (e.g. Aira), which would wrongly hide the Delegation nav.
+    const impVa = await db.va.findUnique({
+      where: { vaId: impersonatedVaId },
+      select: { email: true, compensationRole: true },
+    });
+    if (impVa) impersonatedRoleLabel = VA_TIER_LABEL[impVa.compensationRole] ?? "Virtual Assistant";
+    const impUser = impVa?.email
+      ? await db.user.findUnique({ where: { email: impVa.email.toLowerCase() }, select: { id: true, role: true } })
+      : null;
+    // If the impersonated VA has a linked login, use its full authority; otherwise
+    // (many VAs have no User account yet) judge straight from the VA's comp tier so
+    // the preview still reflects what that tier grants.
+    if (impUser) {
+      canDelegate = await canUserDelegateTasks(impUser.id, impUser.role);
+      showMeetingActions = await canUserReviewMeetingActions(impUser.id, impUser.role);
+    } else {
+      canDelegate = await canVaDelegateTasks(impersonatedVaId);
+      showMeetingActions = await canVaReviewMeetingActions(impersonatedVaId);
+    }
+  } else {
+    canDelegate = user.caps.manageTasks;
+    showMeetingActions = user.caps.reviewMeetingActions;
   }
 
-  // Recordings is an admin/founder feature (not a VA tier feature), so under VA
-  // impersonation isRecordingsVisible(actor) is false — a real VA never sees it.
-  const showRecordings = isRecordingsVisible(actor);
+  // Recordings + all app config now live in the dedicated Admin view (NAV.ADMIN),
+  // reachable only by all-access users — so no per-view recordings flag is needed.
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
-  // Meeting Actions is a delegation feature (its whole purpose is turning meeting
-  // notes into delegated tasks), so it's gated on delegation authority — only those
-  // who can delegate see it, mirroring the impersonated VA under "View as".
-  const showMeetingActions = canDelegate;
   const meetingActionsCount = showMeetingActions
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
 
-  // Identity shown in the nav follows the actor too (the impersonated VA's name +
-  // role pill), so the chrome doesn't contradict the impersonated body content.
-  const userName = actor.name ?? actor.email;
-  const adminBar = user.isAdmin ? (
+  const userName = user.name ?? user.email;
+  const roleLabel =
+    impersonatedRoleLabel ??
+    (user.va ? (VA_TIER_LABEL[user.va.compensationRole] ?? "Virtual Assistant") : humanizeRole(user.role));
+  const adminBar = isAllAccess(user) ? (
     <AdminBar
       currentView={view}
       vas={adminVas}
@@ -93,39 +123,28 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     />
   ) : null;
 
-  // A non-admin VA-linked user (e.g. Riza, Princess) can toggle between their
-  // management console and their own VA console. Never show the full AdminBar.
-  const selfToggle = !user.isAdmin && !!user.vaId;
-  const ROLE_HOME: Record<string, string> = { HR: "/hr", PAYROLL: "/payroll", RECRUITMENT: "/recruitment", VA: "/va" };
-  const roleView = viewForRole(user.role);
-  const roleHome = ROLE_HOME[roleView] ?? "/va";
-  const roleLabel = humanRole(roleView);
-  const selfViewBar = selfToggle ? (
-    <SelfViewToggle mode={view === "VA" ? "toManagement" : "toVa"} roleLabel={roleLabel} roleHome={roleHome} />
-  ) : null;
-
   // VA console: lightweight glass top-nav shell (no sidebar), centered content.
   if (view === "VA") {
     return (
       <>
         <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
+        <DemoBanner />
         <div style={{ minHeight: "100vh", background: "var(--color-bg-secondary)" }}>
           {adminBar}
-          {selfViewBar}
           <VaTopNav
             name={userName}
-            roleLabel={vaRoleLabel(actor.role)}
+            photoSrc={user.va?.photoKey ? `/api/people/photo/${user.va.vaId}?v=${user.va.updatedAt.getTime()}` : null}
+            roleLabel={roleLabel}
             canDelegate={canDelegate}
             showMeetingActions={showMeetingActions}
             meetingActionsCount={meetingActionsCount}
-            showRecordings={showRecordings}
             notifications={notifications}
             unreadCount={unread}
           />
           <div className="topnav-content">{children}</div>
         </div>
-        <CommandPalette canDelegate={canDelegate} />
-        <Purii tour={tourForView(view)} canBypass={actor.isAdmin} />
+        <CommandPalette />
+        <Purii tour={tourForView(view)} canBypass={isAllAccess(user)} />
       </>
     );
   }
@@ -134,6 +153,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
+      <DemoBanner />
       {/* Mobile nav: hamburger toggles the sidebar drawer (CSS-only). */}
       <input type="checkbox" id="nav-toggle" className="nav-toggle-cb" aria-hidden="true" defaultChecked={false} />
       <label htmlFor="nav-toggle" className="nav-burger" aria-label="Toggle menu">☰</label>
@@ -143,20 +163,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           view={view}
           role={user.role}
           name={userName}
-          isAdmin={user.isAdmin}
-          showRecordings={showRecordings}
           showMeetingActions={showMeetingActions}
           meetingActionsCount={meetingActionsCount}
         />
         <main className="content" style={{ padding: 0 }}>
           {adminBar}
-          {selfViewBar}
           <Topbar eyebrow={EYEBROW[view] ?? "Console"} notifications={notifications} unreadCount={unread} />
           <div className="content-pad">{children}</div>
         </main>
       </div>
-      <CommandPalette canDelegate={canDelegate} />
-      <Purii tour={tourForView(view)} canBypass={user.isAdmin} />
+      <CommandPalette />
+      <Purii tour={tourForView(view)} canBypass={isAllAccess(user)} />
     </>
   );
 }

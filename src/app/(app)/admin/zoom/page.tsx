@@ -1,0 +1,173 @@
+import type { CSSProperties } from "react";
+import { redirect } from "next/navigation";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
+import { db } from "@/lib/db";
+import { env } from "@/lib/env";
+import { zoomOauthConfigured, zoomRedirectUri } from "@/lib/zoom/oauth";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+
+export const dynamic = "force-dynamic";
+
+const codeStyle: CSSProperties = {
+  display: "block",
+  padding: "10px 12px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: 8,
+  fontSize: "var(--text-sm)",
+  wordBreak: "break-all",
+};
+const h2Style: CSSProperties = {
+  fontFamily: "var(--font-display)",
+  fontSize: "var(--text-xl)",
+  margin: "0 0 12px",
+};
+
+export default async function ZoomAdminPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
+  const user = await getCurrentUser();
+  if (!isAllAccess(user)) redirect("/");
+  const sp = await searchParams;
+
+  const connections = await db.zoomConnection.findMany({
+    where: { active: true },
+    select: { email: true, zoomUserId: true, createdAt: true, scopes: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const configured = zoomOauthConfigured();
+  const redirectUrl = zoomRedirectUri();
+  const base = (env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk").replace(/\/+$/, "");
+  const webhookUrl = `${base}/api/zoom/webhook`;
+  const panelUrl = `${base}/api/zoom/panel`;
+
+  // Phase 2 — recent live (RTMS) sessions, newest first.
+  const rtmsSessions = await db.zoomMeetingCapture.findMany({
+    where: { source: "RTMS" },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { meetingUuid: true, topic: true, status: true, createdAt: true, payload: true, error: true },
+  });
+  const liveCount = rtmsSessions.filter((s) => s.status === "LIVE").length;
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="crumb">Admin · Settings</div>
+          <h1>Zoom Meeting App</h1>
+        </div>
+      </div>
+
+      {sp.zoom === "connected" && (
+        <Card style={{ marginBottom: 16, borderLeft: "3px solid var(--color-success)" }}>
+          <strong>Connected ✅</strong> — recording transcripts from this Zoom account will now flow into Meeting Actions.
+        </Card>
+      )}
+      {sp.zoom === "error" && (
+        <Card style={{ marginBottom: 16, borderLeft: "3px solid var(--color-error)" }}>
+          <strong>Couldn’t connect</strong> — the authorization didn’t complete. Confirm the app’s scopes include{" "}
+          <code>user:read</code> and that the redirect URL below is registered, then try again.
+        </Card>
+      )}
+      {sp.zoom === "unconfigured" && (
+        <Card style={{ marginBottom: 16, borderLeft: "3px solid var(--color-warning)" }}>
+          <strong>Not configured</strong> — <code>ZOOM_CLIENT_ID</code> / <code>ZOOM_CLIENT_SECRET</code> aren’t set on this
+          environment yet.
+        </Card>
+      )}
+
+      <Card style={{ marginBottom: 16 }}>
+        <h2 style={h2Style}>Connected accounts</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          {connections.length > 0 ? (
+            <Badge variant="success" dot>{connections.length} connected</Badge>
+          ) : (
+            <Badge variant="warning" dot>None connected</Badge>
+          )}
+        </div>
+        <p className="small" style={{ marginTop: 0, marginBottom: 16 }}>
+          Each connected account’s cloud-recording transcripts are captured after the meeting and turned into proposed
+          items in <strong>Meeting Actions</strong> — no bot joins the call. The host must have cloud recording + audio
+          transcription enabled.
+        </p>
+        {connections.length > 0 && (
+          <ul style={{ margin: "0 0 16px", paddingLeft: 18 }}>
+            {connections.map((c) => (
+              <li key={c.zoomUserId} className="small">
+                <strong>{c.email}</strong> — connected {c.createdAt.toISOString().slice(0, 10)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {configured ? (
+          <Button href="/api/zoom/oauth/start?return=/admin/zoom" variant="primary">
+            {connections.length > 0 ? "Connect another Zoom account" : "Connect a Zoom account"}
+          </Button>
+        ) : (
+          <div className="small" style={{ color: "var(--color-error-dark)" }}>
+            Zoom OAuth isn’t configured (ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET). Ask the developer to set them.
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <h2 style={h2Style}>Live capture (Phase 2)</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          {liveCount > 0 ? (
+            <Badge variant="success" dot>{liveCount} live now</Badge>
+          ) : rtmsSessions.length > 0 ? (
+            <Badge variant="info" dot>{rtmsSessions.length} recent session(s)</Badge>
+          ) : (
+            <Badge variant="warning" dot>No live sessions yet</Badge>
+          )}
+        </div>
+        <p className="small" style={{ marginTop: 0, marginBottom: 12 }}>
+          The in-meeting panel proposes tasks <em>during</em> the call (participants confirm or flag them before
+          hanging up) via Zoom Realtime Media Streams. Items land in the same <strong>Meeting Actions</strong> queue,
+          badged <strong>Zoom Live</strong>. The <code>va-management-rtms</code> service must be running on this box.
+        </p>
+        {rtmsSessions.length > 0 && (
+          <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
+            {rtmsSessions.map((s) => {
+              const stats = (s.payload as { stats?: { segments?: number; itemsProposed?: number } } | null)?.stats;
+              return (
+                <li key={s.meetingUuid} className="small">
+                  <strong>{s.topic}</strong> — {s.status.toLowerCase()}
+                  {stats ? ` · ${stats.segments ?? 0} segments · ${stats.itemsProposed ?? 0} proposed` : ""}
+                  {s.error ? ` · ${s.error}` : ""} · {s.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="small" style={{ marginBottom: 6 }}>Zoom App Home URL (the panel):</div>
+        <code style={codeStyle}>{panelUrl}</code>
+      </Card>
+
+      <Card variant="flat">
+        <h3 style={{ margin: "0 0 8px", fontSize: "var(--text-md)" }}>One-time Marketplace setup</h3>
+        <p className="small" style={{ marginTop: 0 }}>
+          Register these on the Zoom Marketplace app (General / User-Managed), then use Connect above:
+        </p>
+        <div className="small" style={{ marginBottom: 6 }}>OAuth redirect URL:</div>
+        <code style={codeStyle}>{redirectUrl}</code>
+        <div className="small" style={{ margin: "10px 0 6px" }}>Event notification endpoint URL:</div>
+        <code style={codeStyle}>{webhookUrl}</code>
+        <p className="small">
+          Subscribe the event <code>recording.transcript_completed</code>. Scopes:{" "}
+          <code>cloud_recording:read:list_recording_files</code> + <code>user:read</code>.
+        </p>
+        <p className="small" style={{ marginBottom: 0 }}>
+          <strong>Phase 2 additions:</strong> subscribe <code>meeting.rtms_started</code> +{" "}
+          <code>meeting.rtms_stopped</code>; add scope <code>meeting:read:meeting_transcript</code>; enable the{" "}
+          <strong>Zoom App</strong> surface with the Home URL above and allow the SDK APIs{" "}
+          <code>getMeetingContext, getMeetingUUID, getMeetingParticipants, onParticipantChange, startRTMS,
+          stopRTMS</code>. RTMS is metered (Developer Pack credits). Until the app passes Marketplace review,{" "}
+          <code>startRTMS</code> from the panel can return 40316 — enable <em>RTMS auto-start</em> in the app
+          settings for dev testing.
+        </p>
+      </Card>
+    </>
+  );
+}

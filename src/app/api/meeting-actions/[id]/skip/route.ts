@@ -1,5 +1,5 @@
 import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
-import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { canUserReviewMeetingActions } from "@/lib/auth/delegation";
 import { runWithActor } from "@/lib/request-context";
 import { skipMeetingActionItems } from "@/lib/actions/meeting-actions";
 
@@ -13,7 +13,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ ok: false, error: "Not authenticated" }, { status: 401 });
   }
   const actor = await getEffectiveActor(user);
-  if (!(await canUserDelegateTasks(actor.id, actor.role))) {
+  if (!(await canUserReviewMeetingActions(actor.id, actor.role))) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
   const { id } = await params;

@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE "Deal" ADD COLUMN     "budgetAvailable" TEXT,
+ADD COLUMN     "discoveryJson" JSONB,
+ADD COLUMN     "estimatedAdminCost" INTEGER,
+ADD COLUMN     "fitVerdict" TEXT,
+ADD COLUMN     "heardAbout" TEXT,
+ADD COLUMN     "hoursPerWeek" TEXT,
+ADD COLUMN     "leadFlags" JSONB,
+ADD COLUMN     "leadScore" INTEGER,
+ADD COLUMN     "leadSummary" TEXT,
+ADD COLUMN     "leadVerdict" TEXT,
+ADD COLUMN     "missionStatement" TEXT,
+ADD COLUMN     "painTags" JSONB,
+ADD COLUMN     "scoredAt" TIMESTAMP(3),
+ADD COLUMN     "teamSize" TEXT,
+ADD COLUMN     "timeline" TEXT,
+ADD COLUMN     "triedBefore" TEXT;

@@ -1,12 +1,12 @@
 import { getRoles } from "@/lib/reads/hr-manage";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { RolesManager, type RoleRow } from "@/components/RolesManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function RolesPage() {
   const [user, roles] = await Promise.all([getCurrentUser(), getRoles()]);
-  const canEdit = user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS" || user.isAdmin;
+  const canEdit = user.role === "HR_MANAGER" || user.role === "PEOPLE_OPS" || isAllAccess(user);
 
   return (
     <>

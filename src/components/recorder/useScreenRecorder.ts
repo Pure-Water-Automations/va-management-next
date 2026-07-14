@@ -5,6 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const MAX_RECORDING_SEC = 30 * 60; // hard stop
 export const SOFT_WARN_SEC = 15 * 60; // soft warning
 export const METER_BARS = 26; // mic-level meter resolution (matches the design)
+export const CAPTURE_FPS = 30; // canvas capture + compositor draw rate
+// Throttle the compositor to the capture rate. Drawing at the display refresh
+// (often 60–120 Hz) when we only capture 30 fps just burns CPU; a small slack
+// keeps us from dropping below 30 due to rAF jitter.
+const DRAW_INTERVAL_MS = 1000 / CAPTURE_FPS - 5;
 
 export type RecorderStatus = "idle" | "ready" | "recording" | "paused" | "recorded" | "error";
 export type CaptureSource = "screen" | "window" | "tab";
@@ -88,6 +93,7 @@ export function useScreenRecorder() {
   const chunksRef = useRef<Blob[]>([]);
   const mimeTypeRef = useRef<string>("video/webm");
   const rafRef = useRef<number>(0);
+  const lastDrawRef = useRef(0);
   const bubbleRef = useRef<Bubble>({ x: 0, y: 0, r: 0 });
   const draggingRef = useRef(false);
 
@@ -225,6 +231,10 @@ export function useScreenRecorder() {
 
   // ── Compositing draw loop ────────────────────────────────────────────────
   const draw = useCallback(() => {
+    rafRef.current = requestAnimationFrame(draw);
+    const now = performance.now();
+    if (now - lastDrawRef.current < DRAW_INTERVAL_MS) return; // throttle to CAPTURE_FPS
+    lastDrawRef.current = now;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (canvas && ctx) {
@@ -252,7 +262,6 @@ export function useScreenRecorder() {
         ctx.stroke();
       }
     }
-    rafRef.current = requestAnimationFrame(draw);
   }, []);
 
   const stopTracks = useCallback(() => {
@@ -400,13 +409,24 @@ export function useScreenRecorder() {
     const vtrack = screenStreamRef.current?.getVideoTracks()[0];
     if (!canvas || !vtrack || vtrack.readyState !== "live") return;
     try {
-      const canvasStream = canvas.captureStream(30);
+      const canvasStream = canvas.captureStream(CAPTURE_FPS);
       const mixed = new MediaStream();
       canvasStream.getVideoTracks().forEach((t) => mixed.addTrack(t));
       if (mic) mic.getAudioTracks().forEach((t) => mixed.addTrack(t));
 
       const mimeType = pickMime();
-      const rec = new MediaRecorder(mixed, mimeType ? { mimeType } : undefined);
+      // Cap the bitrate (~0.08 bits/pixel/frame, clamped). MediaRecorder's default
+      // can be very high, producing bloated files that upload slowly and buffer/seek
+      // poorly on playback. This keeps quality while making files much leaner.
+      const videoBitsPerSecond = Math.min(
+        8_000_000,
+        Math.max(1_500_000, Math.round(canvas.width * canvas.height * CAPTURE_FPS * 0.08)),
+      );
+      const rec = new MediaRecorder(mixed, {
+        ...(mimeType ? { mimeType } : {}),
+        videoBitsPerSecond,
+        audioBitsPerSecond: 128_000,
+      });
       mimeTypeRef.current = rec.mimeType || mimeType || "video/webm";
       chunksRef.current = [];
       rec.ondataavailable = (e) => {

@@ -1,11 +1,10 @@
 import { action, str } from "@/lib/api";
-import { canManageTasks } from "@/lib/auth/roles";
 import { addProjectComment } from "@/lib/actions/comments";
 
 // projectId is also present in the dynamic [id] segment, but the action() wrapper
 // only passes { actor, body }, so the client sends projectId in the JSON body too.
-// Guard matches the addProjectComment action (canManageTasks) so SENIOR_VA — who
-// per spec can comment on projects — isn't blocked at the route layer.
+// Guard matches the addProjectComment action's manageTasks capability so a
+// delegating (senior-tier) VA — who per spec can comment on projects — isn't blocked here.
 export const POST = action(
   async ({ actor, body }) =>
     addProjectComment(
@@ -15,5 +14,5 @@ export const POST = action(
       str(body, "body"),
       typeof body.visibility === "string" ? body.visibility : undefined,
     ),
-  { allow: (r) => canManageTasks(r) },
+  { allowUser: (u) => u.caps.manageTasks },
 );

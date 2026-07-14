@@ -1,10 +1,7 @@
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
-import {
-  canManageProjects,
-  canManageTasks,
-  AuthorizationError,
-} from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateProjects, canUserDelegateTasks } from "@/lib/auth/delegation";
 import type { Role, ProjectType, Priority, TaskStrategy } from "@prisma/client";
 
 function requireText(val: unknown, field: string): string {
@@ -50,7 +47,7 @@ export async function createProjectTemplate(
   actorRole: Role,
   input: CreateProjectTemplateInput,
 ) {
-  if (!canManageProjects(actorRole))
+  if (!(await canUserDelegateProjects(actorId, actorRole)))
     throw new AuthorizationError("Only HR managers and team leads can create project templates");
 
   const name = requireText(input.name, "name");
@@ -79,7 +76,7 @@ export async function createProjectTemplate(
 }
 
 export async function deleteProjectTemplate(actorId: string, actorRole: Role, id: string) {
-  if (!canManageProjects(actorRole))
+  if (!(await canUserDelegateProjects(actorId, actorRole)))
     throw new AuthorizationError("Only HR managers and team leads can delete project templates");
 
   const templateId = requireText(id, "id");
@@ -105,7 +102,7 @@ export async function instantiateProjectTemplate(
   id: string,
   input: { name?: unknown } = {},
 ) {
-  if (!canManageProjects(actorRole))
+  if (!(await canUserDelegateProjects(actorId, actorRole)))
     throw new AuthorizationError("Only HR managers and team leads can use project templates");
 
   const templateId = requireText(id, "id");
@@ -168,7 +165,7 @@ export async function createTaskTemplate(
   actorRole: Role,
   input: CreateTaskTemplateInput,
 ) {
-  if (!canManageTasks(actorRole))
+  if (!(await canUserDelegateTasks(actorId, actorRole)))
     throw new AuthorizationError("Only team leads and senior VAs can create task templates");
 
   const name = requireText(input.name, "name");
@@ -197,7 +194,7 @@ export async function createTaskTemplate(
 }
 
 export async function deleteTaskTemplate(actorId: string, actorRole: Role, id: string) {
-  if (!canManageTasks(actorRole))
+  if (!(await canUserDelegateTasks(actorId, actorRole)))
     throw new AuthorizationError("Only team leads and senior VAs can delete task templates");
 
   const templateId = requireText(id, "id");
@@ -218,7 +215,7 @@ export async function deleteTaskTemplate(actorId: string, actorRole: Role, id: s
 
 /** Create a real Task from a task template, assigned to the actor. */
 export async function instantiateTaskTemplate(actorId: string, actorRole: Role, id: string) {
-  if (!canManageTasks(actorRole))
+  if (!(await canUserDelegateTasks(actorId, actorRole)))
     throw new AuthorizationError("Only team leads and senior VAs can use task templates");
 
   const templateId = requireText(id, "id");

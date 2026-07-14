@@ -5,6 +5,9 @@ import { baselineCutover, deskLogSinceCutover, withBaseline } from "@/lib/servic
 
 const DAY = 24 * 60 * 60 * 1000;
 
+// Rolling "task hours" = DeskLog task_spent_time — the intended productivity metric
+// (same field payroll + tier use). HR views show it next to actual time-at-work so a
+// clocked-in-but-not-logging gap is visible; payroll/tier stay on task hours.
 async function sumHours(vaId: string, daysBack?: number): Promise<number> {
   const where = daysBack
     ? { vaId, date: { gte: new Date(Date.now() - daysBack * DAY) } }

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
-import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import type { Role } from "@prisma/client";
 
 export async function addDependency(
@@ -9,8 +10,8 @@ export async function addDependency(
   taskId: string,
   dependsOnTaskId: string,
 ) {
-  if (!canManageTasks(actorRole)) {
-    throw new AuthorizationError("Only team managers can edit task dependencies");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) {
+    throw new AuthorizationError("Only delegators can edit task dependencies");
   }
   if (taskId === dependsOnTaskId) {
     throw new Error("A task cannot depend on itself");
@@ -41,8 +42,8 @@ export async function addDependency(
 }
 
 export async function removeDependency(actorId: string, actorRole: Role, id: string) {
-  if (!canManageTasks(actorRole)) {
-    throw new AuthorizationError("Only team managers can edit task dependencies");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) {
+    throw new AuthorizationError("Only delegators can edit task dependencies");
   }
 
   await db.taskDependency.delete({ where: { id } });

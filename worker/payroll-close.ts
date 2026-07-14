@@ -5,6 +5,8 @@
  * reminder/close timestamps on PayrollPeriod.
  */
 import { db } from "@/lib/db";
+import { activeHoursSource } from "@/lib/services/hours-source";
+import { nextPeriodAfter } from "@/lib/services/pay-schedule";
 import { computePeriodCalculations } from "@/lib/services/payroll-calc";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
@@ -18,17 +20,11 @@ const todayMidnight = () => {
 };
 
 async function recalc(periodStart: Date, periodEnd: Date, unpaidGateway: number) {
-  const [vas, roles, hours] = await Promise.all([
+  const [vas, roles, hoursByVaId] = await Promise.all([
     db.va.findMany({ where: { status: { in: ["active", "training"] } } }),
     db.compensationRole.findMany(),
-    db.deskLogHours.groupBy({
-      by: ["vaId"],
-      where: { date: { gte: periodStart, lte: periodEnd } },
-      _sum: { taskSpentHrs: true },
-    }),
+    activeHoursSource().hoursByVa(periodStart, periodEnd),
   ]);
-  const hoursByVaId: Record<string, number> = {};
-  for (const h of hours) hoursByVaId[h.vaId] = h._sum.taskSpentHrs ?? 0;
   const rows = computePeriodCalculations(
     vas.map((v) => ({
       vaId: v.vaId,
@@ -125,7 +121,24 @@ async function main() {
         if (from && bookkeeper)
           await sendSystemEmail({ from, to: bookkeeper, subject: "Payroll period closed — calculations attached", body: `Period ${period.periodStart.toISOString().slice(0, 10)} closed.\n\n${toCsv(rows)}` });
         await logActivity({ source: "payroll_close", eventType: "period_closed", summary: `Closed period ${period.periodStart.toISOString().slice(0, 10)} — ${rows.length} VAs, $${totalGross.toFixed(2)}` });
-        action = "closed";
+        // Auto-create the next semi-monthly period (proposal §4) so payroll
+        // never stalls waiting for a manual create-period.
+        const next = nextPeriodAfter({
+          periodStart: period.periodStart,
+          periodEnd: period.periodEnd,
+          runDate: period.closeDate,
+        });
+        await db.payrollPeriod.upsert({
+          where: { periodStart: next.periodStart },
+          update: {},
+          create: {
+            periodStart: next.periodStart,
+            periodEnd: next.periodEnd,
+            closeDate: next.runDate,
+            status: "open",
+          },
+        });
+        action = "closed_and_created_next";
       }
     }
 

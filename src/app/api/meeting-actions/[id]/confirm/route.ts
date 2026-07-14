@@ -1,6 +1,6 @@
 import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
 import { AuthorizationError } from "@/lib/auth/roles";
-import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { canUserReviewMeetingActions } from "@/lib/auth/delegation";
 import { runWithActor } from "@/lib/request-context";
 import { confirmMeetingActionItem } from "@/lib/actions/meeting-actions";
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   // viewing-as). Meeting Actions is delegation-gated, so a non-delegator can't
   // confirm and the created Task is the actor's.
   const actor = await getEffectiveActor(user);
-  if (!(await canUserDelegateTasks(actor.id, actor.role))) {
+  if (!(await canUserReviewMeetingActions(actor.id, actor.role))) {
     return Response.json({ ok: false, error: "Not authorized" }, { status: 403 });
   }
 

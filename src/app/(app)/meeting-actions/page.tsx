@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
-import { canUserDelegateTasks } from "@/lib/auth/delegation";
+import { canUserDelegateTasks, canUserReviewMeetingActions } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { matchAssignee } from "@/lib/services/meeting-actions";
 import { MeetingActionsClient, type MeetingCard } from "@/components/MeetingActionsClient";
@@ -10,11 +10,13 @@ export const dynamic = "force-dynamic";
 export default async function MeetingActionsPage() {
   const user = await getCurrentUser();
   const actor = await getEffectiveActor(user);
-  // Meeting Actions is delegation-gated (it creates delegated tasks). Only those
-  // who can delegate may view it — and `canConfirm` mirrors the exact check
-  // createTask uses, so the ✓ Add button shows iff the server will accept it.
+  // Meeting Actions review authority gates viewing the page (dedicated,
+  // tier-configurable flag). `canConfirm` separately mirrors the exact check
+  // createTask/confirmMeetingActionItem uses, so the ✓ Add button shows iff the
+  // server will actually accept it — both act as the effective (possibly
+  // impersonated) actor, matching the confirm/skip API routes.
+  if (!(await canUserReviewMeetingActions(actor.id, actor.role))) redirect("/");
   const canConfirm = await canUserDelegateTasks(actor.id, actor.role);
-  if (!canConfirm) redirect("/");
 
   // Pending meetings (at least one pending item), newest first.
   const meetings = await db.meetingAction.findMany({
@@ -31,6 +33,9 @@ export default async function MeetingActionsPage() {
           suggestedAssignee: true,
           suggestedDueDate: true,
           clientContext: true,
+          kind: true,
+          confidence: true,
+          evidenceQuote: true,
         },
       },
     },
@@ -38,7 +43,7 @@ export default async function MeetingActionsPage() {
 
   // Assignable users for the dropdowns (active VAs + delegators).
   const assignees = await db.user.findMany({
-    where: { active: true, role: { in: ["VA", "SENIOR_VA", "TEAM_LEAD", "HR_MANAGER", "PEOPLE_OPS"] } },
+    where: { active: true, role: { in: ["VA", "HR_MANAGER", "PEOPLE_OPS"] } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, email: true },
   });
@@ -49,6 +54,7 @@ export default async function MeetingActionsPage() {
     title: m.meetingTitle,
     date: m.meetingDate ? m.meetingDate.toISOString() : null,
     zoomAccount: m.zoomAccount,
+    source: m.source,
     items: m.items.map((it) => ({
       id: it.id,
       title: it.title,
@@ -57,6 +63,9 @@ export default async function MeetingActionsPage() {
       suggestedAssignee: it.suggestedAssignee,
       suggestedDueDate: it.suggestedDueDate ? it.suggestedDueDate.toISOString().slice(0, 10) : null,
       matchedAssigneeId: matchAssignee(it.suggestedAssignee, nameList),
+      kind: it.kind,
+      confidence: it.confidence,
+      evidenceQuote: it.evidenceQuote,
     })),
   }));
 

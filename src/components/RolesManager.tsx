@@ -20,6 +20,7 @@ export type RoleRow = {
   onAdvancementTrack: boolean;
   canDelegateTasks: boolean;
   canDelegateProjects: boolean;
+  canReviewMeetingActions: boolean;
   additionalRequirements: string | null;
   notes: string | null;
 };
@@ -164,6 +165,7 @@ export function RolesManager({ roles, canEdit }: { roles: RoleRow[]; canEdit: bo
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <RoleDelegationToggle roleId={r.roleId} field="canDelegateTasks" checked={r.canDelegateTasks} label="Can delegate tasks" />
                       <RoleDelegationToggle roleId={r.roleId} field="canDelegateProjects" checked={r.canDelegateProjects} label="Can delegate projects" />
+                      <RoleDelegationToggle roleId={r.roleId} field="canReviewMeetingActions" checked={r.canReviewMeetingActions} label="Can review meeting actions" />
                     </div>
                   </td>
                   <td style={{ ...td, whiteSpace: "normal", maxWidth: 280 }} className="small">{r.additionalRequirements ?? ""}</td>

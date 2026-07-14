@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser, getEffectiveActor } from "@/lib/auth/access";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { taskStrategyLabel } from "@/lib/labels";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { Card } from "@/components/ui/Card";
@@ -35,11 +36,13 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
   }
 
   // A VA may view their own task in full, or read a task from the open/claimable
-  // pool (so they can decide whether to claim it from Available). Managers, senior
-  // VAs, and admins can view any task; everything else stays private.
-  const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(actor.role);
+  // pool (so they can decide whether to claim it from Available). Delegators (senior-
+  // tier VAs) and all-access users can view any task; everything else stays private.
+  // Uses the EFFECTIVE actor so an admin's "View as" preview matches exactly what
+  // the impersonated VA can see (isManager reflects THEIR tier, not the admin's).
+  const isManager = await canUserDelegateTasks(actor.id, actor.role);
   const isOwn = task.assignedToId === actor.id;
-  if (!isManager && !actor.isAdmin && !isOwn && !task.claimable) {
+  if (!isManager && !isOwn && !task.claimable) {
     return (
       <div className="page-head">
         <div>
@@ -49,9 +52,9 @@ export default async function VaTaskDetailPage({ params }: { params: Promise<{ i
       </div>
     );
   }
-  // Only the assignee (or a manager/admin) can change status or comment. A VA
-  // previewing an unclaimed pool task sees it read-only.
-  const canAct = isManager || actor.isAdmin || isOwn;
+  // Only the assignee (or a delegator/all-access user) can change status or comment.
+  // A VA previewing an unclaimed pool task sees it read-only.
+  const canAct = isManager || isOwn;
   const poolPreview = !canAct && task.claimable;
 
   const sops = (task.relatedSops as { title: string; url: string }[] | null) ?? [];

@@ -25,10 +25,11 @@ export function computeProjectProgress(tasks: ProgressTask[]): number {
 
 type ActTask = { assignedToId: string; assignedById: string };
 
-const MANAGER_ROLES = new Set(["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"]);
-
-export function canUserActOnTask(userId: string, role: string, task: ActTask): boolean {
-  if (MANAGER_ROLES.has(role)) return true;
+// A task participant (assignee/creator) can always act; otherwise it takes delegation
+// authority. `isDelegator` is the tier-driven flag (see canUserDelegateTasks) — HR and
+// other specialized roles no longer get a blanket task-management bypass.
+export function canUserActOnTask(userId: string, isDelegator: boolean, task: ActTask): boolean {
+  if (isDelegator) return true;
   return task.assignedToId === userId || task.assignedById === userId;
 }
 

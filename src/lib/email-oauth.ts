@@ -11,7 +11,7 @@ export function senderTokenPath(): string {
 }
 
 export function redirectUri(): string {
-  const base = env.APP_BASE_URL || "https://team.pwasecondbrain.uk";
+  const base = env.APP_BASE_URL || "https://dev-team.pwasecondbrain.uk";
   return `${base.replace(/\/+$/, "")}/api/email-auth/callback`;
 }
 

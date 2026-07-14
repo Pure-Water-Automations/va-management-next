@@ -3,10 +3,13 @@ import { env } from "@/lib/env";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str as settingStr } from "@/lib/settings";
-import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
 import { canUserDelegateTasks, getActorTier } from "@/lib/auth/delegation";
 import { createNotification, supervisorUserId } from "@/lib/inbox";
 import { inheritTaskClient } from "@/lib/services/tasks";
+import { pushProjectStatusSafe, pushTaskStatusSafe } from "@/lib/notion-engine";
+import { sendWhatsApp, whatsappConfigured } from "@/lib/whatsapp";
+import { channelDecision } from "@/lib/notify-channel";
 import type { Role, TaskStatus, TaskStrategy, Priority } from "@prisma/client";
 
 export type CreateTaskInput = {
@@ -74,7 +77,7 @@ async function sendTaskAssignmentEmail(opts: {
     opts.instructions ? `Instructions:\n${opts.instructions}` : null,
     opts.links ? `\nLinks: ${opts.links}` : null,
     ``,
-    `View task: ${env.APP_BASE_URL ?? "https://team.pwasecondbrain.uk"}/va/tasks/${opts.taskId}`,
+    `View task: ${env.APP_BASE_URL ?? "https://team.purewaterautomations.com"}/va/tasks/${opts.taskId}`,
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
@@ -144,36 +147,55 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
       suggestedTools: input.suggestedTools ?? undefined,
     },
     include: {
-      assignedTo: { select: { email: true, name: true } },
+      assignedTo: { select: { email: true, name: true, va: { select: { whatsappNumber: true, notifyChannel: true, notifyTasks: true } } } },
       assignedBy: { select: { name: true } },
     },
   });
 
-  // Send assignment email (best-effort — task is always saved). Gated on the
-  // assignee VA's notification preference: only the immediate per-task email is
-  // suppressed for "digest"/"off" — the in-app bell + ActivityLog below always fire.
-  const settings = await loadSettings();
-  const from = settingStr(settings, "system_email_from");
-  const pref = task.assignedTo.email
-    ? await db.va.findUnique({ where: { email: task.assignedTo.email }, select: { notifyTasks: true } })
-    : null;
+  // Notify the assignee (best-effort — task is always saved). Channels follow the
+  // VA's preference: email and/or WhatsApp (WhatsApp only when they have a number
+  // on file AND the WhatsApp Business API is configured; else it's email-only).
+  // NOTE(merge): notifyTasks (each/digest/off) and notifyChannel (both/email/
+  // whatsapp/none/digest) are two independently-built digest preferences — see the
+  // NOTE on Va.notifyTasks in schema.prisma. Until unified, per-task email is
+  // suppressed if EITHER says not to, so neither VA-facing setting is silently
+  // ignored.
   let emailSent = false;
-  if (!claimable && from && task.assignedTo.email && task.assignedToId !== actorId && (pref?.notifyTasks ?? "each") === "each") {
-    emailSent = await sendTaskAssignmentEmail({
-      from,
-      toEmail: task.assignedTo.email,
-      toName: task.assignedTo.name,
-      taskId: task.id,
-      taskTitle: task.title,
-      strategy: task.strategy,
-      priority: task.priority,
-      dueDate: task.dueDate,
-      assignedByName: task.assignedBy.name,
-      instructions: task.instructions,
-      links: task.links,
-    });
-    if (emailSent) {
-      await db.task.update({ where: { id: task.id }, data: { emailSent: true } });
+  if (!claimable) {
+    const settings = await loadSettings();
+    const from = settingStr(settings, "system_email_from");
+    const waNumber = task.assignedTo.va?.whatsappNumber ?? null;
+    const ch = channelDecision(task.assignedTo.va?.notifyChannel, !!waNumber, await whatsappConfigured());
+    const notifyTasksWantsEmail = (task.assignedTo.va?.notifyTasks ?? "each") === "each";
+
+    if (ch.email && notifyTasksWantsEmail && from && task.assignedTo.email && task.assignedToId !== actorId) {
+      emailSent = await sendTaskAssignmentEmail({
+        from,
+        toEmail: task.assignedTo.email,
+        toName: task.assignedTo.name,
+        taskId: task.id,
+        taskTitle: task.title,
+        strategy: task.strategy,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        assignedByName: task.assignedBy.name,
+        instructions: task.instructions,
+        links: task.links,
+      });
+      if (emailSent) {
+        await db.task.update({ where: { id: task.id }, data: { emailSent: true } });
+      }
+    }
+
+    if (ch.whatsapp && waNumber) {
+      const due = task.dueDate
+        ? task.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : null;
+      await sendWhatsApp({
+        to: waNumber,
+        text: `📋 New task: ${task.title}\nPriority: ${task.priority}${due ? ` · Due: ${due}` : ""}\nFrom: ${task.assignedBy.name ?? "Team"}\n${env.APP_BASE_URL ?? "https://team.purewaterautomations.com"}/va/tasks/${task.id}`,
+        templateParams: [task.title],
+      });
     }
   }
 
@@ -197,8 +219,8 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
     );
   }
 
-  // In-console supervisor ping when a VA (non-manager) added the task (card #24).
-  if (actorRole === "VA" || actorRole === "SENIOR_VA") {
+  // In-console supervisor ping when a VA added the task (card #24).
+  if (actorRole === "VA") {
     const supId = await supervisorUserId(actorId);
     if (supId && supId !== actorId) {
       await createNotification(
@@ -224,9 +246,9 @@ export async function updateTaskStatus(
     select: { assignedToId: true, assignedById: true, title: true, projectId: true },
   });
 
-  const isManager = ["HR_MANAGER", "PEOPLE_OPS", "TEAM_LEAD", "SENIOR_VA"].includes(actorRole);
+  const canDelegate = await canUserDelegateTasks(actorId, actorRole);
   const isParticipant = task.assignedToId === actorId || task.assignedById === actorId;
-  if (!isManager && !isParticipant) throw new AuthorizationError("You are not allowed to update this task");
+  if (!canDelegate && !isParticipant) throw new AuthorizationError("You are not allowed to update this task");
 
   const updated = await db.task.update({
     where: { id: taskId },
@@ -240,6 +262,9 @@ export async function updateTaskStatus(
     severity: "info",
     summary: `Task "${updated.title}" status changed to ${status}.`,
   });
+
+  // Notion two-way sync (beta): mirror the status to the linked Notion page.
+  pushTaskStatusSafe(updated.id);
 
   // Light automation (card #12): roll the parent project's status from its tasks.
   if (task.projectId) {
@@ -255,6 +280,8 @@ export async function updateTaskStatus(
         await db.project.update({ where: { id: task.projectId }, data: { status: "Active" } });
       }
     }
+    // If the rollup moved the parent project's status, mirror that to Notion too (no-op if unlinked/unchanged).
+    pushProjectStatusSafe(task.projectId);
   }
 
   return updated;
@@ -311,7 +338,7 @@ export async function claimTask(actorId: string, taskId: string) {
 
 /** Manager approves (assigns to the claimer) or rejects (reopens) a pending claim. */
 export async function resolveClaim(actorId: string, actorRole: Role, taskId: string, approve: boolean) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can approve claims");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Only team leads and senior VAs can approve claims");
   const id = requireText(taskId, "taskId");
   const task = await db.task.findUniqueOrThrow({ where: { id }, select: { id: true, title: true, claimRequestedById: true } });
   if (!task.claimRequestedById) throw new Error("There's no pending claim on that task.");
@@ -331,7 +358,7 @@ export async function resolveClaim(actorId: string, actorRole: Role, taskId: str
 
 /** Delete a task (managers only). Comments/checklist/dependencies cascade. */
 export async function deleteTask(actorId: string, actorRole: Role, taskId: string) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can delete tasks");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Only team leads and senior VAs can delete tasks");
   const id = requireText(taskId, "taskId");
   const task = await db.task.findUniqueOrThrow({ where: { id }, select: { title: true } });
   await db.task.delete({ where: { id } });
@@ -397,7 +424,7 @@ export async function bulkUpdateTasks(
   taskIds: string[],
   patch: BulkUpdateTaskPatch,
 ) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Not allowed to update tasks");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("Not allowed to update tasks");
   const ids = Array.isArray(taskIds) ? taskIds.filter((x): x is string => typeof x === "string" && !!x) : [];
   if (ids.length === 0) throw new Error("No tasks selected");
 

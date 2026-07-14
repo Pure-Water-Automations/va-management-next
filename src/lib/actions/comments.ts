@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
-import { canManageTasks, AuthorizationError } from "@/lib/auth/roles";
+import { AuthorizationError } from "@/lib/auth/roles";
+import { canUserDelegateTasks } from "@/lib/auth/delegation";
 import { canUserActOnTask } from "@/lib/services/tasks";
 import { notifyMentions } from "@/lib/inbox";
 import type { Role, CommentVisibility } from "@prisma/client";
@@ -19,7 +20,7 @@ export async function addTaskComment(
     select: { assignedToId: true, assignedById: true, title: true },
   });
 
-  if (!canUserActOnTask(actorId, actorRole, task)) {
+  if (!canUserActOnTask(actorId, await canUserDelegateTasks(actorId, actorRole), task)) {
     throw new AuthorizationError("You are not allowed to comment on this task");
   }
 
@@ -47,8 +48,8 @@ export async function addProjectComment(
   body: string,
   rawVisibility?: string,
 ) {
-  if (!canManageTasks(actorRole)) {
-    throw new AuthorizationError("Only team managers can post project notes");
+  if (!(await canUserDelegateTasks(actorId, actorRole))) {
+    throw new AuthorizationError("Only delegators can post project notes");
   }
   if (!body.trim()) throw new Error("Comment body cannot be empty");
 
