@@ -8,8 +8,6 @@ import { VaQuickActions } from "@/components/VaQuickActions";
 import { StatusDropdown } from "@/components/TaskActions";
 import { PriorityBadge, DueChip, AssigneeChip } from "@/components/ui/task-format";
 import { IconTrendingUp, IconCalendarCheck, IconChevronRight, IconArrowRight, IconSparkles } from "@/components/icons";
-import { loadSettings, str } from "@/lib/settings";
-import { isBirthdayToday, DEFAULT_BIRTHDAY_TZ } from "@/lib/birthdays";
 
 export const dynamic = "force-dynamic";
 
@@ -39,15 +37,9 @@ export default async function VaConsole() {
     if (linked) subjectUserId = linked.id;
   }
 
-  const [d, tasks, settings] = await Promise.all([getVaDashboard(vaId), getMyTasks(subjectUserId), loadSettings()]);
+  const [d, tasks] = await Promise.all([getVaDashboard(vaId), getMyTasks(subjectUserId)]);
 
   const now = new Date();
-  const birthdayToday = isBirthdayToday(
-    d.va.birthdayMonth,
-    d.va.birthdayDay,
-    now,
-    str(settings, "birthday_timezone", DEFAULT_BIRTHDAY_TZ),
-  );
   const open = tasks.filter((t) => t.status !== "Done");
   const overdue = open.filter((t) => t.dueDate && t.dueDate < now && !isToday(t.dueDate));
   const dueToday = open.filter((t) => t.dueDate && isToday(t.dueDate));
@@ -80,33 +72,6 @@ export default async function VaConsole() {
           Hi, {d.va.name.split(" ")[0]}
         </h1>
       </div>
-
-      {/* ── Birthday banner ────────────────────────────────────────── */}
-      {birthdayToday ? (
-        <div
-          style={{
-            padding: "18px 24px",
-            marginBottom: 18,
-            borderRadius: "var(--radius-lg)",
-            background: "linear-gradient(135deg, #ffb84d 0%, #ff7ab8 55%, #8f7bff 100%)",
-            color: "#fff",
-            boxShadow: "0 8px 24px rgba(255,122,184,.35)",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-          }}
-        >
-          <span style={{ fontSize: 34, lineHeight: 1 }}>🎂</span>
-          <div>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "var(--text-xl)" }}>
-              Happy birthday, {d.va.name.split(" ")[0]}! 🎉
-            </div>
-            <div style={{ opacity: 0.92, fontSize: "var(--text-sm)" }}>
-              The whole Pure Water team is celebrating you today. Have a wonderful one!
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {/* ── Focus hero ─────────────────────────────────────────────── */}
       <div className="hero-sky" style={{ padding: "26px 28px", marginBottom: 18 }}>

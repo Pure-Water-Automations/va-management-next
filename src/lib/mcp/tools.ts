@@ -482,7 +482,7 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         select: {
           vaId: true, name: true, email: true, compensationRole: true, status: true,
           targetHoursWeekly: true, skillSpecs: true, availabilityNotes: true, lastCheckinDate: true,
-          whatsappNumber: true, notifyChannel: true, roleStartedDate: true, notionProfileUrl: true,
+          roleStartedDate: true, notionProfileUrl: true,
           supervisor: { select: { name: true, email: true } },
           users: { select: { id: true, role: true } },
         },
@@ -507,8 +507,6 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         availability: va.availabilityNotes,
         lastCheckin: va.lastCheckinDate?.toISOString().slice(0, 10) ?? null,
         roleStarted: va.roleStartedDate?.toISOString().slice(0, 10) ?? null,
-        whatsapp: va.whatsappNumber,
-        notifyChannel: va.notifyChannel,
         notionProfile: va.notionProfileUrl,
         openTasks: openTasks.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate?.toISOString().slice(0, 10) ?? null, client: t.client })),
         recentlyCompleted: recentTasks.map((t) => t.title),

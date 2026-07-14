@@ -852,6 +852,3 @@ h3.sec-title {
   .stat-grid { grid-template-columns: 1fr; }
   .topbar .search-pill { display: none; }
 }
-
-/* Project whiteboards list row hover */
-.wb-list-row:hover { background: var(--color-bg-secondary); }

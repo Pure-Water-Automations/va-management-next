@@ -16,7 +16,6 @@ import {
   IconBarChart,
   IconTemplate,
   IconMessageSquare,
-  IconUsers,
   IconLogOut,
 } from "./icons";
 
@@ -29,7 +28,6 @@ function isActivePath(pathname: string, href: string): boolean {
 
 export function VaTopNav({
   name,
-  photoSrc,
   roleLabel,
   canDelegate = false,
   showMeetingActions = false,
@@ -38,7 +36,6 @@ export function VaTopNav({
   unreadCount,
 }: {
   name: string;
-  photoSrc?: string | null;
   roleLabel: string;
   canDelegate?: boolean;
   showMeetingActions?: boolean;
@@ -55,7 +52,6 @@ export function VaTopNav({
     { href: "/va/tier", label: "Tier", icon: <IconAward /> },
     { href: "/va/evaluation", label: "Evaluation", icon: <IconClipboardCheck /> },
     { href: "/va/checkin", label: "Check-in", icon: <IconCalendarCheck /> },
-    { href: "/directory", label: "Team", icon: <IconUsers /> },
   ];
   if (canDelegate) {
     // Delegating (senior-tier) VAs get the full delegation surface — All Tasks,
@@ -104,9 +100,7 @@ export function VaTopNav({
             {roleLabel}
           </span>
           <NotificationBell notifications={notifications} unreadCount={unreadCount} />
-          <Link href="/va/profile" title="My profile" style={{ display: "inline-flex" }}>
-            <Avatar name={name} size={34} src={photoSrc} />
-          </Link>
+          <Avatar name={name} size={34} />
           <a href="/api/logout" title="Sign out" aria-label="Sign out" className="icon-btn round" style={{ width: 34, height: 34 }}>
             <IconLogOut size={16} />
           </a>

@@ -13,26 +13,14 @@ export type MeetingItem = {
   suggestedAssignee: string | null;
   suggestedDueDate: string | null; // YYYY-MM-DD
   matchedAssigneeId: string | null;
-  // Live-capture provenance (Zoom RTMS items; null elsewhere).
-  kind: string | null; // "task" | "project"
-  confidence: number | null; // 0..1
-  evidenceQuote: string | null;
 };
 export type MeetingCard = {
   id: string;
   title: string;
   date: string | null; // ISO
   zoomAccount: string | null;
-  source: string | null; // null = harvester; ZOOM_APP_RECORDING | ZOOM_APP_LIVE
   items: MeetingItem[];
 };
-
-/** Provenance badge label for a MeetingAction.source value. */
-function sourceLabel(source: string | null): string | null {
-  if (source === "ZOOM_APP_LIVE") return "Zoom Live";
-  if (source === "ZOOM_APP_RECORDING") return "Zoom App";
-  return source; // null (harvester) → no badge; unknown values shown verbatim
-}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "";
@@ -219,24 +207,6 @@ export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: 
                 <div>
                   <div style={{ fontWeight: 600 }}>
                     {card.title}
-                    {sourceLabel(card.source) && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          letterSpacing: 0.4,
-                          textTransform: "uppercase",
-                          color: "var(--color-info-dark)",
-                          background: "var(--color-info-light)",
-                          borderRadius: 999,
-                          padding: "2px 8px",
-                          marginLeft: 8,
-                          verticalAlign: "middle",
-                        }}
-                      >
-                        {sourceLabel(card.source)}
-                      </span>
-                    )}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
                     {[fmtDate(card.date), card.zoomAccount, lead ? `${lead} (lead)` : null].filter(Boolean).join(" · ")}
@@ -281,25 +251,10 @@ export function MeetingActionsClient({ cards, assignees, canConfirm }: { cards: 
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>
                         {it.title}
-                        {it.kind === "project" && (
-                          <span style={{ fontSize: 10, color: "var(--color-warning)", border: "1px solid var(--color-warning)", borderRadius: 999, padding: "1px 6px", marginLeft: 6, verticalAlign: "middle" }}>
-                            project
-                          </span>
-                        )}
-                        {typeof it.confidence === "number" && (
-                          <span style={{ fontSize: 10, color: "var(--color-text-tertiary)", marginLeft: 6 }}>
-                            {Math.round(it.confidence * 100)}% sure
-                          </span>
-                        )}
                       </div>
                       {(it.description || it.clientContext) && (
                         <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>
                           {[it.description, it.clientContext].filter(Boolean).join(" · ")}
-                        </div>
-                      )}
-                      {it.evidenceQuote && (
-                        <div style={{ fontSize: 12, fontStyle: "italic", color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                          “{it.evidenceQuote}”
                         </div>
                       )}
                     </div>

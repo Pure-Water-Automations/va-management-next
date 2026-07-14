@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/Badge";
 import { ActionButton } from "@/components/ActionButton";
 import { BaselineCell, BaselineCutover, VaEmailCell } from "@/components/BaselineEditor";
 import { SupervisorSelect } from "@/components/SupervisorSelect";
-import { NotifyPrefsCell } from "@/components/NotifyPrefsCell";
-import { TrustedBulkApproveCheckbox } from "@/components/TrustedBulkApproveCheckbox";
 
 export const dynamic = "force-dynamic";
 
@@ -70,8 +68,6 @@ export default async function RegistryPage() {
                   "Cumulative",
                   "Last check-in",
                   "Eligible",
-                  ...(canEdit ? ["Bulk approve"] : []),
-                  "Notify",
                   "",
                 ].map((h, i) => (
                   <th key={h || `c${i}`} style={th}>{h}</th>
@@ -111,23 +107,6 @@ export default async function RegistryPage() {
                     )}
                   </td>
                   <td style={td}>{eligibility.eligible ? <Badge variant="success" dot>Yes</Badge> : <span className="small">—</span>}</td>
-                  {canEdit && (
-                    <td style={{ ...td, whiteSpace: "normal", minWidth: 300 }}>
-                      <TrustedBulkApproveCheckbox
-                        vaId={va.vaId}
-                        name={va.name}
-                        email={va.email}
-                        trustedForBulkApprove={va.trustedForBulkApprove}
-                      />
-                    </td>
-                  )}
-                  <td style={td}>
-                    {canEdit ? (
-                      <NotifyPrefsCell vaId={va.vaId} channel={va.notifyChannel} number={va.whatsappNumber} />
-                    ) : (
-                      <span className="small">{va.notifyChannel}</span>
-                    )}
-                  </td>
                   <td style={{ ...td, textAlign: "right" }}>
                     {canEdit && va.status !== "departed" && (
                       <ActionButton path="/api/hr/deactivate-va" body={{ vaId: va.vaId, notes: "Deactivated via console" }} confirm={`Deactivate ${va.name}? They’ll be marked departed.`} variant="ghost">

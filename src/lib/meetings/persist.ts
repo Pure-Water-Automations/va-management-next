@@ -1,18 +1,16 @@
 /**
- * The single MeetingAction write shared by every extraction source: the VPS
- * file-scanning worker (transcript-to-tasks.ts) and the Zoom recording worker
- * (worker/zoom-capture-process.ts). One review surface (/meeting-actions), one
- * confirm→Task path — no matter how the transcript arrived.
+ * The single MeetingAction write for the VPS file-scanning worker
+ * (transcript-to-tasks.ts). One review surface (/meeting-actions), one
+ * confirm→Task path.
  */
 import { db } from "@/lib/db";
 import type { ProposedItem } from "@/lib/meetings/extract";
 
 export type PersistMeetingActionsInput = {
-  meetingFile: string; // unique idempotency key (a file path, or "zoom-app://<uuid>")
+  meetingFile: string; // unique idempotency key (a file path)
   meetingTitle: string;
   meetingDate: Date | null;
   zoomAccount: string | null;
-  source?: string | null; // provenance badge; null = the harvester
   items: ProposedItem[];
 };
 
@@ -37,7 +35,6 @@ export async function persistMeetingActions(
       meetingTitle: input.meetingTitle,
       meetingDate: input.meetingDate,
       zoomAccount: input.zoomAccount,
-      source: input.source ?? null,
       status: input.items.length === 0 ? "RESOLVED" : "PENDING",
       items: {
         create: input.items.map((it) => ({

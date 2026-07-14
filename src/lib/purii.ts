@@ -304,7 +304,7 @@ const SALES_TOUR: TourStep[] = [
 
 const ADMIN_TOUR: TourStep[] = [
   { sprite: "waving", title: "Hi! I'm Purii 👋", body: "This is the Admin console — everything admin-only lives here. Use the top bar's View as to hop into HR, Payroll, Recruitment, Sales, or the VA console." },
-  { sprite: "pointing", title: "Settings", body: "Contract template, Client agreement, Email sender, WhatsApp, and Zoom — the app's connections and templates.", href: "/admin/users", cta: "Open Admin" },
+  { sprite: "pointing", title: "Settings", body: "Contract template, Client agreement, and Email sender — the app's connections and templates.", href: "/admin/users", cta: "Open Admin" },
   { sprite: "thinking", title: "Users", body: "Add a teammate, set their role, and toggle admin/active. Roles are job functions; VA seniority is driven by tier, not role.", href: "/admin/users", cta: "Open Users" },
   { sprite: "celebrating", title: "That's it! 🎉", body: "Switch views up top to work in any console. Ask me 'how do I…' anytime." },
 ];

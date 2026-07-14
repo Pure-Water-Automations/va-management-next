@@ -109,17 +109,6 @@ const envSchema = z.object({
   VIDEO_CORE_BASE_URL: optionalEnvString(z.string().url()),
   VIDEO_CORE_API_KEY: optionalEnvString(z.string()),
   VIDEO_CORE_WORKSPACE_ID: optionalEnvString(z.string()),
-  // Zoom Meeting App (Marketplace app). All optional so the app boots without Zoom
-  // configured: the OAuth connect route redirects back with ?zoom=unconfigured and
-  // the webhook route returns 503 until the secret token is set. Create the app in
-  // the Zoom Marketplace (General / User-Managed) to obtain these — see
-  // docs/zoom-app.md. Redirect URI defaults to ${APP_BASE_URL}/api/zoom/oauth/callback.
-  ZOOM_CLIENT_ID: optionalEnvString(z.string()),
-  ZOOM_CLIENT_SECRET: optionalEnvString(z.string()),
-  // Secret Token from the app's Feature → Event Subscriptions config. Verifies the
-  // x-zm-signature on inbound webhooks AND signs the endpoint.url_validation reply.
-  ZOOM_WEBHOOK_SECRET_TOKEN: optionalEnvString(z.string()),
-  ZOOM_REDIRECT_URI: optionalEnvString(z.string().url()),
 });
 
 export const env = envSchema.parse(process.env);

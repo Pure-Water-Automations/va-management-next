@@ -1,12 +1,8 @@
 /**
  * notification-digest — daily. For each active/training VA whose task-notification
- * preference (notifyChannel) is "digest", email a plain-text summary of their open
- * tasks (with a "new since yesterday" callout). No-ops gracefully when email isn't
- * configured or a VA has no open tasks. Mirrors the monthly-checkin SyncRun pattern.
- *
- * Digest VAs get NO immediate per-task pings (channelDecision returns no channel for
- * "digest"); this daily summary is their channel. Schedule it once a day (e.g. cron
- * `npm run worker:digest`), like the other workers.
+ * preference is "digest", email a plain-text summary of their open tasks (with a
+ * "new since yesterday" callout). No-ops gracefully when email isn't configured or
+ * a VA has no open tasks. Mirrors the monthly-checkin/capacity-monitor SyncRun pattern.
  */
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -15,7 +11,6 @@ import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str } from "@/lib/settings";
 
 const DAY = 24 * 60 * 60 * 1000;
-const FALLBACK_BASE_URL = "https://dev-team.pwasecondbrain.uk";
 
 function dueLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -25,26 +20,22 @@ async function main() {
   const run = await db.syncRun.create({ data: { worker: "notification-digest", status: "FAILED" } });
   try {
     const settings = await loadSettings();
-    const enabled = str(settings, "notification_digest_enabled", "FALSE").toUpperCase() === "TRUE";
     const from = str(settings, "system_email_from", "");
-    // APP_BASE_URL (env, per-deployment) wins over the app_base_url setting, which
-    // wins over the dev-host fallback — same precedence as recruitment.ts.
-    const baseUrl = env.APP_BASE_URL ?? str(settings, "app_base_url", FALLBACK_BASE_URL) ?? FALLBACK_BASE_URL;
-    if (!enabled || !from) {
-      const reason = !enabled ? "notification_digest_enabled not TRUE" : "no_system_email_from";
+    if (!from) {
       await db.syncRun.update({
         where: { id: run.id },
-        data: { status: "SUCCESS", finishedAt: new Date(), detailsJson: { skipped: true, reason } },
+        data: { status: "SUCCESS", finishedAt: new Date(), detailsJson: { skipped: true, reason: "no_system_email_from" } },
       });
-      console.log(`notification-digest: skipped (${reason})`);
+      console.log("notification-digest: skipped (no system_email_from)");
       return;
     }
 
+    const baseUrl = env.APP_BASE_URL ?? "https://team.pwasecondbrain.uk";
     const now = new Date();
     const since = new Date(now.getTime() - DAY);
 
     const vas = await db.va.findMany({
-      where: { status: { in: ["active", "training"] }, notifyChannel: "digest" },
+      where: { status: { in: ["active", "training"] }, notifyTasks: "digest" },
       select: { vaId: true, name: true, email: true },
     });
 

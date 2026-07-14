@@ -15,11 +15,6 @@ export const POST = action(
       compensationRole: optionalCompRole(body, "compensationRole", "compensation_role"),
       status: optionalVaStatus(body, "status"),
       targetHoursWeekly: optionalNumber(body, "targetHoursWeekly", "target_hours_weekly"),
-      trustedForBulkApprove: optionalBoolean(
-        body,
-        "trustedForBulkApprove",
-        "trusted_for_bulk_approve",
-      ),
       supervisorVaId: optionalString(body, "supervisorVaId", "supervisor_va_id"),
       desklogUserId: optionalString(body, "desklogUserId", "desklog_user_id"),
       skillSpecs: optionalString(body, "skillSpecs", "skill_specs"),
@@ -43,21 +38,6 @@ function optionalNumber(body: Record<string, unknown>, ...keys: string[]): numbe
   for (const key of keys) {
     const value = optNum(body, key);
     if (value !== undefined) return value;
-  }
-  return undefined;
-}
-
-function optionalBoolean(body: Record<string, unknown>, ...keys: string[]): boolean | undefined {
-  for (const key of keys) {
-    const value = body[key];
-    if (value === undefined || value === null || value === "") continue;
-    if (typeof value === "boolean") return value;
-    if (typeof value === "string") {
-      const normalized = value.trim().toLowerCase();
-      if (["true", "1", "yes", "on"].includes(normalized)) return true;
-      if (["false", "0", "no", "off"].includes(normalized)) return false;
-    }
-    throw new Error(`Invalid ${keys[0]}: ${String(value)}`);
   }
   return undefined;
 }

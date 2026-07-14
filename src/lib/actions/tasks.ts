@@ -8,8 +8,6 @@ import { canUserDelegateTasks, getActorTier } from "@/lib/auth/delegation";
 import { createNotification, supervisorUserId } from "@/lib/inbox";
 import { inheritTaskClient } from "@/lib/services/tasks";
 import { pushProjectStatusSafe, pushTaskStatusSafe } from "@/lib/notion-engine";
-import { sendWhatsApp, whatsappConfigured } from "@/lib/whatsapp";
-import { channelDecision } from "@/lib/notify-channel";
 import type { Role, TaskStatus, TaskStrategy, Priority } from "@prisma/client";
 
 export type CreateTaskInput = {
@@ -147,28 +145,21 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
       suggestedTools: input.suggestedTools ?? undefined,
     },
     include: {
-      assignedTo: { select: { email: true, name: true, va: { select: { whatsappNumber: true, notifyChannel: true, notifyTasks: true } } } },
+      assignedTo: { select: { email: true, name: true, va: { select: { notifyTasks: true } } } },
       assignedBy: { select: { name: true } },
     },
   });
 
-  // Notify the assignee (best-effort — task is always saved). Channels follow the
-  // VA's preference: email and/or WhatsApp (WhatsApp only when they have a number
-  // on file AND the WhatsApp Business API is configured; else it's email-only).
-  // NOTE(merge): notifyTasks (each/digest/off) and notifyChannel (both/email/
-  // whatsapp/none/digest) are two independently-built digest preferences — see the
-  // NOTE on Va.notifyTasks in schema.prisma. Until unified, per-task email is
-  // suppressed if EITHER says not to, so neither VA-facing setting is silently
-  // ignored.
+  // Send assignment email (best-effort — task is always saved). Gated on the
+  // assignee VA's notification preference: only the immediate per-task email is
+  // suppressed for "digest"/"off" — the in-app bell + ActivityLog below always fire.
   let emailSent = false;
   if (!claimable) {
     const settings = await loadSettings();
     const from = settingStr(settings, "system_email_from");
-    const waNumber = task.assignedTo.va?.whatsappNumber ?? null;
-    const ch = channelDecision(task.assignedTo.va?.notifyChannel, !!waNumber, await whatsappConfigured());
     const notifyTasksWantsEmail = (task.assignedTo.va?.notifyTasks ?? "each") === "each";
 
-    if (ch.email && notifyTasksWantsEmail && from && task.assignedTo.email && task.assignedToId !== actorId) {
+    if (notifyTasksWantsEmail && from && task.assignedTo.email && task.assignedToId !== actorId) {
       emailSent = await sendTaskAssignmentEmail({
         from,
         toEmail: task.assignedTo.email,
@@ -185,17 +176,6 @@ export async function createTask(actorId: string, actorRole: Role, input: Create
       if (emailSent) {
         await db.task.update({ where: { id: task.id }, data: { emailSent: true } });
       }
-    }
-
-    if (ch.whatsapp && waNumber) {
-      const due = task.dueDate
-        ? task.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        : null;
-      await sendWhatsApp({
-        to: waNumber,
-        text: `📋 New task: ${task.title}\nPriority: ${task.priority}${due ? ` · Due: ${due}` : ""}\nFrom: ${task.assignedBy.name ?? "Team"}\n${env.APP_BASE_URL ?? "https://team.purewaterautomations.com"}/va/tasks/${task.id}`,
-        templateParams: [task.title],
-      });
     }
   }
 

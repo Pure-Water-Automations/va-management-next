@@ -26,13 +26,10 @@
     "worker:mirror": "tsx worker/sheet-mirror-export.ts",
     "worker:recordings": "tsx worker/recordings-process.ts",
     "worker:transcript": "tsx worker/transcript-to-tasks.ts",
-    "worker:zoom-capture": "tsx worker/zoom-capture-process.ts",
-    "worker:rtms": "tsx worker/rtms-live.ts",
     "worker:sales-followup": "tsx worker/sales-followup.ts",
     "worker:notify-digest": "tsx worker/notification-digest.ts",
     "worker:notion": "tsx worker/notion-sync.ts",
     "worker:discovery-reminders": "tsx worker/discovery-reminders.ts",
-    "worker:birthday": "tsx worker/birthday.ts",
     "seed:demo": "tsx prisma/seed-demo.ts"
   },
   "dependencies": {
@@ -52,9 +49,6 @@
     "react-dom": "^19.0.0",
     "signature_pad": "^5.1.3",
     "zod": "^3.23.8"
-  },
-  "optionalDependencies": {
-    "@zoom/rtms": "^1.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -110,8 +110,3 @@ export function transcriptKey(id: string): string {
 export function enhancedKey(id: string): string {
   return `recordings/${id}/enhanced.mp4`;
 }
-// One fixed key per VA — re-uploading a profile photo overwrites the old one, so
-// there's no orphan cleanup; cache-bust on the client with a ?v= query param.
-export function profilePhotoKey(vaId: string): string {
-  return `profiles/${vaId}/photo`;
-}

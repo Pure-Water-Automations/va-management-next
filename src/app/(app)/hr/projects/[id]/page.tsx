@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser, isBetaVisible } from "@/lib/auth/access";
 import { getProjectDetail, getProjectActivityFeed } from "@/lib/reads/projects";
-import { listProjectWhiteboards } from "@/lib/reads/whiteboards";
 import { getDelegationAssignees } from "@/lib/reads/assignees";
 import { computeProjectProgress } from "@/lib/services/tasks";
 import { Stat } from "@/components/ui/Stat";
@@ -12,7 +11,6 @@ import { StatusBadge, DueChip, Avatar } from "@/components/ui/task-format";
 import { ProjectCommentForm } from "@/components/ProjectCommentForm";
 import { ProjectStatusControls } from "@/components/ProjectStatusControls";
 import { ProjectQuickAddTask } from "@/components/ProjectQuickAddTask";
-import { ProjectWhiteboards } from "@/components/ProjectWhiteboards";
 import { EnhanceButton } from "@/components/EnhanceButton";
 import { NotionItemControls } from "@/components/NotionItemControls";
 import { db } from "@/lib/db";
@@ -21,13 +19,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ converted?: string }>;
 }) {
   const { id } = await params;
-  const { converted } = await searchParams;
   const user = await getCurrentUser();
   if (!user.caps.manageTasks) {
     redirect("/hr/projects");
@@ -36,13 +31,11 @@ export default async function ProjectDetailPage({
 
   // Auto-suggest: VAs assigned to this project's client float to the top of the picker.
   const projectClientId = (await db.project.findUnique({ where: { id }, select: { clientOrganizationId: true } }))?.clientOrganizationId ?? null;
-  const [project, feed, assignees, whiteboards] = await Promise.all([
+  const [project, feed, assignees] = await Promise.all([
     getProjectDetail(id),
     getProjectActivityFeed(id),
     getDelegationAssignees(projectClientId),
-    listProjectWhiteboards(id),
   ]);
-  const convertedCount = converted ? parseInt(converted, 10) : 0;
 
   if (!project) return <p style={{ padding: 32 }}>Project not found.</p>;
 
@@ -120,33 +113,6 @@ export default async function ProjectDetailPage({
           value={<span style={{ fontSize: "var(--text-lg)" }}>{project.owner.name ?? project.owner.email}</span>}
         />
       </div>
-
-      {convertedCount > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "14px 18px",
-            marginBottom: 20,
-            borderRadius: "var(--radius-card)",
-            background: "linear-gradient(150deg,#eef0fa 0%,#e7f8fd 100%)",
-            border: "1px solid var(--color-sky-100)",
-          }}
-        >
-          <span style={{ fontSize: 22 }}>✅</span>
-          <div>
-            <div style={{ fontWeight: 700, color: "var(--color-navy-900)" }}>
-              {convertedCount} task{convertedCount === 1 ? "" : "s"} added from a whiteboard
-            </div>
-            <div className="small" style={{ color: "var(--color-navy-700)" }}>
-              Promoted from the board. Owners were notified and can start right away.
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ProjectWhiteboards projectId={project.id} boards={whiteboards} canCreate={user.caps.manageTasks} />
 
       <div className="dash-grid">
         {/* Task list */}

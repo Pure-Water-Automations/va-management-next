@@ -10,7 +10,6 @@ export type SaveVaInput = {
   compensationRole?: CompRole;
   status?: VaStatus;
   targetHoursWeekly?: number;
-  trustedForBulkApprove?: boolean;
   supervisorVaId?: string | null;
   desklogUserId?: string | null;
   skillSpecs?: string | null;
@@ -72,10 +71,6 @@ export async function saveVa(input: SaveVaInput, actorEmail: string) {
   const supervisorVaId =
     input.supervisorVaId === undefined ? undefined : cleanNullableText(input.supervisorVaId);
   const targetHoursWeekly = cleanOptionalNumber(input.targetHoursWeekly, "targetHoursWeekly");
-  const trustedForBulkApprove = cleanOptionalBoolean(
-    input.trustedForBulkApprove,
-    "trustedForBulkApprove",
-  );
 
   if (supervisorVaId === vaId) {
     throw new Error("A VA cannot be their own supervisor.");
@@ -95,7 +90,6 @@ export async function saveVa(input: SaveVaInput, actorEmail: string) {
           compensationRole: input.compensationRole,
           status: input.status,
           targetHoursWeekly,
-          trustedForBulkApprove,
           supervisorVaId,
           desklogUserId: optionalNullableText(input.desklogUserId),
           skillSpecs: optionalNullableText(input.skillSpecs),
@@ -114,7 +108,6 @@ export async function saveVa(input: SaveVaInput, actorEmail: string) {
           compensationRole: input.compensationRole ?? "TRAINEE",
           status: input.status ?? "active",
           targetHoursWeekly: targetHoursWeekly ?? (await defaultTargetHoursWeekly()),
-          trustedForBulkApprove: trustedForBulkApprove ?? false,
           supervisorVaId: supervisorVaId ?? null,
           desklogUserId: cleanNullableText(input.desklogUserId),
           skillSpecs: cleanNullableText(input.skillSpecs),
@@ -547,12 +540,6 @@ function optionalNullableText(value: string | null | undefined): string | null |
 function cleanOptionalNumber(value: number | undefined, fieldName: string): number | undefined {
   if (value === undefined) return undefined;
   if (!Number.isFinite(value)) throw new Error(`Invalid ${fieldName}: ${value}`);
-  return value;
-}
-
-function cleanOptionalBoolean(value: boolean | undefined, fieldName: string): boolean | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "boolean") throw new Error(`Invalid ${fieldName}: ${value}`);
   return value;
 }
 
