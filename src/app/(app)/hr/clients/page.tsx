@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -104,7 +104,9 @@ export default async function HrClientsPage({
   searchParams: Promise<{ mine?: string; status?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !user.isAdmin) {
+  // All-access (admin OR TESTER) must reach the client list, matching the org detail
+  // page guard — otherwise a non-admin TESTER is bounced to /hr and can't test clients.
+  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !isAllAccess(user)) {
     redirect("/hr");
   }
   const sp = await searchParams;

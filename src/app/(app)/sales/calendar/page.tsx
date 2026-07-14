@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { isSalesRep } from "@/lib/auth/roles";
 import { loadSettings } from "@/lib/settings";
 import { parseBookingConfig } from "@/lib/discovery-booking";
@@ -21,7 +21,7 @@ const MESSAGES: Record<string, { text: string; variant: "success" | "danger" | "
 
 export default async function SalesCalendarPage({ searchParams }: { searchParams: Promise<{ calendar?: string }> }) {
   const user = await getCurrentUser();
-  if (!isSalesRep(user.role) && !user.isAdmin) redirect("/");
+  if (!isSalesRep(user.role) && !isAllAccess(user)) redirect("/");
 
   const settings = await loadSettings();
   const reps = parseBookingConfig(settings.get("discovery_booking_windows"));

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/access";
+import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { ClientOnboardingBoard, type OnboardingRow } from "@/components/ClientOnboardingBoard";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HrClientOnboardingPage() {
   const user = await getCurrentUser();
-  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !user.isAdmin) redirect("/hr");
+  if (user.role !== "HR_MANAGER" && user.role !== "PEOPLE_OPS" && !isAllAccess(user)) redirect("/hr");
 
   const records = await db.clientOnboarding.findMany({
     orderBy: { createdAt: "desc" },
