@@ -262,7 +262,9 @@ export async function updateTaskStatus(
 
 /** Reassign a task to a different VA (managers only). Notifies the new assignee. */
 export async function reassignTask(actorId: string, actorRole: Role, taskId: string, newAssigneeId: string) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can reassign tasks");
+  // Task delegators (managers + delegation-tier VAs) may reassign — same authority as
+  // creating/assigning a task. Web routes still gate at the wrapper (canManageTasks).
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("You don't have permission to reassign tasks");
   const id = requireText(newAssigneeId, "assigneeId");
   const newAssignee = await db.user.findUniqueOrThrow({ where: { id }, select: { id: true, name: true, email: true } });
   const task = await db.task.update({
@@ -348,7 +350,9 @@ export async function updateTask(
   taskId: string,
   input: UpdateTaskInput,
 ) {
-  if (!canManageTasks(actorRole)) throw new AuthorizationError("Only team leads and senior VAs can edit tasks");
+  // Task delegators may edit tasks — same authority as creating them. Web routes
+  // still gate at the wrapper (canManageTasks).
+  if (!(await canUserDelegateTasks(actorId, actorRole))) throw new AuthorizationError("You don't have permission to edit tasks");
 
   const task = await db.task.update({
     where: { id: taskId },

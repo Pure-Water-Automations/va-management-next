@@ -8,16 +8,20 @@ export const MCP_PROTOCOL_VERSION = "2024-11-05";
 export type McpTool = { name: string; description: string; inputSchema: Record<string, unknown> };
 
 const priorityEnum = { type: "string", enum: ["Low", "Medium", "High"] };
+const projectStatusEnum = { type: "string", enum: ["Planning", "Active", "Done", "Paused"] };
+const projectTypeEnum = { type: "string", enum: ["Project", "Event", "Recurring", "Report"] };
+const taskStrategyEnum = { type: "string", enum: ["Create", "Research", "Automate", "Communicate", "Plan", "Delegate"] };
+const taskStatusEnum = { type: "string", enum: ["NotStarted", "InProgress", "Done", "Blocked"] };
 
 export const MCP_TOOLS: McpTool[] = [
   {
     name: "list_projects",
     description: "List the team's projects (name, status, client, owner, open/total task counts). Call before creating to avoid duplicates.",
-    inputSchema: { type: "object", properties: { status: { type: "string", description: "Optional filter: Planning | Active | OnHold | Done" } } },
+    inputSchema: { type: "object", properties: { status: { type: "string", description: "Optional filter: Planning | Active | Done | Paused" } } },
   },
   {
     name: "create_project",
-    description: "Create a new project.",
+    description: "Create a new project. You become the owner. Defaults: status Planning, type Project.",
     inputSchema: {
       type: "object",
       properties: {
@@ -25,6 +29,8 @@ export const MCP_TOOLS: McpTool[] = [
         description: { type: "string" },
         client: { type: "string" },
         priority: priorityEnum,
+        status: projectStatusEnum,
+        type: projectTypeEnum,
         dueDate: { type: "string", description: "ISO date, e.g. 2026-07-15" },
       },
       required: ["name"],
@@ -37,7 +43,7 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: "create_task",
-    description: "Create and assign a task. Assigning to a VA sends them the normal assignment email. If no assignee is given it is assigned to the MCP service user.",
+    description: "Create and assign a task. Assigning to a VA sends them the normal assignment email. If no assignee is given it is assigned to you (unless claimable=true, which posts it to the open pool for any VA to claim).",
     inputSchema: {
       type: "object",
       properties: {
@@ -45,6 +51,9 @@ export const MCP_TOOLS: McpTool[] = [
         project: { type: "string", description: "Project id or name to attach the task to (optional)" },
         assignee: { type: "string", description: "Assignee email or name (use list_assignees to choose). Optional." },
         priority: priorityEnum,
+        strategy: taskStrategyEnum,
+        client: { type: "string", description: "Client this task is for (optional; otherwise inherited from the project)" },
+        claimable: { type: "boolean", description: "Post to the open pool for any VA to claim instead of assigning to one person" },
         dueDate: { type: "string", description: "ISO date" },
         instructions: { type: "string" },
       },
@@ -86,6 +95,42 @@ export const MCP_TOOLS: McpTool[] = [
       type: "object",
       properties: { taskId: { type: "string" }, body: { type: "string" } },
       required: ["taskId", "body"],
+    },
+  },
+  {
+    name: "update_project",
+    description: "Update an existing project's fields (only the ones you pass change). Use to move a project to Active/Done/Paused, rename it, or change priority/client/due date.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "Project id or name" },
+        name: { type: "string" },
+        description: { type: "string" },
+        client: { type: "string" },
+        priority: priorityEnum,
+        status: projectStatusEnum,
+        type: projectTypeEnum,
+        dueDate: { type: "string", description: "ISO date" },
+      },
+      required: ["project"],
+    },
+  },
+  {
+    name: "update_task",
+    description: "Edit an existing task's fields (only the ones you pass change): title, instructions, priority, strategy, status, client, or due date. For a status-only change, update_task_status is simpler.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string" },
+        title: { type: "string" },
+        instructions: { type: "string" },
+        priority: priorityEnum,
+        strategy: taskStrategyEnum,
+        status: taskStatusEnum,
+        client: { type: "string" },
+        dueDate: { type: "string", description: "ISO date" },
+      },
+      required: ["taskId"],
     },
   },
   {

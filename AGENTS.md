@@ -266,11 +266,17 @@ to the real person and the surface must be small.
   Compensation Roles screen). No authority → 403, so a token stops working the moment an admin
   removes the flag. Client-portal roles are rejected. Each tool *also* enforces its own action
   authority underneath (e.g. `reassign_task` needs `canManageTasks`).
-- **Tools (9):** `list_projects`, `create_project`, `list_tasks`, `create_task`, `get_task`,
-  `update_task_status`, `reassign_task`, `add_task_comment`, `list_assignees`. Deals,
+- **Tools (11):** `list_projects`, `create_project`, `update_project`, `list_tasks`,
+  `create_task`, `get_task`, `update_task`, `update_task_status`, `reassign_task`,
+  `add_task_comment`, `list_assignees` — the full create→manage lifecycle for projects & tasks.
+  `create_project`/`update_project` take status+type; `create_task` takes strategy/client/claimable;
+  all enum args are validated in the executor (clean tool error, not a Prisma 500). Deals,
   agreements, payroll, HR, recruitment are **not exposed** — enforced by passing only this
   subset to `handleMcpRequest`, which gates both `tools/list` and `tools/call` (a tool absent
   from the subset is uncallable even by name; unit-tested in `tests/mcp-protocol.test.ts`).
+  **Authority:** `reassign_task`/`update_task` gate on `canUserDelegateTasks` (tier-aware, so a
+  Tier-3 delegator can use them) — the web routes still gate at the wrapper on `canManageTasks`,
+  so the human UI is unchanged.
 - **Connect:** `Authorization: Bearer vam_…` at `<APP_BASE_URL>/api/mcp/delegate` (prod:
   `https://team.purewaterautomations.com/api/mcp/delegate`). No new env or hostname needed —
   tokens live in the DB. Migration `20260707230000_mcp_tokens` (same as dev's, dedupes on merge).

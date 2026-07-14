@@ -18,9 +18,11 @@ const DELEGATION_TOOL_NAMES = new Set([
   "create_task",
   "get_task",
   "update_task_status",
+  "update_task",
   "reassign_task",
   "add_task_comment",
   "list_assignees",
+  "update_project",
 ]);
 const DELEGATION_TOOLS = MCP_TOOLS.filter((t) => DELEGATION_TOOL_NAMES.has(t.name));
 

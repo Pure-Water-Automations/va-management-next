@@ -1,12 +1,16 @@
 import type { DealStage, Role, TaskStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { getProjectsList } from "@/lib/reads/projects";
-import { createProject } from "@/lib/actions/projects";
-import { createTask, updateTaskStatus, reassignTask } from "@/lib/actions/tasks";
+import { createProject, updateProject } from "@/lib/actions/projects";
+import { createTask, updateTaskStatus, reassignTask, updateTask } from "@/lib/actions/tasks";
 import { addTaskComment } from "@/lib/actions/comments";
 import { getTaskDetail } from "@/lib/reads/tasks";
 import { createDeal, convertDealToClient, DEAL_STAGES } from "@/lib/sales/deal";
 import { sendClientAgreement } from "@/lib/sales/agreement";
+
+/** Base URL for links returned to the AI client (prod domain fallback). */
+const BASE_URL = env.APP_BASE_URL ?? env.NEXTAUTH_URL ?? "https://team.purewaterautomations.com";
 
 export type McpCtx = { actorId: string; actorRole: Role };
 
@@ -44,6 +48,22 @@ async function resolveAssigneeId(ref: string): Promise<string | null> {
 }
 
 const VALID_STATUS = new Set(["NotStarted", "InProgress", "Done", "Blocked"]);
+const PROJECT_STATUS = new Set(["Planning", "Active", "Done", "Paused"]);
+const PROJECT_TYPE = new Set(["Project", "Event", "Recurring", "Report"]);
+const PRIORITY = new Set(["Low", "Medium", "High"]);
+const TASK_STRATEGY = new Set(["Create", "Research", "Automate", "Communicate", "Plan", "Delegate"]);
+
+/**
+ * Read + validate an optional enum arg. Returns {value} (possibly undefined) when
+ * ok, or {error} with a clean message when the caller passed an invalid value —
+ * so bad input becomes a tool error, not a Prisma 500.
+ */
+function enumArg(args: Record<string, unknown>, key: string, allowed: Set<string>): { value?: string; error?: string } {
+  const v = str(args, key);
+  if (v === undefined) return {};
+  if (!allowed.has(v)) return { error: `Invalid ${key} "${v}" — must be one of: ${[...allowed].join(", ")}` };
+  return { value: v };
+}
 
 export async function executeTool(name: string, args: Record<string, unknown>, ctx: McpCtx): Promise<{ text: string; isError?: boolean }> {
   const json = (v: unknown) => ({ text: JSON.stringify(v, null, 2) });
@@ -70,15 +90,22 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
     case "create_project": {
       const name_ = str(args, "name");
       if (!name_) return fail("name is required");
+      const priority = enumArg(args, "priority", PRIORITY);
+      const status = enumArg(args, "status", PROJECT_STATUS);
+      const type = enumArg(args, "type", PROJECT_TYPE);
+      const bad = priority.error ?? status.error ?? type.error;
+      if (bad) return fail(bad);
       const project = await createProject(ctx.actorId, ctx.actorRole, {
         name: name_,
         description: str(args, "description"),
         client: str(args, "client"),
-        priority: str(args, "priority"),
+        priority: priority.value,
+        status: status.value,
+        type: type.value,
         dueDate: str(args, "dueDate"),
         ownerId: ctx.actorId,
       });
-      return json({ created: true, id: project.id, name: project.name, url: `https://team.pwasecondbrain.uk/hr/projects/${project.id}` });
+      return json({ created: true, id: project.id, name: project.name, url: `${BASE_URL}/hr/projects/${project.id}` });
     }
 
     case "list_tasks": {
@@ -110,6 +137,9 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
     case "create_task": {
       const title = str(args, "title");
       if (!title) return fail("title is required");
+      const priority = enumArg(args, "priority", PRIORITY);
+      const strategy = enumArg(args, "strategy", TASK_STRATEGY);
+      if (priority.error ?? strategy.error) return fail((priority.error ?? strategy.error)!);
       const projectRef = str(args, "project");
       let projectId: string | undefined;
       if (projectRef) {
@@ -117,8 +147,10 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
         if (!resolved) return fail(`No project matched "${projectRef}"`);
         projectId = resolved;
       }
+      const claimable = args.claimable === true;
       const assigneeRef = str(args, "assignee");
-      let assignedToId = ctx.actorId; // default: the MCP service user
+      // claimable → open pool (no specific assignee). Otherwise default to the caller.
+      let assignedToId: string | undefined = claimable ? undefined : ctx.actorId;
       if (assigneeRef) {
         const resolved = await resolveAssigneeId(assigneeRef);
         if (!resolved) return fail(`No assignee matched "${assigneeRef}" — call list_assignees to see valid VAs`);
@@ -127,12 +159,23 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       const task = await createTask(ctx.actorId, ctx.actorRole, {
         title,
         instructions: str(args, "instructions"),
-        priority: str(args, "priority"),
+        priority: priority.value,
+        strategy: strategy.value,
+        client: str(args, "client"),
         dueDate: str(args, "dueDate"),
         projectId,
         assignedToId,
+        claimable,
       });
-      return json({ created: true, id: task.id, title: task.title, assignedTo: task.assignedTo.name ?? task.assignedTo.email, emailSent: task.emailSent, url: `https://team.pwasecondbrain.uk/hr/tasks/${task.id}` });
+      return json({
+        created: true,
+        id: task.id,
+        title: task.title,
+        claimable,
+        assignedTo: task.assignedTo?.name ?? task.assignedTo?.email ?? (claimable ? "(open pool)" : null),
+        emailSent: task.emailSent,
+        url: `${BASE_URL}/hr/tasks/${task.id}`,
+      });
     }
 
     case "list_assignees": {
@@ -225,6 +268,50 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       if (!taskId || !body) return fail("taskId and body are required");
       const c = await addTaskComment(ctx.actorId, ctx.actorRole, taskId, body);
       return json({ added: true, id: c.id, at: c.createdAt });
+    }
+
+    case "update_project": {
+      const ref = str(args, "project");
+      if (!ref) return fail("project (id or name) is required");
+      const projectId = await resolveProjectId(ref);
+      if (!projectId) return fail(`No project matched "${ref}"`);
+      const priority = enumArg(args, "priority", PRIORITY);
+      const status = enumArg(args, "status", PROJECT_STATUS);
+      const type = enumArg(args, "type", PROJECT_TYPE);
+      const bad = priority.error ?? status.error ?? type.error;
+      if (bad) return fail(bad);
+      // Only forward fields the caller actually passed (updateProject does partial updates).
+      const p = await updateProject(ctx.actorId, ctx.actorRole, projectId, {
+        ...(str(args, "name") !== undefined ? { name: str(args, "name") } : {}),
+        ...("description" in args ? { description: str(args, "description") } : {}),
+        ...("client" in args ? { client: str(args, "client") } : {}),
+        ...(priority.value !== undefined ? { priority: priority.value } : {}),
+        ...(status.value !== undefined ? { status: status.value } : {}),
+        ...(type.value !== undefined ? { type: type.value } : {}),
+        ...(str(args, "dueDate") !== undefined ? { dueDate: str(args, "dueDate") } : {}),
+      });
+      return json({ updated: true, id: p.id, name: p.name, url: `${BASE_URL}/hr/projects/${p.id}` });
+    }
+
+    case "update_task": {
+      const taskId = str(args, "taskId");
+      if (!taskId) return fail("taskId is required");
+      const priority = enumArg(args, "priority", PRIORITY);
+      const strategy = enumArg(args, "strategy", TASK_STRATEGY);
+      const bad = priority.error ?? strategy.error;
+      if (bad) return fail(bad);
+      const statusVal = str(args, "status");
+      if (statusVal !== undefined && !VALID_STATUS.has(statusVal)) return fail("status must be one of: NotStarted, InProgress, Done, Blocked");
+      const t = await updateTask(ctx.actorId, ctx.actorRole, taskId, {
+        ...(str(args, "title") !== undefined ? { title: str(args, "title") } : {}),
+        ...("instructions" in args ? { instructions: str(args, "instructions") } : {}),
+        ...(priority.value !== undefined ? { priority: priority.value } : {}),
+        ...(strategy.value !== undefined ? { strategy: strategy.value } : {}),
+        ...(statusVal !== undefined ? { status: statusVal } : {}),
+        ...("client" in args ? { client: str(args, "client") } : {}),
+        ...(str(args, "dueDate") !== undefined ? { dueDate: str(args, "dueDate") } : {}),
+      });
+      return json({ updated: true, id: t.id, title: t.title, url: `${BASE_URL}/hr/tasks/${t.id}` });
     }
 
     case "list_deals": {
