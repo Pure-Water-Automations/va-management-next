@@ -15,11 +15,13 @@ export function NavItemLink({
   label,
   badge,
   icon,
+  isNew = false,
 }: {
   href: string;
   label: string;
   badge?: number;
   icon?: ReactNode;
+  isNew?: boolean;
 }) {
   const pathname = usePathname();
   // Exact match for leaf pages; prefix match for paths with meaningful sub-pages
@@ -39,6 +41,7 @@ export function NavItemLink({
     >
       {icon ? <span className="nav-icon">{icon}</span> : null}
       <span className="nav-text">{label}</span>
+      {isNew ? <span className="nav-new-tag">New</span> : null}
       {badge && badge > 0 ? <span className="nav-badge">{badge}</span> : null}
     </Link>
   );

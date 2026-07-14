@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Role } from "@prisma/client";
 import type { ConsoleView } from "@/lib/auth/roles";
+import { isFeatureNew } from "@/lib/new-features";
 import { NavItemLink } from "./NavItemLink";
 import { NavGroup } from "./NavGroup";
 import { Avatar } from "./Avatar";
@@ -30,7 +31,7 @@ import {
   IconLogOut,
 } from "./icons";
 
-type NavItem = { href: string; label: string; icon: ReactNode };
+type NavItem = { href: string; label: string; icon: ReactNode; isNew?: boolean };
 
 const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
   ADMIN: [
@@ -43,14 +44,14 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/admin/client-agreement", label: "Client agreement", icon: <IconFileText /> },
         { href: "/admin/email", label: "Email sender", icon: <IconMail /> },
         { href: "/admin/users", label: "Users", icon: <IconUsers /> },
-        { href: "/admin/mcp-tokens", label: "MCP Tokens", icon: <IconShieldCheck /> },
+        { href: "/admin/mcp-tokens", label: "MCP Tokens", icon: <IconShieldCheck />, isNew: true },
       ],
     },
     {
       label: "Recordings",
       items: [
-        { href: "/record", label: "Record", icon: <IconVideo /> },
-        { href: "/recordings", label: "Recordings", icon: <IconFilm /> },
+        { href: "/record", label: "Record", icon: <IconVideo />, isNew: true },
+        { href: "/recordings", label: "Recordings", icon: <IconFilm />, isNew: true },
       ],
     },
   ],
@@ -103,17 +104,17 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
     {
       label: "Sales",
       items: [
-        { href: "/sales", label: "Pipeline", icon: <IconBriefcase /> },
-        { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck /> },
+        { href: "/sales", label: "Pipeline", icon: <IconBriefcase />, isNew: true },
+        { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck />, isNew: true },
       ],
     },
     {
       // Client management moved here from HR.
       label: "Clients",
       items: [
-        { href: "/hr/client-onboarding", label: "Onboarding", icon: <IconHandshake /> },
-        { href: "/hr/clients", label: "Organizations", icon: <IconBuilding /> },
-        { href: "/hr/requests", label: "Client Requests", icon: <IconMessageSquare /> },
+        { href: "/hr/client-onboarding", label: "Onboarding", icon: <IconHandshake />, isNew: true },
+        { href: "/hr/clients", label: "Organizations", icon: <IconBuilding />, isNew: true },
+        { href: "/hr/requests", label: "Client Requests", icon: <IconMessageSquare />, isNew: true },
       ],
     },
   ],
@@ -142,6 +143,7 @@ export function Sidebar({
   meetingActionsCount?: number;
 }) {
   const sections = NAV[view] ?? NAV.HR;
+  const showNew = isFeatureNew();
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -159,7 +161,7 @@ export function Sidebar({
         {sections.map((section) => (
           <NavGroup key={section.label} label={section.label}>
             {section.items.map((item) => (
-              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} isNew={item.isNew && showNew} />
             ))}
           </NavGroup>
         ))}
@@ -169,7 +171,7 @@ export function Sidebar({
             (Admin-only config + Recordings now live in the dedicated Admin view.) */}
         {showMeetingActions && (
           <NavGroup label="Meetings">
-            <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} />
+            <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} isNew={showNew} />
           </NavGroup>
         )}
       </nav>

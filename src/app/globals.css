@@ -251,6 +251,20 @@ html[data-sidebar-collapsed="1"] .app-shell {
   align-items: center;
   justify-content: center;
 }
+/* "New" tag — shown on recently-shipped nav items for a week, then gated off
+   server-side by isFeatureNew() (see src/lib/new-features.ts). Dark-sidebar
+   styling here; .topnav-item overrides it below for the light top nav. */
+.nav-new-tag {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-sky-400);
+  color: var(--color-navy-900);
+}
 
 /* sidebar footer (user) */
 .sidebar .foot {
@@ -303,6 +317,7 @@ html[data-sidebar-collapsed="1"] .sidebar .brand .brand-text,
 html[data-sidebar-collapsed="1"] .sidebar .nav-label,
 html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-text,
 html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-badge,
+html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-new-tag,
 html[data-sidebar-collapsed="1"] .sidebar .foot .foot-meta {
   display: none;
 }
@@ -675,6 +690,11 @@ h3.sec-title {
 .topnav-item.active .nav-icon {
   opacity: 1;
 }
+.topnav-item .nav-new-tag {
+  background: var(--color-sky-50);
+  color: var(--color-sky-700);
+  border: 1px solid var(--color-sky-100);
+}
 .topnav-end {
   margin-left: auto;
   display: flex;
@@ -707,6 +727,7 @@ h3.sec-title {
 @media (min-width: 1025px) and (max-width: 1239px) {
   .topnav-item { padding: 8px 10px; gap: 0; }
   .topnav-item .nav-label { display: none; }
+  .topnav-item .nav-new-tag { display: none; }
   .topnav-item .nav-icon { opacity: 1; }
 }
 
@@ -837,6 +858,7 @@ h3.sec-title {
   html[data-sidebar-collapsed="1"] .sidebar .nav-label,
   html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-text,
   html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-badge,
+html[data-sidebar-collapsed="1"] .sidebar .nav-item .nav-new-tag,
   html[data-sidebar-collapsed="1"] .sidebar .foot .foot-meta { display: revert; }
   html[data-sidebar-collapsed="1"] .sidebar .nav-item { justify-content: flex-start; gap: 12px; }
   /* The desktop icon-collapse group rules are scoped to min-width:1025px, so on

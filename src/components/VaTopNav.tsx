@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isFeatureNew } from "@/lib/new-features";
+import { useHorizontalWheelScroll } from "@/lib/hooks/useHorizontalWheelScroll";
 import { Avatar } from "./Avatar";
 import { NotificationBell } from "./NotificationBell";
 import {
@@ -19,7 +21,7 @@ import {
   IconLogOut,
 } from "./icons";
 
-type Item = { href: string; label: string; icon: ReactNode; badge?: number };
+type Item = { href: string; label: string; icon: ReactNode; badge?: number; isNew?: boolean };
 type NotificationItem = Parameters<typeof NotificationBell>[0]["notifications"][number];
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -44,6 +46,8 @@ export function VaTopNav({
   unreadCount: number;
 }) {
   const pathname = usePathname();
+  const navRef = useHorizontalWheelScroll<HTMLElement>();
+  const showNew = isFeatureNew();
 
   const items: Item[] = [
     { href: "/va", label: "Overview", icon: <IconDashboard /> },
@@ -65,7 +69,7 @@ export function VaTopNav({
     );
   }
   if (showMeetingActions) {
-    items.push({ href: "/meeting-actions", label: "Meetings", icon: <IconMessageSquare />, badge: meetingActionsCount });
+    items.push({ href: "/meeting-actions", label: "Meetings", icon: <IconMessageSquare />, badge: meetingActionsCount, isNew: true });
   }
 
   return (
@@ -80,7 +84,7 @@ export function VaTopNav({
             Pure Water <span className="dot">·</span> VA
           </span>
         </Link>
-        <nav className="topnav-links">
+        <nav className="topnav-links" ref={navRef}>
           {items.map((item) => (
             <Link
               key={item.href}
@@ -90,6 +94,7 @@ export function VaTopNav({
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-label">{item.label}</span>
+              {item.isNew && showNew ? <span className="nav-new-tag">New</span> : null}
               {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
             </Link>
           ))}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useHorizontalWheelScroll } from "@/lib/hooks/useHorizontalWheelScroll";
 import { IconDashboard, IconFolder, IconListChecks, IconMessageSquare, IconFilm, IconSettings } from "@/components/icons";
 
 const LINKS = [
@@ -14,11 +15,12 @@ const LINKS = [
 
 export function ClientNav({ showSettings = false }: { showSettings?: boolean }) {
   const pathname = usePathname();
+  const navRef = useHorizontalWheelScroll<HTMLElement>();
   const links = showSettings
     ? [...LINKS, { href: "/client/settings", label: "Settings", icon: <IconSettings /> }]
     : LINKS;
   return (
-    <nav className="topnav-links">
+    <nav className="topnav-links" ref={navRef}>
       {links.map((l) => {
         const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
         return (
