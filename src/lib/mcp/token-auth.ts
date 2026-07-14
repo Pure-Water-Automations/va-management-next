@@ -40,6 +40,15 @@ export type McpAuthResult =
 export async function resolveDelegationActor(bearer: string): Promise<McpAuthResult> {
   if (!bearer) return { ok: false, status: 401, message: "Unauthorized — missing bearer token." };
 
+  // OAuth-issued access token (vamat_) — resolved via the OAuth store. Kept out
+  // of the McpToken table so the two credential kinds stay independent.
+  if (bearer.startsWith("vamat_")) {
+    const { resolveOAuthActor } = await import("@/lib/oauth/tokens");
+    const actor = await resolveOAuthActor(bearer);
+    if (!actor) return { ok: false, status: 401, message: "Unauthorized — invalid or expired OAuth token." };
+    return { ok: true, actor };
+  }
+
   const row = await db.mcpToken.findUnique({
     where: { tokenHash: hashMcpToken(bearer) },
     include: { user: { select: { id: true, email: true, name: true, role: true, active: true } } },

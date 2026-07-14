@@ -26,11 +26,11 @@ const DELEGATION_TOOL_NAMES = new Set([
 ]);
 const DELEGATION_TOOLS = MCP_TOOLS.filter((t) => DELEGATION_TOOL_NAMES.has(t.name));
 
-const json = (body: unknown, status: number) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (body: unknown, status: number, headers?: Record<string, string>) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
-const rpcError = (code: number, message: string, status: number) =>
-  json({ jsonrpc: "2.0", id: null, error: { code, message } }, status);
+const rpcError = (code: number, message: string, status: number, headers?: Record<string, string>) =>
+  json({ jsonrpc: "2.0", id: null, error: { code, message } }, status, headers);
 
 export async function GET() {
   return new Response("VA Management Delegation MCP — POST JSON-RPC (Streamable HTTP).", { status: 405 });
@@ -39,7 +39,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const provided = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   const auth = await resolveDelegationActor(provided);
-  if (!auth.ok) return rpcError(-32001, auth.message, auth.status);
+  if (!auth.ok) {
+    // Point unauthenticated clients at the OAuth resource metadata (RFC 9728) so
+    // Claude/ChatGPT can discover and start the login flow instead of just failing.
+    const proto = request.headers.get("x-forwarded-proto") ?? "https";
+    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "localhost";
+    const wwwAuth = { "WWW-Authenticate": `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-protected-resource"` };
+    return rpcError(-32001, auth.message, auth.status, auth.status === 401 ? wwwAuth : undefined);
+  }
 
   const actor = auth.actor;
   // This endpoint is for delegators only. Individual tools still enforce their own

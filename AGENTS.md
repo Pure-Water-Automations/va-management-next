@@ -277,9 +277,33 @@ to the real person and the surface must be small.
   **Authority:** `reassign_task`/`update_task` gate on `canUserDelegateTasks` (tier-aware, so a
   Tier-3 delegator can use them) — the web routes still gate at the wrapper on `canManageTasks`,
   so the human UI is unchanged.
-- **Connect:** `Authorization: Bearer vam_…` at `<APP_BASE_URL>/api/mcp/delegate` (prod:
-  `https://team.purewaterautomations.com/api/mcp/delegate`). No new env or hostname needed —
-  tokens live in the DB. Migration `20260707230000_mcp_tokens` (same as dev's, dedupes on merge).
+- **Connect (two ways):**
+  1. **OAuth login (preferred)** — point the AI client at `<APP_BASE_URL>/api/mcp/delegate`; it
+     discovers OAuth via the `WWW-Authenticate` header on the 401 and walks the user through a
+     Google login + consent. No token to paste. (Details below.)
+  2. **Static token** — `Authorization: Bearer vam_…` minted at `/admin/mcp-tokens`. Kept as a
+     fallback / admin-service identity.
+  No new env or hostname needed — everything lives in the DB. Migrations: `20260707230000_mcp_tokens`
+  (tokens) and `20260714999999_delegation_oauth` (OAuth clients/codes/tokens).
+
+### OAuth 2.1 + PKCE (the login flow — ported from event-planner-build)
+
+Lets a delegator connect via Google login instead of a pasted token; OAuth just automates
+issuing/refreshing a bearer the MCP validates like a `vam_` token.
+- **Endpoints:** `/.well-known/oauth-authorization-server` + `/.well-known/oauth-protected-resource`
+  (discovery), `/api/oauth/register` (dynamic client registration, RFC 7591 — Claude/ChatGPT
+  self-register), `/oauth/authorize` (consent page, behind `getCurrentUser()` → app login),
+  `/api/oauth/token` (auth-code + refresh, PKCE S256). Code in `src/lib/oauth/{tokens,pkce}.ts`.
+- **Tokens:** access `vamat_` (30-day), refresh `vamrt_`, auth code `vamac_` (10-min, single-use);
+  only sha256 hashes stored. `token-auth.resolveDelegationActor` routes `vamat_` → `resolveOAuthActor`,
+  everything else → the `McpToken` table. Same `canUserDelegate*` gate + active/eligibility re-checked
+  every call, so revoking access or delegation kills the connection live.
+- **Discovery trigger:** the delegate route returns `WWW-Authenticate: Bearer resource_metadata="…"`
+  on a 401 (RFC 9728), which is what makes MCP clients start the flow. PKCE unit-tested
+  (`tests/oauth-pkce.test.ts`); full handshake verified live (register → PKCE → code → token →
+  MCP → refresh; wrong-verifier/code-reuse rejected).
+- **Cloudflare Access:** the OAuth routes + `/api/mcp/delegate` must stay reachable without an Access
+  wall (prod `/api` already answers directly; the app gates humans via NextAuth, not CF Access).
 
 ## Constraints
 
