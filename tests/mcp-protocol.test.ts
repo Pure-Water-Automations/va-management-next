@@ -56,3 +56,37 @@ test("unknown method returns method-not-found", async () => {
   const r = await handleMcpRequest({ id: 6, method: "frobnicate" }, noopExec);
   assert.equal((r as { error: { code: number } }).error.code, -32601);
 });
+
+// Delegation MCP security property: when a tool subset is passed, tools/list only
+// advertises the subset and tools/call rejects any tool outside it — even ones that
+// exist in the global catalog. Guards against a delegator invoking send_client_agreement.
+test("a tool subset gates both tools/list and tools/call", async () => {
+  const subset = MCP_TOOLS.filter((t) => ["create_task", "list_projects"].includes(t.name));
+
+  const listed = await handleMcpRequest({ id: 7, method: "tools/list" }, noopExec, subset);
+  const names = (listed as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+  assert.deepEqual(names.sort(), ["create_task", "list_projects"]);
+  assert.ok(!names.includes("send_client_agreement"));
+
+  // In-subset tool runs.
+  const ok = await handleMcpRequest(
+    { id: 8, method: "tools/call", params: { name: "create_task", arguments: {} } },
+    async (name) => ({ text: `ran ${name}` }),
+    subset,
+  );
+  assert.match((ok as { result: { content: { text: string }[] } }).result.content[0].text, /ran create_task/);
+
+  // Out-of-subset tool (exists globally) is rejected as unknown, executor never runs.
+  let executorRan = false;
+  const blocked = await handleMcpRequest(
+    { id: 9, method: "tools/call", params: { name: "send_client_agreement", arguments: {} } },
+    async () => {
+      executorRan = true;
+      return { text: "should not run" };
+    },
+    subset,
+  );
+  assert.ok(blocked && "error" in blocked, "out-of-subset tool must error");
+  assert.equal((blocked as { error: { code: number } }).error.code, -32602);
+  assert.equal(executorRan, false, "executor must not run for a gated tool");
+});

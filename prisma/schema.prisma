@@ -108,6 +108,24 @@ model User {
   notifications      Notification[]
   clientMemberships  ClientMembership[]
   clientTaskRequests ClientTaskRequest[] @relation("ClientTaskRequestSubmitter")
+  mcpTokens          McpToken[]
+}
+
+/// Per-person bearer token for the Delegation MCP. Only the sha256 hash is
+/// stored — the plaintext token is shown once at mint time (admin/mcp-tokens).
+/// The MCP acts AS the token's user: writes are attributed to them and their
+/// delegation authority (canUserDelegate*) decides what they may do.
+model McpToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // sha256 hex of the bearer token
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String? // e.g. "Aira — Claude Desktop"
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 // ── Core HR / VA ──────────────────────────────────────────────────────────

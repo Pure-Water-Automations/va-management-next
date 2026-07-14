@@ -169,6 +169,7 @@ export function Sidebar({
             <NavItemLink href="/admin/contract" label="Contract template" icon={<IconFileText />} />
             <NavItemLink href="/admin/client-agreement" label="Client agreement" icon={<IconFileText />} />
             <NavItemLink href="/admin/email" label="Email sender" icon={<IconMail />} />
+            <NavItemLink href="/admin/mcp-tokens" label="Delegation MCP" icon={<IconShieldCheck />} />
           </NavGroup>
         )}
 

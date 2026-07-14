@@ -66,6 +66,29 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: "get_task",
+    description: "Get one task's full detail (status, assignee, project, client, instructions, due date, recent comments).",
+    inputSchema: { type: "object", properties: { taskId: { type: "string" } }, required: ["taskId"] },
+  },
+  {
+    name: "reassign_task",
+    description: "Reassign a task to a different VA. Use list_assignees to pick the best-fit VA.",
+    inputSchema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, assignee: { type: "string", description: "New assignee email or name" } },
+      required: ["taskId", "assignee"],
+    },
+  },
+  {
+    name: "add_task_comment",
+    description: "Add a comment/update to a task. @mentions notify that person.",
+    inputSchema: {
+      type: "object",
+      properties: { taskId: { type: "string" }, body: { type: "string" } },
+      required: ["taskId", "body"],
+    },
+  },
+  {
     name: "list_deals",
     description: "List client sales deals (org, stage, package, value, and agreement sent/signed/paid state). Optionally filter by stage.",
     inputSchema: { type: "object", properties: { stage: { type: "string", description: "Optional DealStage filter, e.g. verbal_yes | won" } } },
@@ -110,7 +133,7 @@ export type RpcResponse = { jsonrpc: "2.0"; id: string | number | null; result?:
  * Handle one MCP JSON-RPC message. Returns the response object, or null for
  * notifications (which get an empty 202). `exec` runs a tool call.
  */
-export async function handleMcpRequest(body: unknown, exec: ToolExecutor): Promise<RpcResponse> {
+export async function handleMcpRequest(body: unknown, exec: ToolExecutor, tools: McpTool[] = MCP_TOOLS): Promise<RpcResponse> {
   const req = (body ?? {}) as RpcRequest;
   const id = req.id ?? null;
   const method = req.method ?? "";
@@ -131,11 +154,13 @@ export async function handleMcpRequest(body: unknown, exec: ToolExecutor): Promi
     case "ping":
       return ok({});
     case "tools/list":
-      return ok({ tools: MCP_TOOLS });
+      return ok({ tools });
     case "tools/call": {
       const name = typeof req.params?.name === "string" ? req.params.name : "";
       const args = (req.params?.arguments ?? {}) as Record<string, unknown>;
-      if (!MCP_TOOLS.some((t) => t.name === name)) return err(-32602, `Unknown tool: ${name}`);
+      // Gate on the caller's allowed subset — a tool absent from `tools` is not callable,
+      // even if it exists in the global catalog.
+      if (!tools.some((t) => t.name === name)) return err(-32602, `Unknown tool: ${name}`);
       try {
         const r = await exec(name, args);
         return ok({ content: [{ type: "text", text: r.text }], isError: !!r.isError });

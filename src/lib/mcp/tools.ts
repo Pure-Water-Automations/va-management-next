@@ -2,7 +2,9 @@ import type { DealStage, Role, TaskStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getProjectsList } from "@/lib/reads/projects";
 import { createProject } from "@/lib/actions/projects";
-import { createTask, updateTaskStatus } from "@/lib/actions/tasks";
+import { createTask, updateTaskStatus, reassignTask } from "@/lib/actions/tasks";
+import { addTaskComment } from "@/lib/actions/comments";
+import { getTaskDetail } from "@/lib/reads/tasks";
 import { createDeal, convertDealToClient, DEAL_STAGES } from "@/lib/sales/deal";
 import { sendClientAgreement } from "@/lib/sales/agreement";
 
@@ -185,6 +187,44 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       if (!taskId || !status || !VALID_STATUS.has(status)) return fail("taskId and a valid status (NotStarted|InProgress|Done|Blocked) are required");
       const updated = await updateTaskStatus(ctx.actorId, ctx.actorRole, taskId, status as TaskStatus);
       return json({ updated: true, id: updated.id, title: updated.title, status: updated.status });
+    }
+
+    case "get_task": {
+      const taskId = str(args, "taskId");
+      if (!taskId) return fail("taskId is required");
+      const t = await getTaskDetail(taskId);
+      if (!t) return fail(`No task with id "${taskId}"`);
+      return json({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        client: t.client,
+        project: t.project ? { id: t.project.id, name: t.project.name } : null,
+        assignedTo: t.assignedTo ? (t.assignedTo.name ?? t.assignedTo.email) : null,
+        assignedBy: t.assignedBy?.name ?? null,
+        dueDate: t.dueDate,
+        instructions: t.instructions,
+        comments: t.comments.map((c) => ({ author: c.author.name ?? "Someone", body: c.body, at: c.createdAt })),
+      });
+    }
+
+    case "reassign_task": {
+      const taskId = str(args, "taskId");
+      const assigneeRef = str(args, "assignee");
+      if (!taskId || !assigneeRef) return fail("taskId and assignee are required");
+      const newAssigneeId = await resolveAssigneeId(assigneeRef);
+      if (!newAssigneeId) return fail(`No assignee matched "${assigneeRef}" — call list_assignees to see valid VAs`);
+      const t = await reassignTask(ctx.actorId, ctx.actorRole, taskId, newAssigneeId);
+      return json({ reassigned: true, id: t.id, title: t.title });
+    }
+
+    case "add_task_comment": {
+      const taskId = str(args, "taskId");
+      const body = str(args, "body");
+      if (!taskId || !body) return fail("taskId and body are required");
+      const c = await addTaskComment(ctx.actorId, ctx.actorRole, taskId, body);
+      return json({ added: true, id: c.id, at: c.createdAt });
     }
 
     case "list_deals": {

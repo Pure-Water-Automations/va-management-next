@@ -252,6 +252,29 @@ reusing `createProject`/`createTask`/`updateTaskStatus` + reads (so audit logs,
   JSON responses; `GET` → 405 (no server-initiated SSE). To add a tool: extend `MCP_TOOLS`
   + `executeTool`.
 
+### Delegation MCP — `POST /api/mcp/delegate` (per-user, for team leads / senior VAs / delegation-tier VAs)
+
+A **second, isolated** endpoint for delegators to create & track work from their own AI
+connector — *not* the shared admin token above. Distinct because writes must be attributed
+to the real person and the surface must be small.
+- **Per-user tokens** (`McpToken` table, sha256-hashed, `vam_` prefix, shown once): an admin
+  mints/revokes them at **`/admin/mcp-tokens`** (admin-only; nav: Admin → Delegation MCP).
+  The MCP acts *as* that user — activity log, comments, notifications, and `assignedById`
+  all record them. Auth resolution: `src/lib/mcp/token-auth.ts`; route: `src/app/api/mcp/delegate/route.ts`.
+- **Gate:** the endpoint requires the caller to have delegation authority
+  (`canUserDelegate{Tasks,Projects}` — managers always, VAs per their comp-tier flags on the
+  Compensation Roles screen). No authority → 403, so a token stops working the moment an admin
+  removes the flag. Client-portal roles are rejected. Each tool *also* enforces its own action
+  authority underneath (e.g. `reassign_task` needs `canManageTasks`).
+- **Tools (9):** `list_projects`, `create_project`, `list_tasks`, `create_task`, `get_task`,
+  `update_task_status`, `reassign_task`, `add_task_comment`, `list_assignees`. Deals,
+  agreements, payroll, HR, recruitment are **not exposed** — enforced by passing only this
+  subset to `handleMcpRequest`, which gates both `tools/list` and `tools/call` (a tool absent
+  from the subset is uncallable even by name; unit-tested in `tests/mcp-protocol.test.ts`).
+- **Connect:** `Authorization: Bearer vam_…` at `<APP_BASE_URL>/api/mcp/delegate` (prod:
+  `https://team.purewaterautomations.com/api/mcp/delegate`). No new env or hostname needed —
+  tokens live in the DB. Migration `20260707230000_mcp_tokens` (same as dev's, dedupes on merge).
+
 ## Constraints
 
 - **Never write to the original VA workbook** — it's read-only (import + parity
