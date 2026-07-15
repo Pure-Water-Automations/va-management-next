@@ -1,13 +1,8 @@
 import { requestOrigin } from "@/lib/oauth/tokens";
+import { protectedResourceMetadata } from "@/lib/oauth/metadata";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const o = requestOrigin(request);
-  return Response.json({
-    resource: `${o}/api/mcp/delegate`,
-    authorization_servers: [o],
-    bearer_methods_supported: ["header"],
-    scopes_supported: ["mcp"],
-  });
+  return Response.json(protectedResourceMetadata(requestOrigin(request)));
 }

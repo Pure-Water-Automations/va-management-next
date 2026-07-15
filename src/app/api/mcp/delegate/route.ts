@@ -32,8 +32,15 @@ const json = (body: unknown, status: number, headers?: Record<string, string>) =
 const rpcError = (code: number, message: string, status: number, headers?: Record<string, string>) =>
   json({ jsonrpc: "2.0", id: null, error: { code, message } }, status, headers);
 
-export async function GET() {
-  return new Response("VA Management Delegation MCP — POST JSON-RPC (Streamable HTTP).", { status: 405 });
+export async function GET(request: Request) {
+  // Carry the OAuth discovery hint here too, so a client that probes with GET
+  // before POST can still find the resource metadata.
+  const proto = request.headers.get("x-forwarded-proto") ?? "https";
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "localhost";
+  return new Response("VA Management Delegation MCP — POST JSON-RPC (Streamable HTTP).", {
+    status: 401,
+    headers: { "WWW-Authenticate": `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-protected-resource"` },
+  });
 }
 
 export async function POST(request: Request) {
