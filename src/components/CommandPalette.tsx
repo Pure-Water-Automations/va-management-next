@@ -20,7 +20,6 @@ const QUICK_NAV: { label: string; href: string }[] = [
   { label: "Calendar", href: "/hr/tasks/calendar" },
   { label: "Projects", href: "/hr/projects" },
   { label: "Delegate task", href: "/hr/tasks/new" },
-  { label: "Templates", href: "/hr/templates" },
 ];
 
 export function CommandPalette({ canDelegate = true }: { canDelegate?: boolean } = {}) {

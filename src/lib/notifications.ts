@@ -65,8 +65,8 @@ export async function itemsForDomain(domain: Domain, vaId?: string | null): Prom
     ]);
     const due = !va?.lastCheckinDate || Date.now() - va.lastCheckinDate.getTime() > 30 * 86400000;
     if (attestation) items.push({ key: "attest", count: attestation, label: "a skill attestation to complete for your tier review", href: "/va/tier" });
-    if (selfEval) items.push({ key: "self_eval", count: selfEval, label: "an evaluation self-assessment to complete", href: "/va/evaluation" });
-    if (supEvals) items.push({ key: "sup_eval", count: supEvals, label: `${plural(supEvals, "team evaluation")} to complete for your reports`, href: "/va/evaluation" });
+    if (selfEval) items.push({ key: "self_eval", count: selfEval, label: "an evaluation self-assessment to complete", href: "/va/tier" });
+    if (supEvals) items.push({ key: "sup_eval", count: supEvals, label: `${plural(supEvals, "team evaluation")} to complete for your reports`, href: "/va/tier" });
     if (due) items.push({ key: "checkin", count: 1, label: "your monthly check-in is due", href: "/va/checkin" });
   }
 

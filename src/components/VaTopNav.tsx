@@ -10,13 +10,11 @@ import { NotificationBell } from "./NotificationBell";
 import {
   IconDashboard,
   IconAward,
-  IconClipboardCheck,
   IconCalendarCheck,
   IconListChecks,
   IconInbox,
   IconFolder,
   IconBarChart,
-  IconTemplate,
   IconMessageSquare,
   IconLogOut,
 } from "./icons";
@@ -54,18 +52,16 @@ export function VaTopNav({
     { href: "/va/tasks", label: "My Tasks", icon: <IconListChecks /> },
     { href: "/hr/tasks/available", label: "Available", icon: <IconInbox /> },
     { href: "/va/tier", label: "Tier", icon: <IconAward /> },
-    { href: "/va/evaluation", label: "Evaluation", icon: <IconClipboardCheck /> },
     { href: "/va/checkin", label: "Check-in", icon: <IconCalendarCheck /> },
   ];
   if (canDelegate) {
     // Delegating (senior-tier) VAs get the full delegation surface — All Tasks,
-    // Projects, Workload, Templates. "Delegate" itself is reachable via the
-    // + Delegate Task button on those pages, so no separate nav item.
+    // Projects, Workload. "Delegate" itself is reachable via the + Delegate Task
+    // button on those pages, so no separate nav item.
     items.push(
       { href: "/hr/tasks", label: "All Tasks", icon: <IconListChecks /> },
       { href: "/hr/projects", label: "Projects", icon: <IconFolder /> },
       { href: "/hr/workload", label: "Workload", icon: <IconBarChart /> },
-      { href: "/hr/templates", label: "Templates", icon: <IconTemplate /> },
     );
   }
   if (showMeetingActions) {

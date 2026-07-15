@@ -95,7 +95,7 @@ export async function startEvaluation(
         from,
         to: va.email,
         subject: "Action needed: your evaluation self-assessment",
-        body: `Hi ${firstName(va.name)},\n\nYou have an evaluation self-assessment to complete. Open your console and fill it in here:\n\n${base}/va/evaluation`,
+        body: `Hi ${firstName(va.name)},\n\nYou have an evaluation self-assessment to complete. Open your console and fill it in here:\n\n${base}/va/tier`,
       });
     }
     const supervisor = va.supervisorVaId
@@ -106,7 +106,7 @@ export async function startEvaluation(
         from,
         to: supervisor.email,
         subject: `Action needed: supervisor assessment for ${va.name}`,
-        body: `Hi ${firstName(supervisor.name ?? "")},\n\nPlease complete the supervisor assessment for ${va.name}'s evaluation:\n\n${base}/va/evaluation`,
+        body: `Hi ${firstName(supervisor.name ?? "")},\n\nPlease complete the supervisor assessment for ${va.name}'s evaluation:\n\n${base}/va/tier`,
       });
     }
   }

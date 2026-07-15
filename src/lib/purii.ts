@@ -34,7 +34,7 @@ NAVIGATION (left sidebar, grouped):
 - HR view (HR Manager, People-Ops, Team Lead):
   • Daily → Dashboard, Tier Reviews, Evaluations, Capacity Alerts
   • Manage → VA Registry, Compensation Roles, Forms & Check-ins, Contract template, Client agreement, Email sender
-  • Projects → Projects, All Tasks, Available, Workload, Templates
+  • Projects → Projects, All Tasks, Available, Workload
   • Recruitment → Pipeline, Training Log, Gate Review, Training Module, Onboarding
   • Clients (HR Manager / People-Ops / admins) → Sales Pipeline, Onboarding, Organizations, Client Requests
   • Meetings → Meeting Actions (only for task reviewers: HR Manager, Team Lead, Senior VA)
@@ -275,8 +275,7 @@ const HR_TOUR: TourStep[] = [
 const VA_TOUR: TourStep[] = [
   { sprite: "waving", title: "Hi! I'm Purii 👋", body: "Quick tour of your console — just a few stops." },
   { sprite: "pointing", title: "Overview", body: "Your hours (last 7 and 14 days), cumulative total, and how your utilization is tracking.", href: "/va", cta: "Open Overview" },
-  { sprite: "open-arms", title: "Tier Progress", body: "See how close you are to your next role and what's still needed.", href: "/va/tier", cta: "Open Tier Progress" },
-  { sprite: "thumbs-up", title: "Evaluation", body: "Complete your performance self-assessment and review your supervisor's feedback — your rating feeds promotion decisions.", href: "/va/evaluation", cta: "Open Evaluation" },
+  { sprite: "open-arms", title: "Tier Progress", body: "See how close you are to your next role, and — when a tier review opens one up — complete your performance self-assessment or a supervisor review right here. Feeds promotion decisions.", href: "/va/tier", cta: "Open Tier Progress" },
   { sprite: "thinking", title: "Monthly Check-in", body: "Once a month, tell us your target hours, availability, and how your workload feels. It only takes a moment.", href: "/va/checkin", cta: "Open Check-in" },
   { sprite: "pointing", title: "My Tasks", body: "Your assigned tasks live here. Open one to read the details and update its status as you work through it.", href: "/va/tasks", cta: "Open My Tasks" },
   { sprite: "celebrating", title: "All done! 🎉", body: "That's it. Tap me whenever you need a hand." },

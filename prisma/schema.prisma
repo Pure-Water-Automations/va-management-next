@@ -1073,28 +1073,6 @@ model TaskDependency {
   @@index([dependsOnTaskId])
 }
 
-model ProjectTemplate {
-  id          String      @id @default(cuid())
-  name        String
-  description String?
-  type        ProjectType @default(Project)
-  priority    Priority    @default(Medium)
-  tasksJson   Json?
-  createdById String?
-  createdAt   DateTime    @default(now())
-}
-
-model TaskTemplate {
-  id           String       @id @default(cuid())
-  name         String
-  title        String
-  instructions String?
-  strategy     TaskStrategy @default(Create)
-  priority     Priority     @default(Medium)
-  createdById  String?
-  createdAt    DateTime     @default(now())
-}
-
 model Notification {
   id        String   @id @default(cuid())
   userId    String
