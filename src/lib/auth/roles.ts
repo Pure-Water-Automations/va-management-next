@@ -1,4 +1,5 @@
 import type { Role } from "@prisma/client";
+import { env } from "@/lib/env";
 
 /** Top-level console a role lands in (mirrors the va-console view routing). */
 export type ConsoleView = "HR" | "PAYROLL" | "VA" | "RECRUITMENT" | "SALES" | "CLIENT";
@@ -57,6 +58,10 @@ export function canDecideHire(role: Role): boolean {
 
 /** Roles that can create tasks and assign them to VAs. */
 export function canManageTasks(role: Role): boolean {
+  // Hub-only demo deployment: any tester can drive the Projects/Tasks Hub (create
+  // pages, tasks, etc.). Safe — the middleware makes the Hub the only reachable
+  // surface there, so this doesn't widen access to any other console. Off elsewhere.
+  if (env.HUB_ONLY_MODE) return true;
   return (
     role === "HR_MANAGER" ||
     role === "PEOPLE_OPS" ||
@@ -81,6 +86,7 @@ export function canReviewMeetingActions(role: Role): boolean {
 
 /** Roles that can create, edit, and delete projects. SENIOR_VA is excluded. */
 export function canManageProjects(role: Role): boolean {
+  if (env.HUB_ONLY_MODE) return true; // hub-only demo — see canManageTasks note
   return role === "HR_MANAGER" || role === "PEOPLE_OPS" || role === "TEAM_LEAD";
 }
 

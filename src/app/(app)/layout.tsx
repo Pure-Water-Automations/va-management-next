@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isRecordingsVisible, hubOnlyMode } from "@/lib/auth/access";
 import { canUserDelegateTasks, canVaDelegateTasks } from "@/lib/auth/delegation";
 import { canReviewMeetingActions } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
@@ -35,6 +36,47 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   const view = await getEffectiveView(user);
   if (view === "CLIENT") redirect("/client");
+
+  // Hub-only isolation: a stripped shell with just Projects + Tasks, for an
+  // isolated team review of the Notion-replacement direction. No other console
+  // nav, no admin bar / view switcher / Purii. The middleware redirects every
+  // non-Hub page here, so this shell only ever wraps the Hub surface.
+  if (hubOnlyMode()) {
+    return (
+      <>
+        <script dangerouslySetInnerHTML={{ __html: COLLAPSE_INIT }} />
+        <div style={{ minHeight: "100vh", background: "var(--color-bg-secondary)" }}>
+          <header className="topnav">
+            <div className="topnav-inner">
+              <Link href="/hr/projects" className="brand">
+                <span className="logo-mark">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/pwa-logo.png" alt="Pure Water Automations" />
+                </span>
+                <span className="brand-name">
+                  Pure Water <span className="dot">·</span> Workspace
+                </span>
+              </Link>
+              <nav className="topnav-links">
+                <Link href="/hr/projects" className="topnav-item">
+                  <span className="nav-label">Projects</span>
+                </Link>
+                <Link href="/hr/tasks" className="topnav-item">
+                  <span className="nav-label">Tasks</span>
+                </Link>
+              </nav>
+              <div className="topnav-end">
+                <a href="/api/logout" title="Sign out" aria-label="Sign out" className="icon-btn round" style={{ width: 34, height: 34 }}>
+                  ⎋
+                </a>
+              </div>
+            </div>
+          </header>
+          <div className="topnav-content">{children}</div>
+        </div>
+      </>
+    );
+  }
   let adminVas: { vaId: string; name: string }[] = [];
   let impersonatedVaId: string | null = null;
   if (user.isAdmin) {

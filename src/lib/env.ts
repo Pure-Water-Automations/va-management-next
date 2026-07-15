@@ -101,6 +101,16 @@ const envSchema = z.object({
   VIDEO_CORE_BASE_URL: optionalEnvString(z.string().url()),
   VIDEO_CORE_API_KEY: optionalEnvString(z.string()),
   VIDEO_CORE_WORKSPACE_ID: optionalEnvString(z.string()),
+  // Hub-only isolation mode. When "true", this deployment strips down to JUST the
+  // Projects/Tasks Hub (the Notion-replacement surface + whiteboard): all other
+  // consoles/nav are hidden, every non-Hub page redirects to /hr/projects, and any
+  // authenticated tester can open the Hub. Used on dev-projects.pwasecondbrain.uk
+  // for an isolated team review of the Hub direction. Default OFF everywhere else.
+  HUB_ONLY_MODE: z.preprocess(
+    (value) =>
+      typeof value === "string" && ["1", "true", "yes", "on"].includes(value.trim().toLowerCase()),
+    z.boolean().default(false),
+  ),
 });
 
 export const env = envSchema.parse(process.env);

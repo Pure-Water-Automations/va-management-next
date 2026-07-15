@@ -69,6 +69,16 @@ export function isRecordingsVisible(user: CurrentUser): boolean {
   return user.isAdmin || isFounder(user.email);
 }
 
+/**
+ * Hub-only isolation mode (env HUB_ONLY_MODE). When true, this deployment is
+ * stripped to just the Projects/Tasks Hub for an isolated team review — every
+ * other console is hidden/redirected and any authenticated tester can open the
+ * Hub (the normal delegation-capability gate is bypassed). See env.ts.
+ */
+export function hubOnlyMode(): boolean {
+  return env.HUB_ONLY_MODE;
+}
+
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.
 const VIEWS: ConsoleView[] = ["HR", "PAYROLL", "RECRUITMENT", "SALES", "VA"];
 
