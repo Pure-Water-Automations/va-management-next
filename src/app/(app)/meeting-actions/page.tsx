@@ -20,7 +20,7 @@ export default async function MeetingActionsPage() {
 
   // Pending meetings (at least one pending item), newest first.
   const meetings = await db.meetingAction.findMany({
-    where: { status: "PENDING", items: { some: { status: "PENDING" } } },
+    where: { status: "PENDING", archivedAt: null, items: { some: { status: "PENDING" } } },
     orderBy: [{ meetingDate: "desc" }, { createdAt: "desc" }],
     include: {
       items: {

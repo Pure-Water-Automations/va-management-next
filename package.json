@@ -30,6 +30,7 @@
     "worker:notify-digest": "tsx worker/notification-digest.ts",
     "worker:notion": "tsx worker/notion-sync.ts",
     "worker:discovery-reminders": "tsx worker/discovery-reminders.ts",
+    "worker:meeting-archive": "tsx worker/meeting-archive.ts",
     "seed:demo": "tsx prisma/seed-demo.ts"
   },
   "dependencies": {

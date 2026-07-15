@@ -412,7 +412,7 @@ html[data-sidebar-collapsed="1"] .sidebar .foot {
   max-width: none;
 }
 .content-pad {
-  max-width: 1240px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 28px 32px 90px;
 }

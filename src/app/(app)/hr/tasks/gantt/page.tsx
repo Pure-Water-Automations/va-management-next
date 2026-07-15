@@ -41,9 +41,10 @@ export default async function HrTasksGanttPage() {
   }
 
   const allTasks = await getAllTasks({});
-  // A timeline needs an end — keep only tasks that have a due date.
+  // A timeline needs an end — keep only tasks that have a due date. Done tasks
+  // are finished work, not upcoming/in-flight — exclude them from the timeline.
   const dated = allTasks
-    .filter((t) => t.dueDate != null)
+    .filter((t) => t.dueDate != null && t.status !== "Done")
     .sort((a, b) => (a.dueDate as Date).getTime() - (b.dueDate as Date).getTime());
 
   const PageHead = (

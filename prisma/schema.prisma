@@ -1007,10 +1007,12 @@ model MeetingAction {
   zoomAccount  String?
   status       MeetingActionStatus @default(PENDING)
   items        MeetingActionItem[]
+  archivedAt   DateTime?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
   @@index([status])
+  @@index([archivedAt])
 }
 
 model MeetingActionItem {
