@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isAllAccess } from "@/lib/auth/access";
+import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isAllAccess, isRecordingsVisible } from "@/lib/auth/access";
 import { canUserDelegateTasks, canVaDelegateTasks, canUserReviewMeetingActions, canVaReviewMeetingActions } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
@@ -100,8 +100,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     showMeetingActions = user.caps.reviewMeetingActions;
   }
 
-  // Recordings + all app config now live in the dedicated Admin view (NAV.ADMIN),
-  // reachable only by all-access users — so no per-view recordings flag is needed.
+  const showRecordings = isRecordingsVisible(user);
   const betaOn = await isBetaOn();
   const notifications = await getNotifications(user.id);
   const unread = notifications.filter((n) => !n.read).length;
@@ -137,6 +136,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             canDelegate={canDelegate}
             showMeetingActions={showMeetingActions}
             meetingActionsCount={meetingActionsCount}
+            showRecordings={showRecordings}
             notifications={notifications}
             unreadCount={unread}
           />
@@ -164,6 +164,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           name={userName}
           showMeetingActions={showMeetingActions}
           meetingActionsCount={meetingActionsCount}
+          showRecordings={showRecordings}
         />
         <main className="content" style={{ padding: 0 }}>
           {adminBar}

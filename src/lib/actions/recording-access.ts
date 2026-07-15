@@ -48,3 +48,12 @@ export function canClientSeeRecording(
 ): boolean {
   return !!orgId && rec.visibility === "client" && rec.clientOrganizationId === orgId;
 }
+
+/**
+ * Whether a `link`-visibility recording is currently reachable via its public
+ * share token (no login) — false once it's switched away from "link", or if it
+ * isn't playable yet. The token itself never expires; only these two fields gate it.
+ */
+export function isPubliclyViewable(rec: { visibility: RecordingVisibility; status: string }): boolean {
+  return rec.visibility === "link" && rec.status === "ready";
+}

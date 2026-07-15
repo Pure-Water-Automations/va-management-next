@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   canSeeRecording,
+  isPubliclyViewable,
   type ViewerUser,
   type VisibilityRec,
 } from "../src/lib/actions/recording-access";
@@ -50,4 +51,11 @@ test("an unrelated VA cannot see someone else's recording", () => {
     canSeeRecording(stranger, rec({ uploaderUserId: "u-other", vaId: "va-1", ownerSupervisorVaId: "va-sup" })),
     false,
   );
+});
+
+test("a link recording is publicly viewable only while it's link + ready", () => {
+  assert.equal(isPubliclyViewable({ visibility: "link", status: "ready" }), true);
+  assert.equal(isPubliclyViewable({ visibility: "link", status: "uploading" }), false);
+  assert.equal(isPubliclyViewable({ visibility: "internal", status: "ready" }), false);
+  assert.equal(isPubliclyViewable({ visibility: "private", status: "ready" }), false);
 });

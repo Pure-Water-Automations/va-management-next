@@ -6,7 +6,9 @@
 import { db } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth/access";
 import { canSeeRecording } from "@/lib/actions/recordings";
+import { isPubliclyViewable } from "@/lib/actions/recording-access";
 import { presignDownload, r2Configured } from "@/lib/r2";
+import { env } from "@/lib/env";
 
 export type RecordingListItem = {
   id: string;
@@ -68,6 +70,7 @@ export type RecordingDetail = {
   enhanceStats: Record<string, unknown> | null;
   enhancedUrl: string | null;
   canManage: boolean;
+  shareUrl: string | null;
   comments: RecordingComment[];
 };
 
@@ -163,6 +166,10 @@ export async function getRecordingDetail(
 
   const canManage = user.isAdmin || (!!rec.uploaderUserId && rec.uploaderUserId === user.id);
   const ready = rec.status === "ready";
+  const shareUrl =
+    rec.visibility === "link" && rec.shareToken && env.APP_BASE_URL
+      ? `${env.APP_BASE_URL.replace(/\/+$/, "")}/watch/${rec.shareToken}`
+      : null;
 
   return {
     id: rec.id,
@@ -202,6 +209,7 @@ export async function getRecordingDetail(
         ? await presignDownload(rec.enhancedKey, 3600, `${rec.title || "recording"}-enhanced.mp4`).catch(() => null)
         : null,
     canManage,
+    shareUrl,
     comments: rec.comments.map((c) => ({
       id: c.id,
       authorName: c.authorName,
@@ -212,5 +220,64 @@ export async function getRecordingDetail(
       isPublic: c.isPublic,
       createdAt: c.createdAt,
     })),
+  };
+}
+
+export type PublicRecordingDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  durationSec: number | null;
+  trimStartSec: number | null;
+  trimEndSec: number | null;
+  thumbnailUrl: string | null;
+  transcript: string | null;
+  transcriptJson: TranscriptSegment[] | null;
+  aiSummary: string | null;
+  uploaderEmail: string | null;
+  createdAt: Date;
+};
+
+/**
+ * Public, unauthenticated lookup by share token — Loom-style "anyone with the
+ * link." Only ever returns a recording that's still explicitly set to `visibility:
+ * "link"` and `status: "ready"`; switching a recording back to private/internal or
+ * deleting it makes any previously-shared link stop resolving immediately.
+ */
+export async function getPublicRecordingByToken(token: string): Promise<PublicRecordingDetail | null> {
+  const rec = await db.recording.findUnique({
+    where: { shareToken: token },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      visibility: true,
+      durationSec: true,
+      trimStartSec: true,
+      trimEndSec: true,
+      thumbnailKey: true,
+      transcript: true,
+      transcriptJson: true,
+      aiSummary: true,
+      uploaderEmail: true,
+      createdAt: true,
+    },
+  });
+  if (!rec || !isPubliclyViewable(rec)) return null;
+
+  return {
+    id: rec.id,
+    title: rec.title,
+    description: rec.description,
+    durationSec: rec.durationSec,
+    trimStartSec: rec.trimStartSec,
+    trimEndSec: rec.trimEndSec,
+    thumbnailUrl: await thumbUrl(rec.thumbnailKey),
+    transcript: rec.transcript,
+    transcriptJson: (rec.transcriptJson as TranscriptSegment[] | null) ?? null,
+    aiSummary: rec.aiSummary,
+    uploaderEmail: rec.uploaderEmail,
+    createdAt: rec.createdAt,
   };
 }

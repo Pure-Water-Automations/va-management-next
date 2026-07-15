@@ -4,34 +4,46 @@ Browser-based screen + mic (+ webcam bubble) recording, stored in Cloudflare R2,
 with an in-app player, AI transcript/summary, review workflow, and timestamped
 comments. Built into the VA Management console.
 
-**Status: admin-only preview.** Everything below ships gated to `User.isAdmin`.
-Public/anonymous sharing and the candidate (recruitment) flow are intentionally
-deferred — the database schema already carries their fields so enabling them later
-needs no migration.
+**Status: open to staff, public share links live.** Any staff user with a linked VA
+record (or HR/People-Ops/Recruiter review authority, or all-access) can record and
+see their own + their reports' recordings via `isRecordingsVisible()`; per-recording
+visibility (own / supervisor chain / client org / public link) is enforced by
+`canSeeRecording()`. Clients only ever see videos explicitly shared to their org.
+The candidate (recruitment) flow is still deferred — the schema already carries its
+fields so enabling it later needs no migration.
 
 ---
 
-## Implemented ✓ (admin-only)
+## Implemented ✓
 
 | Area | What | Where |
 | --- | --- | --- |
 | Schema | `Recording`, `RecordingComment`, enums `RecordingStatus`/`RecordingVisibility`; relations on `Va`/`Candidate`; `Candidate.tenhrRecordingId` | `prisma/schema.prisma` |
 | Storage | Cloudflare R2 client, presigned upload/download, delete, server get/put, key helpers | `src/lib/r2.ts` |
 | Env | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_PUBLIC_BASE_URL`, `OPENAI_TRANSCRIBE_MODEL` | `src/lib/env.ts` |
-| Logic | `createRecording`, `finalizeRecording`, `updateRecording`, `deleteRecording`, `addComment`, `reviewRecording`, `canSeeRecording` | `src/lib/actions/recordings.ts` |
-| Reads | `listVisibleRecordings`, `getRecordingDetail` (+ presigned thumbnail/download) | `src/lib/reads/recordings.ts` |
-| API (POST, admin-only via `allow:()=>false`) | `create`, `finalize`, `list`, `get`, `update`, `delete`, `comment`, `review` | `src/app/api/recordings/**/route.ts` |
+| Logic | `createRecording`, `finalizeRecording`, `updateRecording` (mints a `shareToken` the first time visibility → `link`), `deleteRecording`, `addComment`, `reviewRecording`, `canSeeRecording` | `src/lib/actions/recordings.ts` |
+| Reads | `listVisibleRecordings`, `getRecordingDetail` (+ `shareUrl`, presigned thumbnail/download), `getPublicRecordingByToken` | `src/lib/reads/recordings.ts` |
+| API (POST, staff-only via `allow:(role)=>role!=="CLIENT_*"`) | `create`, `finalize`, `update`, `delete`, `review`, `enhance` | `src/app/api/recordings/**/route.ts` |
+| API (POST, any role) | `comment` — `addComment()` does the per-recording check, so staff and clients-shared-a-video both pass the door | `src/app/api/recordings/comment/route.ts` |
 | API (GET) | `stream/[id]` — auth-checked 302 to a presigned R2 URL (Range-friendly); `?download=1` for attachment | `src/app/api/recordings/stream/[id]/route.ts` |
+| API (public, no auth) | `public/get` (POST, token in body) + `public/stream/[token]` (GET, 302 to R2) — same shape as the authenticated pair, keyed by `shareToken` instead of a session | `src/app/api/recordings/public/**/route.ts` |
 | Recorder | screen+mic+webcam-bubble canvas compositor, MediaRecorder, pause/resume, length cap, thumbnail, presigned PUT upload w/ progress | `src/components/recorder/useScreenRecorder.ts`, `Recorder.tsx` |
-| Player | video via stream proxy, AI summary, transcript w/ click-to-seek, comments + reactions, review controls, edit/delete | `src/components/recorder/RecordingDetailClient.tsx` |
-| Pages | `/record`, `/recordings` (library), `/recordings/[id]` (player) — each `notFound()` for non-admins | `src/app/(app)/record`, `src/app/(app)/recordings` |
-| Nav | admin-only "Recordings" group | `src/components/Sidebar.tsx` (+ `src/app/(app)/layout.tsx`) |
+| Player | video via stream proxy, AI summary, transcript w/ click-to-seek, comments + reactions, review controls, edit/delete, copyable share link | `src/components/recorder/RecordingDetailClient.tsx` |
+| Public viewer | read-only title/video/summary/transcript for a `link`-visibility recording — no login, no comments | `src/app/watch/[token]/page.tsx`, `WatchClient.tsx` |
+| Pages | `/record`, `/recordings` (library), `/recordings/[id]` (player) — each `notFound()` via `isRecordingsVisible()` | `src/app/(app)/record`, `src/app/(app)/recordings` |
+| Nav | "Recordings" group in every console (Sidebar + VaTopNav), gated by `showRecordings` | `src/components/Sidebar.tsx`, `src/components/VaTopNav.tsx` (+ `src/app/(app)/layout.tsx`) |
 | AI | ffmpeg audio extraction → OpenRouter multimodal transcript + title/summary in one cheap call (best-effort, non-blocking) | `worker/recordings-process.ts` (`npm run worker:recordings`), `worker/lib/media.ts`, `src/lib/recordings/transcription.ts` |
 
-### Admin gating
-- API: `action(handler, { allow: () => false })` — non-admins denied, admins bypass (see `src/lib/api.ts`).
-- Pages: `const user = await getCurrentUser(); if (!user.isAdmin) notFound();`.
-- Nav: the "Recordings" group renders only when `isAdmin` is passed to `Sidebar`.
+### Access model
+- Page gate: `isRecordingsVisible(user)` — all-access/founder, any user with a linked
+  `vaId`, or a gate-reviewer role (HR Manager / People-Ops / Recruiter). Kill-switched
+  entirely by `RECORDINGS_ENABLED=false`.
+- Per-recording gate: `canSeeRecording()` — admin or the uploader always; the owning
+  VA and their direct supervisor see it once it's non-`private`; gate-reviewers see
+  any non-`private` recording; a `link`-visibility recording is additionally
+  reachable by anyone holding its `shareToken`, no login at all.
+- Nav: the "Recordings" group renders wherever `showRecordings` is passed — every
+  Sidebar view and the VA top nav — not just one console.
 
 ### Status lifecycle
 `uploading` → (client PUTs to R2) → `finalize` sets `ready` + `aiStatus="pending"` →
@@ -42,27 +54,27 @@ as the row is `ready`; AI never blocks it.
 
 ## Deferred ⏳ (schema ready — not yet built)
 
-1. **Public share links / pages.** Fields exist (`Recording.shareToken`,
-   `visibility="link"`). To enable: add `share`/`unshare` POST routes (mint/rotate
-   `randomUUID()` token like `generateLink` in `src/lib/actions/training.ts`),
-   public token routes `api/recordings/public/{get,comment,stream}` (hand-parsed,
-   no `action()` — pattern in `src/app/api/training/state/route.ts`), and a public
-   page `src/app/watch/[token]/` modeled on `src/app/track/[token]/`.
-
-2. **Candidate 10-hr recruitment integration.** Fields exist
+1. **Candidate 10-hr recruitment integration.** Fields exist
    (`Recording.candidateId`, `Candidate.tenhrRecordingId`; `tenhrLoomUrl` kept as
    fallback). To enable: `api/recordings/candidate/{create,finalize}` keyed by
    `Candidate.trainingAccessToken` (stage `tenhr_in_progress`), an in-app recorder
    option in `track/[token]` (`TrackClient.tsx`), and surface the recording in the
    gate read (`src/lib/reads/recruitment.ts`) + gate page.
 
-3. **Broader role access.** Today admin-only. To open up: replace `allow: () => false`
-   with real role predicates, drop the `if (!user.isAdmin) notFound()` page guards,
-   and remove the `isAdmin` condition on the Sidebar group. `canSeeRecording` already
-   encodes owner / HR / supervisor-chain visibility for when this happens.
+2. **HR review queue page** `(app)/hr/recordings`. Today everyone browses their own
+   view of `/recordings` (filtered by `canSeeRecording`); build a dedicated filtered
+   review queue if HR/supervisors want one place to see everything awaiting review.
 
-4. **HR review queue page** `(app)/hr/recordings`. Admins currently see everything via
-   `/recordings`; build a filtered review queue when access opens to HR/supervisors.
+3. **Public comments / reactions on a shared link.** The `/watch/[token]` viewer is
+   read-only by design (an anonymous commenter is a spam surface nobody asked for
+   yet). If wanted later: a `public/comment` route mirroring `public/get`, gated by
+   requiring a display name and probably a rate limit.
+
+4. **Rotate a share link.** `updateRecording` only ever mints a token once per
+   recording (reused on every later save). Add an explicit "rotate" action if a
+   leaked/over-shared link ever needs to be invalidated without losing `link`
+   visibility entirely (switching visibility away and back doesn't clear the old
+   token today — worth a look if this is needed).
 
 5. **Nice-to-haves:** multipart upload for very long videos, a floating recorder pill,
    server-side ffmpeg thumbnail generation, viewer analytics. (Audio extraction for AI is
@@ -94,15 +106,19 @@ as the row is `ready`; AI never blocks it.
      waits on AI.
 
 ## Verify end-to-end
-- As an admin (`DEV_AUTH_EMAIL`), open `/record` in desktop Chrome → record ~20s with the
-  webcam bubble → review → Save → lands on `/recordings/<id>` → play & scrub.
-- As a non-admin, confirm `/record`, `/recordings`, and the API routes 404/deny and the
-  sidebar group is hidden.
+- As any staff user with a linked VA (or HR/People-Ops/Recruiter/all-access), open
+  `/record` in desktop Chrome → record ~20s with the webcam bubble → review → Save →
+  lands on `/recordings/<id>` → play & scrub.
+- As a client-portal login, confirm `/record`/`/recordings`/the mutation API routes
+  still deny, but `comment` still works on a video shared to their org.
+- Set visibility to "Link", Save, copy the generated link, open it in a private/
+  logged-out browser tab → plays with title/summary/transcript, no login prompt.
+  Switch visibility away from "Link" → the same link 404s.
 - Run `npm run worker:recordings` after an upload → transcript/summary populate, `aiStatus="done"`.
 
 ## Go-live runbook (VPS)
 
-Ordered steps to take this live as the admin-only preview. R2 must be enabled first.
+Ordered steps to take this live for the whole team. R2 must be enabled first.
 
 1. **Enable R2** (dashboard, one-time): Cloudflare → R2 → Enable (needs a billing
    profile; 10 GB free tier). Can't be done via API.
@@ -129,5 +145,7 @@ Ordered steps to take this live as the admin-only preview. R2 must be enabled fi
    scp deploy/systemd/va-management-recordings.{service,timer} root@74.208.40.108:/etc/systemd/system/
    ssh root@74.208.40.108 "systemctl daemon-reload && systemctl enable --now va-management-recordings.timer"
    ```
-8. **Smoke**: open `/record` at dev-team.pwasecondbrain.uk (as an allow-listed admin), record a
-   short clip, Save → plays back from R2; within ~2 min the transcript/summary populate.
+8. **Smoke**: open `/record` at dev-team.pwasecondbrain.uk (any linked VA login now works),
+   record a short clip, Save → plays back from R2; within ~2 min the transcript/summary
+   populate. Also smoke-test a "Link" share: Save with visibility "Link", open the copied
+   URL in a logged-out tab, confirm it plays.

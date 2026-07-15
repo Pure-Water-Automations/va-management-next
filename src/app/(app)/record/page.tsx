@@ -6,7 +6,7 @@ import { r2Configured } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
 
-// Admin-only while the feature is in preview (see docs/recordings-feature.md).
+// Gated by isRecordingsVisible() — see docs/recordings-feature.md.
 export default async function RecordPage() {
   const user = await getCurrentUser();
   if (!isRecordingsVisible(user)) notFound();

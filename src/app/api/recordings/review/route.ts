@@ -8,5 +8,7 @@ export const POST = recordingsAction(
       reviewStatus: str(body, "reviewStatus"),
       reviewNotes: optStr(body, "reviewNotes"),
     }),
-  { allow: () => false },
+  // reviewRecording() itself checks admin / gate-reviewer / direct-supervisor —
+  // this door just needs to exclude clients, who never review recordings.
+  { allow: (role) => role !== "CLIENT_ADMIN" && role !== "CLIENT_MEMBER" },
 );

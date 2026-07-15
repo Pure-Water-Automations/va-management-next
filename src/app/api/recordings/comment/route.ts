@@ -9,7 +9,8 @@ export const POST = action(
       reaction: optStr(body, "reaction"),
       timestampSec: optNum(body, "timestampSec"),
     }),
-  // Admins bypass; client-portal users are let through so they can comment on
-  // videos shared with their org. addComment() does the per-recording check.
-  { allow: (role) => role === "CLIENT_ADMIN" || role === "CLIENT_MEMBER" },
+  // Every role is let through the door — staff commenting on their own/reports'
+  // recordings and clients commenting on videos shared with their org are both
+  // legitimate; addComment() does the actual per-recording visibility check.
+  { allow: () => true },
 );

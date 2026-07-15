@@ -213,7 +213,7 @@ export async function updateRecording(
 ): Promise<{ id: string }> {
   const rec = await db.recording.findUnique({
     where: { id: input.recordingId },
-    select: { id: true, uploaderUserId: true },
+    select: { id: true, uploaderUserId: true, shareToken: true },
   });
   if (!rec) throw new Error("Recording not found.");
   if (!isOwnerOrAdmin(user, rec)) throw new Error("Not authorized.");
@@ -235,6 +235,10 @@ export async function updateRecording(
     clientOrganizationId = null;
   }
 
+  // Mint a share token the first time a recording goes "link" — reused on every
+  // later save so the URL a viewer already has keeps working (like a Loom link).
+  const shareToken = visibility === "link" && !rec.shareToken ? randomUUID() : undefined;
+
   await db.recording.update({
     where: { id: rec.id },
     data: {
@@ -244,6 +248,7 @@ export async function updateRecording(
       task: input.task !== undefined ? input.task.trim() || null : undefined,
       visibility,
       clientOrganizationId,
+      shareToken,
     },
   });
   return { id: rec.id };

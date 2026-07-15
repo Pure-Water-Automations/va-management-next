@@ -70,6 +70,14 @@ export function RecordingDetailClient({
   const [description, setDescription] = useState(detail.description ?? "");
   const [visibility, setVisibility] = useState(detail.visibility);
   const [clientOrgId, setClientOrgId] = useState(detail.clientOrganizationId ?? "");
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  async function copyShareLink() {
+    if (!detail.shareUrl) return;
+    await navigator.clipboard.writeText(detail.shareUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
 
   const ready = detail.status === "ready";
 
@@ -325,7 +333,7 @@ export function RecordingDetailClient({
                     <option value="private">Private (you + admins)</option>
                     <option value="internal">Internal (team)</option>
                     <option value="client">Client (share to a client portal)</option>
-                    <option value="link">Link (deferred — no public page yet)</option>
+                    <option value="link">Link (anyone with the link)</option>
                   </select>
                 </div>
                 {visibility === "client" && (
@@ -340,6 +348,23 @@ export function RecordingDetailClient({
                     <div className="small" style={{ color: "var(--color-text-tertiary)", marginTop: 6 }}>
                       Only this client&apos;s portal users will see it, under Video updates.
                     </div>
+                  </div>
+                )}
+                {visibility === "link" && (
+                  <div>
+                    <div style={label}>Shareable link</div>
+                    {detail.shareUrl ? (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input style={input} value={detail.shareUrl} readOnly onFocus={(e) => e.target.select()} />
+                        <Button variant="secondary" size="sm" onClick={copyShareLink}>
+                          {linkCopied ? "Copied!" : "Copy"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="small" style={{ color: "var(--color-text-tertiary)" }}>
+                        Save to generate the link — anyone with it can watch, no login needed.
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>

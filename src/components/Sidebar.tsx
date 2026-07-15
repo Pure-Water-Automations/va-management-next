@@ -47,13 +47,6 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/admin/mcp-tokens", label: "MCP Tokens", icon: <IconShieldCheck />, isNew: true },
       ],
     },
-    {
-      label: "Recordings",
-      items: [
-        { href: "/record", label: "Record", icon: <IconVideo />, isNew: true },
-        { href: "/recordings", label: "Recordings", icon: <IconFilm />, isNew: true },
-      ],
-    },
   ],
   HR: [
     {
@@ -135,12 +128,14 @@ export function Sidebar({
   name,
   showMeetingActions = false,
   meetingActionsCount = 0,
+  showRecordings = false,
 }: {
   view: ConsoleView;
   role: Role;
   name: string;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
+  showRecordings?: boolean;
 }) {
   const sections = NAV[view] ?? NAV.HR;
   const showNew = isFeatureNew();
@@ -168,10 +163,19 @@ export function Sidebar({
 
         {/* Meeting Actions — Zoom transcript → tasks queue. Tier-driven (senior-tier
             VAs) + all-access; specialized roles (incl. HR) no longer review these.
-            (Admin-only config + Recordings now live in the dedicated Admin view.) */}
+            (Admin-only config still lives in the dedicated Admin view.) */}
         {showMeetingActions && (
           <NavGroup label="Meetings">
             <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} isNew={showNew} />
+          </NavGroup>
+        )}
+
+        {/* Recordings — gated by isRecordingsVisible() (linked VA, gate-reviewer
+            role, or all-access), same permission check across every console. */}
+        {showRecordings && (
+          <NavGroup label="Recordings">
+            <NavItemLink href="/record" label="Record" icon={<IconVideo />} isNew={showNew} />
+            <NavItemLink href="/recordings" label="Recordings" icon={<IconFilm />} isNew={showNew} />
           </NavGroup>
         )}
       </nav>

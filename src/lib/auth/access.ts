@@ -5,7 +5,7 @@ import type { Role, CompRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth/nextauth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
-import { viewForRole, type ConsoleView } from "@/lib/auth/roles";
+import { viewForRole, isGateReviewer, type ConsoleView } from "@/lib/auth/roles";
 import { flagsForCompRole } from "@/lib/auth/delegation";
 
 /**
@@ -99,18 +99,20 @@ export async function isBetaVisible(email: string | null | undefined): Promise<b
 }
 
 /**
- * Recordings (the Loom-style recorder + library) are open to ADMINS, not just
- * founders — so trusted staff (e.g. Aira) can record, review, and test. This is
- * deliberately broader than `isBetaVisible` (which keeps Enhance/Discover
- * founder-only) and independent of the beta toggle; the recorder is admin-gated,
- * so regular VAs never see it regardless.
+ * Recordings (the Loom-style recorder + library) are open to any staff user with a
+ * linked VA record, plus HR/People-Ops/Recruiter (review authority) and all-access
+ * users — clients never reach this VA-facing UI (they see videos shared with their
+ * org through the separate client portal instead). This gate only decides who can
+ * reach the pages at all; per-recording visibility (own + supervisor chain) is
+ * enforced separately by `canSeeRecording`.
  *
  * The whole feature can be killed per-deployment with `RECORDINGS_ENABLED=false`
- * (the production/official deployment sets this) so it's hidden even from admins.
+ * (the production/official deployment sets this) so it's hidden from everyone.
  */
 export function isRecordingsVisible(user: CurrentUser): boolean {
   if (!env.RECORDINGS_ENABLED) return false;
-  return isAllAccess(user) || isFounder(user.email);
+  if (isAllAccess(user) || isFounder(user.email)) return true;
+  return !!user.vaId || isGateReviewer(user.role);
 }
 
 // CLIENT is intentionally excluded — admins cannot cookie-switch into the client portal view.

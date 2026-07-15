@@ -11,5 +11,5 @@ export const POST = recordingsAction(
       task: optStr(body, "task"),
       visibility: optStr(body, "visibility"),
     }),
-  { allow: () => false },
+  { allow: (role) => role !== "CLIENT_ADMIN" && role !== "CLIENT_MEMBER" },
 );

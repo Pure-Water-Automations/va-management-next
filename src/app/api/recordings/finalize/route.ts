@@ -10,5 +10,5 @@ export const POST = recordingsAction(
       trimStartSec: optNum(body, "trimStartSec"),
       trimEndSec: optNum(body, "trimEndSec"),
     }),
-  { allow: () => false },
+  { allow: (role) => role !== "CLIENT_ADMIN" && role !== "CLIENT_MEMBER" },
 );

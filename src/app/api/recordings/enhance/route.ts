@@ -5,5 +5,5 @@ import { startEnhanceRecording } from "@/lib/actions/recordings";
 // status "processing"; the detail view polls /api/recordings/get for completion.
 export const POST = recordingsAction(
   async ({ user, body }) => startEnhanceRecording(user, { recordingId: str(body, "recordingId") }),
-  { allow: () => false },
+  { allow: (role) => role !== "CLIENT_ADMIN" && role !== "CLIENT_MEMBER" },
 );
