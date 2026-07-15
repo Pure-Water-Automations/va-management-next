@@ -17,7 +17,6 @@ import {
   IconBarChart,
   IconMessageSquare,
   IconVideo,
-  IconFilm,
   IconLogOut,
 } from "./icons";
 
@@ -72,10 +71,7 @@ export function VaTopNav({
     items.push({ href: "/meeting-actions", label: "Meetings", icon: <IconMessageSquare />, badge: meetingActionsCount, isNew: true });
   }
   if (showRecordings) {
-    items.push(
-      { href: "/record", label: "Record", icon: <IconVideo />, isNew: true },
-      { href: "/recordings", label: "Recordings", icon: <IconFilm />, isNew: true },
-    );
+    items.push({ href: "/record", label: "Record", icon: <IconVideo />, isNew: true });
   }
 
   return (

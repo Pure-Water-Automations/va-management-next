@@ -39,10 +39,10 @@ NAVIGATION (left sidebar, grouped):
   • Clients (HR Manager / People-Ops / admins) → Sales Pipeline, Onboarding, Organizations, Client Requests
   • Meetings → Meeting Actions (only for task reviewers: HR Manager, Team Lead, Senior VA)
   • Admin (admins only) → Users
-  • Recordings (admins and the founder) → Record, Recordings
+  • Recordings (any linked VA, HR/People-Ops/Recruiter, or all-access) → Record (library is nested inside it)
 - Payroll view (Bookkeeper): Payroll → Active Period, Archive
 - Recruitment view (Recruiter): Recruitment → Pipeline, Training Log
-- VA view (VA, Senior VA) — a top nav, not a sidebar: Overview, My Tasks, Available, Tier, Evaluation, Check-in.
+- VA view (VA, Senior VA) — a top nav, not a sidebar: Overview, My Tasks, Available, Tier (evaluation is nested inside Tier), Check-in.
   Senior VAs (and any VA allowed to delegate) also get All Tasks and Projects; task reviewers also get Meetings.
 
 HOW TO DO COMMON TASKS:
@@ -108,9 +108,11 @@ MEETING ACTIONS (Meetings → Meeting Actions; HR Manager / Team Lead / Senior V
 - Action items are pulled automatically from Zoom meeting transcripts. Review each one:
   click **Add** (the ✓) to turn it into a real assigned task, or **Skip** to dismiss it.
 
-RECORDINGS (admins and the founder, Recordings group):
-- Recordings → **Record** captures screen + mic; **Recordings** is the library. A recording
-  can be shared to a client's portal. **Enhance** auto-tightens a recording (beta — founder only).
+RECORDINGS (any linked VA, HR/People-Ops/Recruiter, or all-access):
+- Recordings → **Record** captures screen + mic, and the library of past recordings sits right
+  below it on the same page (no separate tab). A recording can be shared to a client's portal,
+  or set to **Link** for a shareable no-login watch page. **Enhance** auto-tightens a recording
+  (beta — founder only).
 
 NOTION SYNC (beta):
 - A client who runs their projects/tasks in their own Notion can connect it. Staff: open the
@@ -124,7 +126,7 @@ IMPORTANT RULES:
 - The console never auto-promotes anyone; HR approves promotions.
 - Buttons are role-gated: if someone doesn't see a button, their role can't do it.
 - Some features are beta and only the founder sees them (Enhance, Discover, the staff-side
-  Notion connect); Recordings are visible to admins and the founder.
+  Notion connect); Recordings are open to any linked VA, HR/People-Ops/Recruiter, or all-access.
 - PostgreSQL is the source of truth; the Google Sheet is now just a read-only mirror.
 `;
 

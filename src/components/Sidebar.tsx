@@ -25,7 +25,6 @@ import {
   IconHandshake,
   IconBriefcase,
   IconVideo,
-  IconFilm,
   IconDollar,
   IconArchive,
   IconLogOut,
@@ -171,11 +170,11 @@ export function Sidebar({
         )}
 
         {/* Recordings — gated by isRecordingsVisible() (linked VA, gate-reviewer
-            role, or all-access), same permission check across every console. */}
+            role, or all-access), same permission check across every console.
+            Library is nested inside /record itself, not a separate nav item. */}
         {showRecordings && (
           <NavGroup label="Recordings">
             <NavItemLink href="/record" label="Record" icon={<IconVideo />} isNew={showNew} />
-            <NavItemLink href="/recordings" label="Recordings" icon={<IconFilm />} isNew={showNew} />
           </NavGroup>
         )}
       </nav>
