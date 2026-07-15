@@ -137,6 +137,11 @@ export async function markComplete(vaId: string) {
 
   const updated = await db.onboarding.update({ where: { vaId }, data: { status: "completed" } });
 
+  // Activate the VA: console-hired VAs start `training` (see createVaFromCandidate)
+  // and nothing else flips them to `active` short of a tier-promotion evaluation,
+  // so completing onboarding left them stranded in `training` with 0 utilization.
+  await db.va.updateMany({ where: { vaId, status: "training" }, data: { status: "active" } });
+
   // Advance the linked candidate off the dead-end onboarding stage.
   const candidate = await db.candidate.findFirst({ where: { vaId, currentStage: "onboarding" } });
   if (candidate) {

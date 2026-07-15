@@ -76,6 +76,49 @@ export function pickNumber(obj: unknown, names: readonly string[]): number | nul
   return null;
 }
 
+export type DeskLogUser = { id: string; email: string; name: string };
+
+/**
+ * Fetch the DeskLog user directory (id + email + name) so a VA can be linked to
+ * its DeskLog account by email without a human copying ids around.
+ */
+export async function fetchDeskLogUsers(opts: {
+  baseUrl: string;
+  bearerToken: string;
+}): Promise<DeskLogUser[]> {
+  const url = new URL(`${opts.baseUrl.replace(/\/+$/, "")}/user_list`);
+  url.searchParams.set("status", "active");
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json", Authorization: `Bearer ${opts.bearerToken}` },
+  });
+  const bodyText = await response.text();
+  if (!response.ok) {
+    throw new Error(`DeskLog /user_list -> ${response.status}: ${bodyText.slice(0, 200)}`);
+  }
+  const payload = bodyText ? (JSON.parse(bodyText) as unknown) : {};
+  const record = asRecord(payload);
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.data)
+      ? (record!.data as unknown[])
+      : Array.isArray(record?.users)
+        ? (record!.users as unknown[])
+        : [];
+
+  const users: DeskLogUser[] = [];
+  for (const row of rows) {
+    const r = asRecord(row);
+    const id = r?.id ?? r?.user_id;
+    const email = r?.email;
+    if (id != null && typeof email === "string" && email.trim()) {
+      users.push({ id: String(id), email: email.trim(), name: pickText(r, ["name"]) });
+    }
+  }
+  return users;
+}
+
 export async function fetchAttendance(
   opts: DeskLogAttendanceOptions,
 ): Promise<DeskLogAttendanceRow> {

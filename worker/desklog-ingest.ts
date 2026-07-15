@@ -4,7 +4,7 @@
  * No-ops gracefully if the DeskLog token/base URL aren't configured.
  */
 import { db } from "@/lib/db";
-import { fetchAttendance } from "@/lib/desklog";
+import { fetchAttendance, fetchDeskLogUsers } from "@/lib/desklog";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, str } from "@/lib/settings";
 
@@ -34,6 +34,32 @@ async function main() {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const dateOnly = new Date(ymd(yesterday) + "T00:00:00.000Z");
     const from = ddmmyyyy(yesterday);
+
+    // Auto-link VAs missing a desklogUserId by matching email to the DeskLog
+    // directory — otherwise console-hired VAs (who never get an id set at hire)
+    // are silently skipped forever and read 0% utilization.
+    let linked = 0;
+    const unlinked = await db.va.findMany({
+      where: { status: { in: ["active", "training"] }, desklogUserId: null },
+      select: { vaId: true, email: true },
+    });
+    if (unlinked.length > 0) {
+      try {
+        const byEmail = new Map(
+          (await fetchDeskLogUsers({ baseUrl, bearerToken })).map((u) => [u.email.toLowerCase(), u.id]),
+        );
+        for (const va of unlinked) {
+          const id = byEmail.get(va.email.toLowerCase());
+          if (id) {
+            await db.va.update({ where: { vaId: va.vaId }, data: { desklogUserId: id } });
+            linked++;
+          }
+        }
+        if (linked) console.log(`desklog-ingest: auto-linked ${linked} VA(s) by email`);
+      } catch (e) {
+        console.error(`desklog-ingest: auto-link skipped: ${String(e).split("\n")[0]}`);
+      }
+    }
 
     const vas = await db.va.findMany({
       where: { status: { in: ["active", "training"] }, desklogUserId: { not: null } },
@@ -106,7 +132,7 @@ async function main() {
         firstErrorLine: allAuthFailed
           ? `All ${vas.length} VA(s) returned 401/403 — desklog_bearer_token is likely expired/invalid. No hours ingested.`
           : null,
-        detailsJson: { ingested, authFailures, vas: vas.length },
+        detailsJson: { ingested, authFailures, vas: vas.length, autoLinked: linked },
       },
     });
     console.log(`desklog-ingest: ingested ${ingested}/${vas.length} (auth failures: ${authFailures})`);
