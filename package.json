@@ -31,6 +31,7 @@
     "worker:notion": "tsx worker/notion-sync.ts",
     "worker:discovery-reminders": "tsx worker/discovery-reminders.ts",
     "worker:meeting-archive": "tsx worker/meeting-archive.ts",
+    "worker:desklog-backfill": "tsx worker/desklog-backfill.ts",
     "seed:demo": "tsx prisma/seed-demo.ts"
   },
   "dependencies": {
