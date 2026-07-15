@@ -10,7 +10,12 @@ const DISABLED_IN_SALES_MODE =
 
 export function middleware(req: NextRequest) {
   if (process.env.CONSOLE_MODE === "sales" && DISABLED_IN_SALES_MODE.test(req.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL("/sales", req.url));
+    // Behind the Cloudflare tunnel, the raw Host header is the local origin
+    // (e.g. localhost:8785), not the public hostname — req.url's origin would
+    // redirect the browser off-box. Use the forwarded host/proto instead.
+    const proto = req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(/:$/, "");
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
+    return NextResponse.redirect(new URL("/sales", `${proto}://${host}`));
   }
   return NextResponse.next();
 }

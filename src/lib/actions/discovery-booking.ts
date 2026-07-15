@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, num, str } from "@/lib/settings";
+import { appBaseUrl } from "@/lib/sales/util";
 import {
   parseBookingConfig,
   generateSlots,
@@ -284,6 +285,7 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
   await sendBookingEmails(settings, {
     dealId: deal.id, orgName: deal.orgName, leadEmail: deal.contactEmail, leadName: deal.contactName,
     repEmail: slot.repEmail, startIso: slot.startIso, endIso: slot.endIso, videoUrl, label, rescheduled: wasBooked,
+    manageToken: deal.discoveryCallToken,
   }).catch(() => {});
 
   return { ok: true, startIso: slot.startIso, label, repEmail: slot.repEmail };
@@ -339,10 +341,13 @@ export async function cancelDiscoveryCall(token: string) {
       organizerEmail: deal.discoveryRepEmail || from, attendeeEmail: deal.contactEmail || from,
       location: deal.discoveryCallVideoUrl || undefined, dtstampIso: new Date().toISOString(),
     });
+    const manageLink = deal.discoveryCallToken ? `${appBaseUrl(settings)}/discovery/${deal.discoveryCallToken}` : null;
     await sendSystemEmail({
       from, to,
       subject: `Discovery call cancelled — ${deal.orgName} (${formatSlot(startIso, opts, tzLabel)})`,
-      body: `The discovery call for ${deal.orgName} has been cancelled.\n\nYou can pick a new time any time using your booking link.`,
+      body:
+        `The discovery call for ${deal.orgName} has been cancelled.\n\n` +
+        (manageLink ? `You can pick a new time any time here: ${manageLink}` : `You can pick a new time any time using your booking link.`),
       attachments: [{ filename: "discovery-call-cancelled.ics", content: Buffer.from(ics, "utf8"), mimeType: "text/calendar; method=CANCEL" }],
     }).catch(() => {});
   }
@@ -354,6 +359,7 @@ async function sendBookingEmails(
   b: {
     dealId: string; orgName: string; leadEmail: string | null; leadName: string | null;
     repEmail: string; startIso: string; endIso: string; videoUrl: string | null; label: string; rescheduled: boolean;
+    manageToken: string | null;
   },
 ) {
   const from = str(settings, "system_email_from");
@@ -369,6 +375,7 @@ async function sendBookingEmails(
   });
   const attachments = [{ filename: "discovery-call.ics", content: Buffer.from(ics, "utf8"), mimeType: "text/calendar; method=REQUEST" }];
   const verb = b.rescheduled ? "rescheduled" : "confirmed";
+  const manageLink = b.manageToken ? `${appBaseUrl(settings)}/discovery/${b.manageToken}` : null;
 
   if (b.leadEmail) {
     await sendSystemEmail({
@@ -378,6 +385,7 @@ async function sendBookingEmails(
         `Hi${b.leadName ? ` ${b.leadName}` : ""},\n\n` +
         `Your free discovery call with ${company} is ${verb}:\n\n  ${b.label}\n` +
         (b.videoUrl ? `  Join here: ${b.videoUrl}\n` : "") +
+        (manageLink ? `\nNeed to reschedule or cancel? Manage your call here: ${manageLink}\n` : "") +
         `\nWe've attached a calendar invite. See you then!\n\n— ${company}`,
     });
   }
