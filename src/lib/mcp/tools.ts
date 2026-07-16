@@ -554,6 +554,9 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       const dealId = str(args, "dealId");
       if (!dealId) return fail("dealId is required");
       const org = await convertDealToClient(dealId);
+      // Upgrade deals bump the existing client account and may have no linked
+      // client org — a won upgrade returns null instead of a new organization.
+      if (!org) return json({ ok: true, upgraded: true, clientOrgId: null });
       return json({ ok: true, clientOrgId: org.id, name: org.name, slug: org.slug, status: org.status });
     }
 
