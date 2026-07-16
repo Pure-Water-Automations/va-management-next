@@ -14,6 +14,27 @@ import { db } from "@/lib/db";
 import { fetchAttendance } from "@/lib/desklog";
 import { loadSettings, str } from "@/lib/settings";
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// DeskLog rate-limits bursts (429). Fetch with a small gap + backoff retry so a
+// full-range backfill (many days × many VAs) doesn't get throttled out.
+async function fetchWithRetry(opts: Parameters<typeof fetchAttendance>[0]) {
+  let delay = 1500;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      return await fetchAttendance(opts);
+    } catch (e) {
+      if (String(e).includes("429") && attempt < 5) {
+        await sleep(delay);
+        delay *= 2;
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("unreachable");
+}
+
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -54,13 +75,14 @@ async function main() {
     days++;
     for (const va of vas) {
       try {
-        const r = await fetchAttendance({
+        const r = await fetchWithRetry({
           baseUrl,
           bearerToken,
           desklogUserId: va.desklogUserId!,
           fromDate: dateStr,
           toDate: dateStr,
         });
+        await sleep(250); // steady gap between calls to stay under the rate limit
         await db.$transaction([
           db.deskLogHours.deleteMany({ where: { vaId: va.vaId, date: dateOnly } }),
           db.deskLogEfficiency.deleteMany({ where: { vaId: va.vaId, date: dateOnly } }),
