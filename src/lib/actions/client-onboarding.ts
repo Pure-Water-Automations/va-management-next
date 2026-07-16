@@ -88,12 +88,16 @@ export async function markClientOnboardingComplete(orgId: string) {
         body: [
           `Hi ${firstName(deal?.contactName) || "there"},`,
           "",
-          `Onboarding is complete and your ${org.name} workspace is live.`,
+          `This is the team at ${companyName(settings)} — welcome aboard! Onboarding is complete and your ${org.name} workspace is live.`,
           "",
           `Sign in to your client portal to track work, submit requests, and message the team:`,
           `${appBaseUrl(settings)}/client`,
           "",
-          `— ${companyName(settings)}`,
+          "Anything you need, just reply to this email — we're here for you.",
+          "",
+          "With you in the mission,",
+          `The ${companyName(settings)} team`,
+          "https://purewaterautomations.com",
         ].join("\n"),
       }),
     ).catch((err) => console.warn("markClientOnboardingComplete: welcome failed:", err instanceof Error ? err.message : err));
@@ -130,13 +134,17 @@ export async function sendIntakeForm(orgId: string) {
       body: [
         `Hi ${firstName(deal.contactName) || "there"},`,
         "",
-        `Welcome aboard! To get ${org?.name ?? "your account"} set up, please complete this short intake form:`,
+        `This is the team at ${companyName(settings)} — welcome aboard! To get ${org?.name ?? "your account"} set up, please complete this short intake form:`,
         "",
         link,
         "",
         "It takes a few minutes and helps us prioritize the right work from day one.",
         "",
-        `— ${companyName(settings)}`,
+        "Questions? Just reply to this email — we're glad to help.",
+        "",
+        "With you in the mission,",
+        `The ${companyName(settings)} team`,
+        "https://purewaterautomations.com",
       ].join("\n"),
     }),
   ).catch((err) => console.warn("sendIntakeForm: email failed:", err instanceof Error ? err.message : err));
@@ -200,7 +208,11 @@ export async function submitIntake(token: string, answers: Record<string, unknow
       from: systemEmailFrom(settings),
       to: row.owner,
       subject: `Intake submitted: ${org?.name ?? "client"}`,
-      body: `${org?.name ?? "A client"} just submitted their onboarding intake form. Review it in the console.`,
+      body: [
+        `${org?.name ?? "A client"} just submitted their onboarding intake form. Review it in the console and line up their first week.`,
+        "",
+        `— The ${companyName(settings)} team`,
+      ].join("\n"),
     }).catch(() => {});
   }
 

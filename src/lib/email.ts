@@ -24,6 +24,28 @@ export function resolveRedirectTarget(opts: {
   return fallback;
 }
 
+/**
+ * Default Reply-To for system email (the `system_email_reply_to` Setting). Lets
+ * replies land with sales/Justin while the From header stays admin@. Empty/unset
+ * = no Reply-To header. Never throws (returns null on DB trouble).
+ */
+let replyToCache: { value: string | null; at: number } | null = null;
+const REPLY_TO_TTL_MS = 60_000; // batch workers send in tight loops — don't re-query per message
+
+async function systemReplyTo(): Promise<string | null> {
+  if (replyToCache && Date.now() - replyToCache.at < REPLY_TO_TTL_MS) return replyToCache.value;
+  try {
+    const row = await db.setting.findUnique({
+      where: { key: "system_email_reply_to" },
+      select: { value: true },
+    });
+    replyToCache = { value: row?.value?.trim() || null, at: Date.now() };
+    return replyToCache.value;
+  } catch {
+    return null;
+  }
+}
+
 async function emailRedirectTo(): Promise<string | null> {
   try {
     const rows = await db.setting.findMany({
@@ -44,6 +66,7 @@ async function emailRedirectTo(): Promise<string | null> {
 
 export type SystemEmailOptions = {
   from: string;
+  replyTo?: string;
   to: string | string[];
   subject: string;
   body: string;
@@ -70,10 +93,14 @@ export async function sendSystemEmail(opts: SystemEmailOptions): Promise<SystemE
     return { ok: false, skipped: true, reason: "unreadable_token_file" };
   }
 
+  // Fall back to the system_email_reply_to Setting when the caller didn't pass one.
+  const replyTo = opts.replyTo?.trim() || (await systemReplyTo()) || undefined;
+  const withReplyTo: SystemEmailOptions = replyTo ? { ...opts, replyTo } : opts;
+
   const redirect = await emailRedirectTo();
   const effective: SystemEmailOptions = redirect
     ? {
-        ...opts,
+        ...withReplyTo,
         to: redirect,
         subject: `[TEST] ${opts.subject}`,
         body: `⚠️ TEST MODE — this email would normally go to: ${Array.isArray(opts.to) ? opts.to.join(", ") : opts.to}\n\n${opts.body}`,
@@ -81,7 +108,7 @@ export async function sendSystemEmail(opts: SystemEmailOptions): Promise<SystemE
           ? `<p style="color:#999;font-size:13px">⚠️ TEST MODE — normally to: ${Array.isArray(opts.to) ? opts.to.join(", ") : opts.to}</p>${opts.htmlBody}`
           : undefined,
       }
-    : opts;
+    : withReplyTo;
 
   // NOTE: we send via direct fetch to the Gmail REST API rather than through
   // @googleapis/gmail + google-auth-library. On Node 24 the bundled gaxios 6.x
@@ -164,6 +191,7 @@ export function buildMimeMessage(opts: SystemEmailOptions): string {
   const to = Array.isArray(opts.to) ? opts.to.join(", ") : opts.to;
   const headers = [
     ["From", sanitizeHeader(opts.from)],
+    ...(opts.replyTo?.trim() ? [["Reply-To", sanitizeHeader(opts.replyTo)]] : []),
     ["To", sanitizeHeader(to)],
     ["Subject", encodeHeaderWord(opts.subject)],
     ["MIME-Version", "1.0"],

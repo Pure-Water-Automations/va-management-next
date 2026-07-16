@@ -58,13 +58,62 @@ export async function createDeal(input: DealInput) {
   return deal;
 }
 
+/**
+ * Stages that are strictly past the discovery call. A deal reaching one of these
+ * with its call chip still "scheduled" is a stale artifact (e.g. a won deal
+ * showing a 📅 chip) — reconcile it to "completed".
+ */
+const PAST_DISCOVERY_STAGES: readonly DealStage[] = [
+  "proposal_needed",
+  "proposal_sent",
+  "negotiation",
+  "verbal_yes",
+  "won",
+];
+
+/**
+ * Decide how a stage move should reconcile the independent `discoveryCallStatus`
+ * chip (pure — unit-tested):
+ *  - moving past discovery while the chip is still "scheduled" → "completed";
+ *  - moving back to `new` with a "scheduled" chip whose call time has passed →
+ *    "cleared" (drop the stale chip);
+ *  - otherwise leave it alone (`null`).
+ */
+export function reconcileCallStatusForStage(opts: {
+  stage: DealStage;
+  callStatus: string | null;
+  callAt: Date | null;
+  now: Date;
+}): "completed" | "cleared" | null {
+  if (opts.callStatus !== "scheduled") return null;
+  if (PAST_DISCOVERY_STAGES.includes(opts.stage)) return "completed";
+  if (opts.stage === "new" && opts.callAt && opts.callAt.getTime() < opts.now.getTime()) return "cleared";
+  return null;
+}
+
 export async function setDealStage(dealId: string, stage: DealStage, note?: string) {
   if (!DEAL_STAGES.includes(stage)) throw new Error(`Invalid deal stage: ${stage}`);
-  const data: Prisma.DealUpdateInput = { stage, lastContactAt: new Date() };
+  const now = new Date();
+  const data: Prisma.DealUpdateInput = { stage, lastContactAt: now };
   if (note?.trim()) data.reviewNotes = note.trim();
   if (stage === "lost" && note?.trim()) data.lostReason = note.trim();
   // Stamp the win once, so "won this month" reporting can be computed later.
-  if (stage === "won") data.wonAt = new Date();
+  if (stage === "won") data.wonAt = now;
+  // Reconcile the discovery-call chip so it can't drift from the stage.
+  const current = await db.deal.findUnique({
+    where: { id: dealId },
+    select: { discoveryCallStatus: true, discoveryCallAt: true },
+  });
+  if (current) {
+    const reconciled = reconcileCallStatusForStage({
+      stage,
+      callStatus: current.discoveryCallStatus,
+      callAt: current.discoveryCallAt,
+      now,
+    });
+    if (reconciled === "completed") data.discoveryCallStatus = "completed";
+    else if (reconciled === "cleared") data.discoveryCallStatus = null;
+  }
   const deal = await db.deal.update({ where: { id: dealId }, data });
   await logActivity({ source: "sales", eventType: "deal_stage", summary: `${deal.orgName} → ${stage}${note ? `: ${note}` : ""}` });
   await syncDealToNotion(dealId).catch(() => {});
@@ -79,6 +128,12 @@ export async function setDealStage(dealId: string, stage: DealStage, note?: stri
 export async function convertDealToClient(dealId: string) {
   const deal = await db.deal.findUnique({ where: { id: dealId }, include: { agreement: true } });
   if (!deal) throw new Error("Deal not found.");
+  // Same stale-call-chip reconciliation setDealStage does — this path also moves
+  // a deal to "won" and must not leave a lingering "scheduled" chip on the card.
+  const callFix =
+    reconcileCallStatusForStage({ stage: "won", callStatus: deal.discoveryCallStatus, callAt: deal.discoveryCallAt, now: new Date() }) === "completed"
+      ? { discoveryCallStatus: "completed" }
+      : {};
   if (deal.clientOrgId) {
     const existing = await db.clientOrganization.findUnique({ where: { id: deal.clientOrgId } });
     if (existing) return existing;
@@ -114,7 +169,9 @@ export async function convertDealToClient(dealId: string) {
           ] as Prisma.InputJsonValue,
         },
       });
-      await db.deal.update({ where: { id: dealId }, data: { stage: "won", wonAt: new Date() } });
+      await db.deal.update({ where: { id: dealId }, data: { stage: "won", wonAt: new Date(), ...callFix } });
+      // Mirror the win to Notion like the manual dropdown path does (best-effort).
+      await syncDealToNotion(dealId).catch(() => {});
       await logActivity({
         source: "sales",
         eventType: "deal_won_client_created",
@@ -146,7 +203,9 @@ export async function convertDealToClient(dealId: string) {
     },
   });
 
-  await db.deal.update({ where: { id: dealId }, data: { clientOrgId: org.id, stage: "won", wonAt: new Date() } });
+  await db.deal.update({ where: { id: dealId }, data: { clientOrgId: org.id, stage: "won", wonAt: new Date(), ...callFix } });
+  // Mirror the win to Notion like the manual dropdown path does (best-effort).
+  await syncDealToNotion(dealId).catch(() => {});
 
   // Sales console handoff (best-effort): the win lands as a client account on
   // the Client Accounts screen, flagged "to request" for a testimonial.
@@ -189,14 +248,14 @@ export async function convertDealToClient(dealId: string) {
       to,
       subject: `New client signed & paid: ${deal.orgName}`,
       body: [
-        `${deal.orgName} is signed and paid — onboarding has started.`,
+        `${deal.orgName} is signed and paid — onboarding has started. Let's give them a great first week.`,
         "",
         `Package: ${deal.packageName ?? "—"}`,
         `Start date: ${deal.startDate ? deal.startDate.toISOString().slice(0, 10) : "—"}`,
         "",
         `Open onboarding: ${appBaseLink(settings)}/hr/client-onboarding`,
         "",
-        `— ${companyName(settings)}`,
+        `— The ${companyName(settings)} team`,
       ].join("\n"),
     }).catch((err) => console.warn("convertDealToClient: notify failed:", err instanceof Error ? err.message : err));
   }
