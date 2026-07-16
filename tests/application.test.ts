@@ -14,6 +14,8 @@ const base = {
   lastName: "Cruz",
   address: "Manila, PH",
   community: "Antipolo",
+  ffwpuAffiliated: "yes",
+  referralSource: "Referred by Maria Santos",
   hasVaExperience: "yes",
   vaExperienceDesc: "Chat support and scheduling",
   resumeUrl: "https://drive.google.com/abc",

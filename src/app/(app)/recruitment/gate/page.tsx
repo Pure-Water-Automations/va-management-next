@@ -50,6 +50,7 @@ export default async function GateReviewPage() {
                   <div className="small">{c.email}{c.decidedBy ? ` · recommended by ${c.decidedBy}` : ""}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <span className="small">Applied {c.createdAt.toLocaleDateString()}</span>
                   <Badge variant="warning">Pre-trial</Badge>
                   {canReview && (
                     <>
@@ -108,6 +109,7 @@ export default async function GateReviewPage() {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <span className="small">Applied {c.createdAt.toLocaleDateString()}</span>
                   <Badge variant={c.trainingReadyForReview ? "success" : "info"}>{c.trainingReadyForReview ? "Ready" : "In progress"}</Badge>
                   {canReview && (
                     <>

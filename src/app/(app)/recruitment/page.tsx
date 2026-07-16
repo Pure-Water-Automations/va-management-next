@@ -105,7 +105,10 @@ export default async function RecruitmentConsole() {
                   )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-                  <Badge variant="info">{STAGE_LABEL[c.currentStage] ?? c.currentStage}</Badge>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className="small">Applied {c.createdAt.toLocaleDateString()}</span>
+                    <Badge variant="info">{STAGE_LABEL[c.currentStage] ?? c.currentStage}</Badge>
+                  </div>
                   <RecruiterWorkflow
                     candidateId={c.candidateId}
                     name={c.name}

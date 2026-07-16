@@ -80,6 +80,8 @@ async function notifyTeamLead(
         `Email: ${fields.email}\n` +
         `Location: ${answers.address || "(not provided)"}\n` +
         `Community: ${answers.community || "(not provided)"}\n` +
+        `FFWPU affiliated: ${answers.ffwpuAffiliated || "(not provided)"}\n` +
+        `Referral source: ${answers.referralSource || "(not provided)"}\n` +
         `Prior VA experience: ${answers.hasVaExperience || "(not provided)"}\n` +
         `Skills: ${answers.skills || "(not provided)"}\n` +
         `Resume: ${fields.resumeUrl || "(not provided)"}\n\n` +
