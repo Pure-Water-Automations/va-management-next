@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
-import { computeUtilization, computeFlags } from "@/lib/services/capacity";
+import { capacityWindow, computeCapacity, resolveCapacityThresholds } from "@/lib/services/capacity";
+import { activeHoursSource } from "@/lib/services/hours-source";
 import { computeEligibility } from "@/lib/services/tier-eligibility";
 import { baselineCutover, deskLogSinceCutover, withBaseline } from "@/lib/services/cumulative";
+import { loadSettings } from "@/lib/settings";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -25,10 +27,11 @@ export async function getVaDashboard(vaId: string) {
 
   const role = await db.compensationRole.findUnique({ where: { roleId: va.compensationRole } });
   const cutover = await baselineCutover();
+  const window = capacityWindow(new Date());
 
-  const [last7, last14, deskLogCum, myReviews, myActivity, openPeriod, deskLogSyncedThrough] = await Promise.all([
+  const [last7, capacityHours, deskLogCum, myReviews, myActivity, openPeriod, deskLogSyncedThrough, settings] = await Promise.all([
     sumHours(vaId, 7),
-    sumHours(vaId, 14),
+    activeHoursSource().capacityHoursByVa(window.start, window.end, [vaId]),
     db.deskLogHours.aggregate({ where: { vaId, ...deskLogSinceCutover(cutover) }, _sum: { taskSpentHrs: true } }).then((r) => r._sum.taskSpentHrs ?? 0),
     db.tierReview.findMany({ where: { vaId }, orderBy: { timestamp: "desc" }, take: 3 }),
     db.activityLog.findMany({ where: { vaId }, orderBy: { timestamp: "desc" }, take: 10 }),
@@ -36,12 +39,22 @@ export async function getVaDashboard(vaId: string) {
     // Newest DeskLog date across all VAs = how fresh the hours feed is. A stale value means the
     // ingest is behind, so a 0% utilization is "data not synced" rather than "did no work".
     db.deskLogHours.aggregate({ _max: { date: true } }).then((r) => r._max.date),
+    loadSettings(),
   ]);
   const cumulative = withBaseline(va.baselineHours, deskLogCum);
 
-  const target = va.targetHoursWeekly ?? 0;
-  const { utilizationPct } = computeUtilization(target, last14);
-  const flags = computeFlags(target, last14);
+  const h = capacityHours[vaId] ?? { taskHrs: 0, atWorkHrs: 0 };
+  const last14 = h.taskHrs;
+  const capacity = computeCapacity({
+    targetHoursWeekly: va.targetHoursWeekly,
+    taskHrs: h.taskHrs,
+    atWorkHrs: h.atWorkHrs,
+    startDate: va.startDate,
+    window,
+    thresholds: resolveCapacityThresholds(settings),
+  });
+  const { utilizationPct } = capacity;
+  const flags = { overburdened: capacity.overburdened, underutilized: capacity.underutilized };
   const eligibility = role
     ? computeEligibility({
         currentRole: va.compensationRole,
@@ -69,6 +82,8 @@ export async function getVaDashboard(vaId: string) {
     cumulative,
     utilizationPct,
     flags,
+    noTarget: capacity.noTarget,
+    trackingGap: capacity.trackingGap,
     eligibility,
     hoursToNext,
     myReviews,

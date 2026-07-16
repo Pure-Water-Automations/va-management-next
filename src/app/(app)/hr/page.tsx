@@ -98,10 +98,10 @@ export default async function HrDashboard() {
     })),
     ...d.capacityFlags.map((c) => ({
       key: `cap-${c.va.vaId}`,
-      tag: c.overburdened ? "Overloaded" : "Underused",
-      tagColor: c.overburdened ? "var(--color-error-dark)" : "var(--color-sky-700)",
-      iconBg: c.overburdened ? "var(--color-error-light)" : "var(--color-sky-50)",
-      iconColor: c.overburdened ? "var(--color-error-dark)" : "var(--color-sky-700)",
+      tag: c.overburdened ? "Overloaded" : c.underutilized ? "Underused" : "Tracking gap",
+      tagColor: c.overburdened ? "var(--color-error-dark)" : c.underutilized ? "var(--color-sky-700)" : "var(--color-warning-dark)",
+      iconBg: c.overburdened ? "var(--color-error-light)" : c.underutilized ? "var(--color-sky-50)" : "var(--color-warning-light)",
+      iconColor: c.overburdened ? "var(--color-error-dark)" : c.underutilized ? "var(--color-sky-700)" : "var(--color-warning-dark)",
       icon: <IconAlertTriangle size={18} />,
       title: c.va.name,
       sub: `${Math.round(c.utilizationPct)}% utilization · ${c.last14dHours.toFixed(1)}h logged · ${c.atWork14dHours.toFixed(1)}h at work / 2wk`,
@@ -159,6 +159,7 @@ export default async function HrDashboard() {
             <HealthCell n={d.health.healthy} label="Healthy" bg="var(--color-success-light)" fg="var(--color-success-dark)" />
             <HealthCell n={d.health.overloaded} label="Overloaded" bg={d.health.overloaded ? "var(--color-error-light)" : "var(--color-bg-secondary)"} fg="var(--color-error-dark)" />
             <HealthCell n={d.health.underused} label="Underused" bg="var(--color-sky-50)" fg="var(--color-sky-700)" />
+            <HealthCell n={d.health.trackingGap} label="Tracking gap" bg="var(--color-warning-light)" fg="var(--color-warning-dark)" />
           </div>
           {overloadedNames.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: "var(--radius-md)", background: "var(--color-error-light)", border: "1px solid rgba(240,76,76,.22)" }}>
@@ -272,7 +273,7 @@ export default async function HrDashboard() {
                 </div>
                 <span style={{ flex: "none", width: 50, textAlign: "right", fontSize: "var(--text-xs)", fontWeight: 600, color: utilColor(w.utilizationPct) }}>{Math.round(w.utilizationPct)}%</span>
                 <span style={{ flex: "none", width: 92, display: "flex", justifyContent: "flex-end" }}>
-                  {w.overburdened ? <Badge variant="danger" size="sm" dot>Over</Badge> : w.underutilized ? <Badge variant="sky" size="sm" dot>Under</Badge> : null}
+                  {w.overburdened ? <Badge variant="danger" size="sm" dot>Over</Badge> : w.underutilized ? <Badge variant="sky" size="sm" dot>Under</Badge> : w.trackingGap ? <Badge variant="warning" size="sm" dot>Gap</Badge> : null}
                 </span>
               </div>
             ))}

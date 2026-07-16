@@ -1,32 +1,9 @@
 import { db } from "@/lib/db";
 import { loadSettings, num } from "@/lib/settings";
-import { computeUtilization, computeFlags } from "@/lib/services/capacity";
+import { capacityWindow, computeCapacity, resolveCapacityThresholds } from "@/lib/services/capacity";
+import { activeHoursSource } from "@/lib/services/hours-source";
 
 const DAY = 24 * 60 * 60 * 1000;
-
-/** Sum DeskLog "task hours" (task_spent_time) per VA over a window — the intended
- *  productivity metric (same field payroll + tier use). Shown next to time-at-work in HR
- *  views so a clocked-in-but-not-logging gap is visible. */
-async function hoursByVa(daysBack?: number): Promise<Map<string, number>> {
-  const where = daysBack
-    ? { date: { gte: new Date(Date.now() - daysBack * DAY) } }
-    : undefined;
-  const rows = await db.deskLogHours.groupBy({ by: ["vaId"], where, _sum: { taskSpentHrs: true } });
-  const m = new Map<string, number>();
-  for (const r of rows) m.set(r.vaId, r._sum.taskSpentHrs ?? 0);
-  return m;
-}
-
-/** Sum actual time-at-work (time_at_work) per VA — the "clocked in" hours shown alongside. */
-async function atWorkByVa(daysBack?: number): Promise<Map<string, number>> {
-  const where = daysBack
-    ? { date: { gte: new Date(Date.now() - daysBack * DAY) } }
-    : undefined;
-  const rows = await db.deskLogHours.groupBy({ by: ["vaId"], where, _sum: { timeAtWorkHrs: true } });
-  const m = new Map<string, number>();
-  for (const r of rows) m.set(r.vaId, r._sum.timeAtWorkHrs ?? 0);
-  return m;
-}
 
 export type HrDashboard = Awaited<ReturnType<typeof getHrDashboard>>;
 
@@ -36,7 +13,8 @@ export async function getHrDashboard() {
   const redT = num(settings, "efficiency_red_threshold", 15);
   const yellowT = num(settings, "efficiency_yellow_threshold", 25);
 
-  const [vas, pendingReviews, recentActivity, last14d, effRows, openEvaluations, incomingRequests, atWork14d] =
+  const window = capacityWindow(new Date());
+  const [vas, pendingReviews, recentActivity, hours, effRows, openEvaluations, incomingRequests] =
     await Promise.all([
       db.va.findMany({
         where: { status: { in: ["active", "training"] } },
@@ -47,7 +25,7 @@ export async function getHrDashboard() {
         orderBy: { timestamp: "asc" },
       }),
       db.activityLog.findMany({ orderBy: { timestamp: "desc" }, take: 20 }),
-      hoursByVa(14),
+      activeHoursSource().capacityHoursByVa(window.start, window.end),
       db.deskLogEfficiency.findMany({
         where: { date: { gte: new Date(Date.now() - effWindow * DAY) } },
         select: { vaId: true, activityPct: true },
@@ -68,19 +46,25 @@ export async function getHrDashboard() {
           clientOrganization: { select: { name: true } },
         },
       }),
-      atWorkByVa(14),
     ]);
+  const thresholds = resolveCapacityThresholds(settings);
 
-  // Capacity flags from utilization vs target.
-  const capacityFlags = vas
-    .map((va) => {
-      const last = last14d.get(va.vaId) ?? 0;
-      const target = va.targetHoursWeekly ?? 0;
-      const { utilizationPct } = computeUtilization(target, last);
-      const flags = computeFlags(target, last);
-      return { va, last14dHours: last, atWork14dHours: atWork14d.get(va.vaId) ?? 0, utilizationPct, ...flags };
-    })
-    .filter((r) => r.overburdened || r.underutilized);
+  const withCapacity = vas.map((va) => {
+    const h = hours[va.vaId] ?? { taskHrs: 0, atWorkHrs: 0 };
+    const capacity = computeCapacity({
+      targetHoursWeekly: va.targetHoursWeekly,
+      taskHrs: h.taskHrs,
+      atWorkHrs: h.atWorkHrs,
+      startDate: va.startDate,
+      window,
+      thresholds,
+    });
+    return { va, last14dHours: h.taskHrs, atWork14dHours: h.atWorkHrs, ...capacity };
+  });
+
+  // Capacity flags from utilization vs target (VAs with no target are a data-quality gap, not a flag).
+  const capacityFlags = withCapacity.filter((r) => r.overburdened || r.underutilized || r.trackingGap);
+  const noTargetVas = withCapacity.filter((r) => r.noTarget).map((r) => r.va);
 
   // Efficiency averages per VA over the window (exclude team leads w/ reports).
   const effByVa = new Map<string, { sum: number; n: number }>();
@@ -112,30 +96,27 @@ export async function getHrDashboard() {
   ).length;
 
   // Per-VA workload (utilization) for the dashboard glance + team-health rollup.
-  const workload = vas
-    .map((va) => {
-      const last = last14d.get(va.vaId) ?? 0;
-      const target = va.targetHoursWeekly ?? 0;
-      const { utilizationPct } = computeUtilization(target, last);
-      const f = computeFlags(target, last);
-      return {
-        vaId: va.vaId,
-        name: va.name,
-        role: va.compensationRole,
-        target,
-        last14dHours: last,
-        atWork14dHours: atWork14d.get(va.vaId) ?? 0,
-        utilizationPct,
-        overburdened: f.overburdened,
-        underutilized: f.underutilized,
-      };
-    })
+  const workload = withCapacity
+    .map((r) => ({
+      vaId: r.va.vaId,
+      name: r.va.name,
+      role: r.va.compensationRole,
+      target: r.va.targetHoursWeekly ?? 0,
+      last14dHours: r.last14dHours,
+      atWork14dHours: r.atWork14dHours,
+      utilizationPct: r.utilizationPct,
+      overburdened: r.overburdened,
+      underutilized: r.underutilized,
+      trackingGap: r.trackingGap,
+      noTarget: r.noTarget,
+    }))
     .sort((a, b) => b.utilizationPct - a.utilizationPct);
 
   const health = {
-    healthy: workload.filter((w) => !w.overburdened && !w.underutilized).length,
+    healthy: workload.filter((w) => !w.overburdened && !w.underutilized && !w.trackingGap).length,
     overloaded: workload.filter((w) => w.overburdened).length,
     underused: workload.filter((w) => w.underutilized).length,
+    trackingGap: workload.filter((w) => w.trackingGap).length,
   };
 
   const pending = pendingReviews.map((r) => ({
@@ -147,6 +128,7 @@ export async function getHrDashboard() {
     totalActive: vas.length,
     pendingReviews: pending,
     capacityFlags,
+    noTargetVas,
     efficiencyAlerts,
     checkinsThisMonth,
     recentActivity,

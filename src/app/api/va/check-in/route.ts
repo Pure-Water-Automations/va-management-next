@@ -7,6 +7,8 @@ export const POST = action(
     submitCheckIn(await getEffectiveVaId(user), {
       targetHoursWeekly: body.targetHoursWeekly,
       availabilityNotes: body.availabilityNotes,
+      availabilityStartHourEst: body.availabilityStartHourEst,
+      availabilityEndHourEst: body.availabilityEndHourEst,
       capacityFlag: body.capacityFlag,
       notes: body.notes,
     }),

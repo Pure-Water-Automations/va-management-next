@@ -172,12 +172,15 @@ model Va {
   status            VaStatus  @default(training)
   targetHoursWeekly Float?
   baselineHours     Float     @default(0) // cumulative hours carried over from the old tool at cutover
+  startDate         DateTime? // hire/start date — prorates capacity expectations for new hires (null = always active)
   supervisorVaId    String?
   supervisor        Va?       @relation("Supervision", fields: [supervisorVaId], references: [vaId])
   reports           Va[]      @relation("Supervision")
   desklogUserId     String?
   skillSpecs        String?
   availabilityNotes String?
+  availabilityStartHourEst Float? // typical daily availability window, in decimal EST/EDT hours (0-24)
+  availabilityEndHourEst   Float?
   lastCheckinDate   DateTime?
   whatsappNumber    String? // E.164, e.g. +639171234567 — for WhatsApp notifications
   notifyChannel     NotifyChannel @default(both)

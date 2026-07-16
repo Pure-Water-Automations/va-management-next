@@ -9,6 +9,7 @@ import {
   IconAward,
   IconClipboardCheck,
   IconAlertTriangle,
+  IconClock,
   IconUsers,
   IconWallet,
   IconCalendarCheck,
@@ -70,6 +71,7 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/hr/reviews", label: "Tier Reviews", icon: <IconAward /> },
         { href: "/hr/evaluations", label: "Evaluations", icon: <IconClipboardCheck /> },
         { href: "/hr/capacity", label: "Capacity Alerts", icon: <IconAlertTriangle /> },
+        { href: "/hr/availability", label: "Who's Available", icon: <IconClock /> },
       ],
     },
     {

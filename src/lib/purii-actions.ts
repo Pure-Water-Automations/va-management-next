@@ -410,7 +410,7 @@ const TOOLS: Record<string, Tool> = {
   who_overburdened: {
     kind: "query",
     def: fn("who_overburdened", "List VAs currently flagged overburdened or underutilized.", {}, []),
-    run: async () => { const { flagged } = await getCapacity(); if (!flagged.length) return "No VAs are currently flagged. 🎉"; return flagged.map((f) => `• ${f.va.name} — ${Math.round(f.utilizationPct)}% (${f.overburdened ? "overburdened" : "underutilized"})`).join("\n"); },
+    run: async () => { const { flagged } = await getCapacity(); if (!flagged.length) return "No VAs are currently flagged. 🎉"; return flagged.map((f) => `• ${f.va.name} — ${Math.round(f.utilizationPct)}% (${f.overburdened ? "overburdened" : f.underutilized ? "underutilized" : "tracking gap"})`).join("\n"); },
   },
   va_stats: {
     kind: "query",

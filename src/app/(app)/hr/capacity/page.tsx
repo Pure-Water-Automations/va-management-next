@@ -17,8 +17,19 @@ function formatExpected14d(targetHoursWeekly: number | null | undefined) {
   return `${((targetHoursWeekly ?? 0) * 2).toFixed(1)}h expected / 2wk`;
 }
 
+function flagLabel(c: { overburdened: boolean; underutilized: boolean; trackingGap: boolean }) {
+  if (c.overburdened) return "Overburdened";
+  if (c.underutilized) return "Underutilized";
+  return "Tracking gap";
+}
+function flagVariant(c: { overburdened: boolean; underutilized: boolean; trackingGap: boolean }) {
+  if (c.overburdened) return "danger" as const;
+  if (c.underutilized) return "warning" as const;
+  return "sky" as const;
+}
+
 export default async function CapacityPage() {
-  const { flagged, events } = await getCapacity();
+  const { flagged, events, noTarget } = await getCapacity();
   return (
     <>
       <div className="page-head">
@@ -40,10 +51,11 @@ export default async function CapacityPage() {
                 <div style={{ fontWeight: 600 }}>{c.va.name}</div>
                 <div className="small">
                   {Math.round(c.utilizationPct)}% utilization · {c.last14dHours.toFixed(1)}h logged · {c.atWork14dHours.toFixed(1)}h at work / 2wk · {formatExpected14d(c.va.targetHoursWeekly)} · {formatTarget(c.va.targetHoursWeekly)}
+                  {c.trackingGap ? " · clocked in but not logging task hours" : ""}
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Badge variant={c.overburdened ? "danger" : "warning"} dot>{c.overburdened ? "Overburdened" : "Underutilized"}</Badge>
+                <Badge variant={flagVariant(c)} dot>{flagLabel(c)}</Badge>
                 <ActionButton path="/api/hr/resolve-capacity" body={{ vaId: c.va.vaId, notes: "Reviewed via console" }} variant="ghost">
                   Mark reviewed
                 </ActionButton>
@@ -52,6 +64,21 @@ export default async function CapacityPage() {
           ))
         )}
       </Card>
+
+      {noTarget.length > 0 && (
+        <Card padding={0} style={{ overflow: "hidden", marginBottom: 24 }}>
+          <div style={head}><h2 style={title}>No target set</h2></div>
+          <div style={{ padding: "10px 20px", fontSize: "var(--text-sm)", color: "var(--color-text-tertiary)" }}>
+            These VAs are excluded from capacity flagging until a target is set.
+          </div>
+          {noTarget.map((c) => (
+            <div key={c.va.vaId} style={rowS}>
+              <div style={{ fontWeight: 600 }}>{c.va.name}</div>
+              <div className="small">{c.last14dHours.toFixed(1)}h logged / 2wk</div>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <Card padding={0} style={{ overflow: "hidden" }}>
         <div style={head}><h2 style={title}>Recent flag history</h2></div>

@@ -1,34 +1,74 @@
 import { db } from "@/lib/db";
-import { computeUtilization, computeFlags } from "@/lib/services/capacity";
+import { capacityWindow, computeCapacity, resolveCapacityThresholds } from "@/lib/services/capacity";
+import { activeHoursSource } from "@/lib/services/hours-source";
+import { estHourNow, isAvailableNow } from "@/lib/services/availability";
+import { loadSettings } from "@/lib/settings";
 
 const DAY = 24 * 60 * 60 * 1000;
 
 export async function getCapacity() {
-  const [vas, hours, atWorkRows, events] = await Promise.all([
+  const window = capacityWindow(new Date());
+  const source = activeHoursSource();
+  const [vas, hours, assignedHrs, events, settings] = await Promise.all([
     db.va.findMany({ where: { status: { in: ["active", "training"] } }, orderBy: { name: "asc" } }),
-    db.deskLogHours.groupBy({
-      by: ["vaId"],
-      where: { date: { gte: new Date(Date.now() - 14 * DAY) } },
-      _sum: { taskSpentHrs: true }, // primary = task hours (intended metric; payroll/tier aligned)
-    }),
-    db.deskLogHours.groupBy({
-      by: ["vaId"],
-      where: { date: { gte: new Date(Date.now() - 14 * DAY) } },
-      _sum: { timeAtWorkHrs: true }, // shown alongside to expose a clocked-in-but-not-logging gap
-    }),
+    source.capacityHoursByVa(window.start, window.end),
+    source.assignedHoursByVa(window.start, window.end),
     db.capacityFlagEvent.findMany({ orderBy: { timestamp: "desc" }, take: 30 }),
+    loadSettings(),
   ]);
-  const last14 = new Map(hours.map((h) => [h.vaId, h._sum.taskSpentHrs ?? 0]));
-  const atWork14 = new Map(atWorkRows.map((h) => [h.vaId, h._sum.timeAtWorkHrs ?? 0]));
-  const flagged = vas
-    .map((va) => {
-      const last = last14.get(va.vaId) ?? 0;
-      const { utilizationPct } = computeUtilization(va.targetHoursWeekly ?? 0, last);
-      const f = computeFlags(va.targetHoursWeekly ?? 0, last);
-      return { va, last14dHours: last, atWork14dHours: atWork14.get(va.vaId) ?? 0, utilizationPct, ...f };
-    })
-    .filter((r) => r.overburdened || r.underutilized);
-  return { flagged, events };
+  const thresholds = resolveCapacityThresholds(settings);
+
+  const withCapacity = vas.map((va) => {
+    const h = hours[va.vaId] ?? { taskHrs: 0, atWorkHrs: 0 };
+    const capacity = computeCapacity({
+      targetHoursWeekly: va.targetHoursWeekly,
+      taskHrs: h.taskHrs,
+      atWorkHrs: h.atWorkHrs,
+      startDate: va.startDate,
+      window,
+      thresholds,
+    });
+    // Demand-side signal only (task 8) — assigned vs tracked vs target, not flagged on.
+    const demandVsSupply = {
+      assignedHrs: assignedHrs[va.vaId] ?? 0,
+      trackedHrs: h.taskHrs,
+      targetHrs: capacity.expectedHours,
+    };
+    return { va, last14dHours: h.taskHrs, atWork14dHours: h.atWorkHrs, demandVsSupply, ...capacity };
+  });
+
+  const flagged = withCapacity.filter((r) => r.overburdened || r.underutilized || r.trackingGap);
+  const noTarget = withCapacity.filter((r) => r.noTarget);
+  return { flagged, events, noTarget };
+}
+
+/** Who reported being typically available right now (EST), for urgent/rush coverage. */
+export async function getAvailability() {
+  const vas = await db.va.findMany({
+    where: { status: { in: ["active", "training"] } },
+    orderBy: { name: "asc" },
+    select: {
+      vaId: true,
+      name: true,
+      email: true,
+      supervisorVaId: true,
+      availabilityStartHourEst: true,
+      availabilityEndHourEst: true,
+      availabilityNotes: true,
+    },
+  });
+  const currentHour = estHourNow(new Date());
+  const withAvailability = vas.map((va) => ({
+    va,
+    hasWindow: va.availabilityStartHourEst != null && va.availabilityEndHourEst != null,
+    availableNow: isAvailableNow(va.availabilityStartHourEst, va.availabilityEndHourEst, currentHour),
+  }));
+  return {
+    currentHour,
+    availableNow: withAvailability.filter((r) => r.availableNow),
+    noWindowSet: withAvailability.filter((r) => !r.hasWindow),
+    all: withAvailability,
+  };
 }
 
 export async function getCheckins() {

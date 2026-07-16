@@ -8,6 +8,8 @@ type CapacityFlag = "overburdened" | "underutilized" | "manual_review";
 export type SubmitCheckInInput = {
   targetHoursWeekly?: unknown;
   availabilityNotes?: unknown;
+  availabilityStartHourEst?: unknown;
+  availabilityEndHourEst?: unknown;
   capacityFlag?: unknown;
   notes?: unknown;
 };
@@ -19,6 +21,8 @@ export async function submitCheckIn(
   const vaId = requireVaId(vaIdInput);
   const targetHoursWeekly = requiredNumber(input.targetHoursWeekly, "targetHoursWeekly");
   const availabilityNotes = optionalText(input.availabilityNotes) ?? "";
+  const availabilityStartHourEst = optionalHour(input.availabilityStartHourEst);
+  const availabilityEndHourEst = optionalHour(input.availabilityEndHourEst);
   const notes = optionalText(input.notes);
   const capacityFlag = optionalCapacityFlag(input.capacityFlag);
   const now = new Date();
@@ -28,6 +32,8 @@ export async function submitCheckIn(
     data: {
       targetHoursWeekly,
       availabilityNotes,
+      availabilityStartHourEst,
+      availabilityEndHourEst,
       lastCheckinDate: now,
     },
     select: {
@@ -179,6 +185,12 @@ function requiredNumber(value: unknown, field: string): number {
 
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+function optionalHour(value: unknown): number | undefined {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
+  if (!Number.isFinite(n) || n < 0 || n > 24) return undefined;
+  return n;
 }
 
 function textOrEmpty(value: unknown): string {

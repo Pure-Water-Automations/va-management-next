@@ -4,15 +4,29 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postAction } from "@/components/ActionButton";
 import { Button } from "@/components/ui/Button";
+import { hourLabel } from "@/lib/services/availability";
 
 function targetLabel(targetHoursWeekly: number | null | undefined) {
   return `${targetHoursWeekly ?? 0}h/week`;
 }
 
-export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: number | null; availabilityNotes?: string | null } }) {
+const HOUR_OPTIONS = Array.from({ length: 48 }, (_, i) => i / 2);
+
+export function CheckinForm({
+  defaults,
+}: {
+  defaults: {
+    targetHoursWeekly?: number | null;
+    availabilityNotes?: string | null;
+    availabilityStartHourEst?: number | null;
+    availabilityEndHourEst?: number | null;
+  };
+}) {
   const router = useRouter();
   const [target, setTarget] = useState(String(defaults.targetHoursWeekly ?? ""));
   const [availability, setAvailability] = useState(defaults.availabilityNotes ?? "");
+  const [startHour, setStartHour] = useState(String(defaults.availabilityStartHourEst ?? ""));
+  const [endHour, setEndHour] = useState(String(defaults.availabilityEndHourEst ?? ""));
   const [capacity, setCapacity] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,6 +37,8 @@ export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: numb
     const res = await postAction("/api/va/check-in", {
       targetHoursWeekly: target ? Number(target) : undefined,
       availabilityNotes: availability,
+      availabilityStartHourEst: startHour !== "" ? Number(startHour) : undefined,
+      availabilityEndHourEst: endHour !== "" ? Number(endHour) : undefined,
       capacityFlag: capacity || undefined,
       notes,
     });
@@ -51,6 +67,21 @@ export function CheckinForm({ defaults }: { defaults: { targetHoursWeekly?: numb
           Current target: <strong style={{ color: "var(--color-text-primary)" }}>{targetLabel(defaults.targetHoursWeekly)}</strong>
         </div>
         <input style={input} type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="e.g. 20" aria-label="Target hours per week" />
+      </div>
+      <div style={field}>
+        <label style={label}>Typical availability (EST)</label>
+        <div className="small" style={{ marginBottom: 2 }}>So HR knows who's usually online for urgent/rush work.</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <select style={input} value={startHour} onChange={(e) => setStartHour(e.target.value)} aria-label="Availability start (EST)">
+            <option value="">Start</option>
+            {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{hourLabel(h)} EST</option>)}
+          </select>
+          <span className="small">to</span>
+          <select style={input} value={endHour} onChange={(e) => setEndHour(e.target.value)} aria-label="Availability end (EST)">
+            <option value="">End</option>
+            {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{hourLabel(h)} EST</option>)}
+          </select>
+        </div>
       </div>
       <div style={field}>
         <label style={label}>Availability notes</label>

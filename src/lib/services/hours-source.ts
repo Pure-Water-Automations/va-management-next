@@ -12,6 +12,8 @@ export type HoursBreakdownRow = {
   needsReview: boolean;
 };
 
+export type CapacityHours = { taskHrs: number; atWorkHrs: number };
+
 export interface HoursSource {
   /** Total payable hours per VA over [periodStart, periodEnd] (inclusive, date-only). */
   hoursByVa(periodStart: Date, periodEnd: Date, vaIds?: string[]): Promise<Record<string, number>>;
@@ -19,6 +21,10 @@ export interface HoursSource {
   priorHoursByVa(before: Date, vaIds: string[]): Promise<Record<string, number>>;
   /** Per-day project/task rows for the drill-down + anomaly checks. */
   breakdown(periodStart: Date, periodEnd: Date, vaIds?: string[]): Promise<HoursBreakdownRow[]>;
+  /** Task + at-work hours per VA over [windowStart, windowEnd) — feeds capacity flagging. */
+  capacityHoursByVa(windowStart: Date, windowEnd: Date, vaIds?: string[]): Promise<Record<string, CapacityHours>>;
+  /** Assigned (demand-side) hours per VA over the same window — read-only signal, not flagged on yet. */
+  assignedHoursByVa(windowStart: Date, windowEnd: Date, vaIds?: string[]): Promise<Record<string, number>>;
 }
 
 /** Pure helper (unit-tested): per-VA totals from breakdown rows. */
@@ -50,6 +56,34 @@ class DeskLogHoursSource implements HoursSource {
       _sum: { taskSpentHrs: true },
     });
     return Object.fromEntries(grouped.map((g) => [g.vaId, g._sum.taskSpentHrs ?? 0]));
+  }
+
+  async capacityHoursByVa(windowStart: Date, windowEnd: Date, vaIds?: string[]) {
+    const { db } = await import("@/lib/db");
+    const grouped = await db.deskLogHours.groupBy({
+      by: ["vaId"],
+      where: {
+        ...(vaIds ? { vaId: { in: vaIds } } : {}),
+        date: { gte: windowStart, lt: windowEnd },
+      },
+      _sum: { taskSpentHrs: true, timeAtWorkHrs: true },
+    });
+    return Object.fromEntries(
+      grouped.map((g) => [g.vaId, { taskHrs: g._sum.taskSpentHrs ?? 0, atWorkHrs: g._sum.timeAtWorkHrs ?? 0 }]),
+    );
+  }
+
+  async assignedHoursByVa(windowStart: Date, windowEnd: Date, vaIds?: string[]) {
+    const { db } = await import("@/lib/db");
+    const grouped = await db.deskLogHours.groupBy({
+      by: ["vaId"],
+      where: {
+        ...(vaIds ? { vaId: { in: vaIds } } : {}),
+        date: { gte: windowStart, lt: windowEnd },
+      },
+      _sum: { taskAssignedHrs: true },
+    });
+    return Object.fromEntries(grouped.map((g) => [g.vaId, g._sum.taskAssignedHrs ?? 0]));
   }
 
   async breakdown(periodStart: Date, periodEnd: Date, vaIds?: string[]) {
