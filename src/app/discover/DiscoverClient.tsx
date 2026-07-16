@@ -8,6 +8,8 @@ import {
   fitVerdict,
   type DiscoveryQuestion,
 } from "@/lib/discovery-questions";
+import { validateDiscoveryAttachments } from "@/lib/discovery-attachment-validation";
+import { putToR2 } from "@/lib/upload-client";
 import { BookingPicker } from "./BookingPicker";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,6 +28,10 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState("");
+  const [attachmentNotice, setAttachmentNotice] = useState("");
   const [bookingToken, setBookingToken] = useState<string | null>(null);
   const [bookedLabel, setBookedLabel] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
@@ -67,12 +73,17 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     const vis = questions.filter((x) => isVisible(x, answersNow));
     const pos = vis.findIndex((x) => x.key === keyNow);
     if (pos < 0) return;
-    if (pos >= vis.length - 1) { void submit(answersNow); return; }
+    if (pos >= vis.length - 1) { setShowAttachments(true); return; }
     setIdx(pos + 1);
   }
 
   function next() { if (q) advance(answers, q.key); }
-  function back() { setError(""); if (showCost) { setShowCost(false); return; } if (clamped > 0) setIdx(clamped - 1); }
+  function back() {
+    setError("");
+    if (showAttachments) { setShowAttachments(false); return; }
+    if (showCost) { setShowCost(false); return; }
+    if (clamped > 0) setIdx(clamped - 1);
+  }
 
   function choose(value: string) {
     if (!q) return;
@@ -101,7 +112,80 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     setSubmitting(false);
     if (!res.ok) { setError(res.error || "Something went wrong. Please try again."); return; }
     setBookingToken(res.result?.bookingToken ?? null);
+    if (files.length > 0) {
+      setAttachmentNotice("Uploading your attachments…");
+      void uploadAttachments({
+        dealId: String(res.result?.dealId ?? ""),
+        grant: String(res.result?.attachmentGrant ?? ""),
+      });
+    }
     setDone(true);
+  }
+
+  async function uploadAttachments({ dealId, grant }: { dealId: string; grant: string }) {
+    try {
+      if (!dealId || !grant) throw new Error("Attachment upload was not initialized.");
+      const presign = await fetch("/api/discover/attachment", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          op: "presign",
+          dealId,
+          grant,
+          files: files.map((file) => ({ name: file.name, size: file.size, type: file.type })),
+        }),
+      }).then((response) => response.json());
+      if (!presign.ok) throw new Error(presign.error || "Could not start the attachment upload.");
+
+      const uploads = (presign.result?.uploads ?? []) as Array<{
+        key: string;
+        uploadUrl: string;
+        contentType: string;
+      }>;
+      if (uploads.length !== files.length) throw new Error("Attachment upload could not be prepared.");
+      const settled = await Promise.allSettled(
+        uploads.map((upload, index) => putToR2(upload.uploadUrl, files[index], upload.contentType)),
+      );
+      const completedKeys = uploads
+        .filter((_, index) => settled[index]?.status === "fulfilled")
+        .map((upload) => upload.key);
+      if (completedKeys.length === 0) throw new Error("No attachments finished uploading.");
+
+      const confirm = await fetch("/api/discover/attachment", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          op: "confirm",
+          dealId,
+          grant: presign.result?.confirmGrant,
+          keys: completedKeys,
+        }),
+      }).then((response) => response.json());
+      if (!confirm.ok) throw new Error(confirm.error || "Could not save the uploaded attachments.");
+      setAttachmentNotice(
+        completedKeys.length === files.length
+          ? `${completedKeys.length} attachment${completedKeys.length === 1 ? "" : "s"} uploaded.`
+          : `${completedKeys.length} of ${files.length} attachments uploaded. Your lead submission was still received.`,
+      );
+    } catch (uploadError) {
+      console.warn("Discovery attachments did not upload:", uploadError);
+      setAttachmentNotice("Your details were submitted, but the attachments could not be uploaded. We’ll still follow up with you.");
+    }
+  }
+
+  function chooseFiles(selected: FileList | null): boolean {
+    const next = Array.from(selected ?? []);
+    const validation = validateDiscoveryAttachments(
+      next.map((file) => ({ name: file.name, size: file.size, type: file.type })),
+    );
+    if (!validation.ok) {
+      setFiles([]);
+      setAttachmentError(validation.error);
+      return false;
+    }
+    setFiles(next);
+    setAttachmentError("");
+    return true;
   }
 
   function onKey(e: KeyboardEvent) {
@@ -127,6 +211,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
             <p style={{ color: "var(--color-text-tertiary)", fontSize: "var(--text-md)" }}>
               No re-explaining — we&apos;ll review your answers first. See you then!
             </p>
+            {attachmentNotice && <div role="status" style={attachmentNoticeStyle}>{attachmentNotice}</div>}
             {testimonial && <blockquote style={quote}>{testimonial}</blockquote>}
           </div>
         </div>
@@ -153,6 +238,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
               We&apos;ll email you shortly to schedule your call.
             </p>
           )}
+          {attachmentNotice && <div role="status" style={attachmentNoticeStyle}>{attachmentNotice}</div>}
           {testimonial && <blockquote style={quote}>{testimonial}</blockquote>}
         </div>
       </div>
@@ -179,6 +265,43 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     );
   }
 
+  if (showAttachments) {
+    return (
+      <div style={page}>
+        <div style={progressTrack}><div style={{ ...progressBar, width: "100%" }} /></div>
+        <div style={card}>
+          <div style={qNum}>Optional final step</div>
+          <label htmlFor="discovery-attachments" style={qLabel}>Anything you want us to review before the call?</label>
+          <div style={qHelp}>Attach up to 3 PDF, DOC, DOCX, TXT, PNG, or JPG files. Each file can be up to 10 MB.</div>
+          <input
+            id="discovery-attachments"
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.png,.jpg"
+            onChange={(event) => {
+              if (!chooseFiles(event.currentTarget.files)) event.currentTarget.value = "";
+            }}
+            style={{ ...inputBase, marginTop: 20, fontSize: "var(--text-md)" }}
+          />
+          {files.length > 0 && (
+            <ul style={{ margin: "14px 0 0", paddingLeft: 20, color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
+              {files.map((file) => <li key={`${file.name}-${file.size}`}>{file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB</li>)}
+            </ul>
+          )}
+          {attachmentError && <div style={errStyle}>{attachmentError} You can continue without it.</div>}
+          {error && <div style={errStyle}>{error}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 22 }}>
+            <button onClick={() => void submit()} disabled={submitting} style={okBtn}>
+              {submitting ? "Submitting…" : files.length ? "Submit and upload" : "Submit"}
+            </button>
+            <button onClick={back} disabled={submitting} style={linkBtn}>Back</button>
+          </div>
+        </div>
+        <div style={brand}>Pure Water Automations · Refreshing leaders. Removing burdens.</div>
+      </div>
+    );
+  }
+
   if (!q) return <div style={page} />;
   const isChoice = q.type === "single_select";
 
@@ -196,7 +319,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 22 }}>
           {!isChoice && (
             <button onClick={next} disabled={submitting} style={okBtn}>
-              {submitting ? "Submitting…" : clamped >= total - 1 ? "See my results" : "OK"}
+              {submitting ? "Submitting…" : clamped >= total - 1 ? "Continue" : "OK"}
             </button>
           )}
           {!isChoice && <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>press <strong>Enter ↵</strong></span>}
@@ -347,6 +470,7 @@ const choiceActive: CSSProperties = { borderColor: "var(--color-navy-700, #13227
 const errStyle: CSSProperties = { marginTop: 12, color: "var(--color-error, #b42318)", fontSize: "var(--text-sm)", fontWeight: 600 };
 const brand: CSSProperties = { marginTop: 20, fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", letterSpacing: "0.04em" };
 const quote: CSSProperties = { marginTop: 20, fontStyle: "italic", color: "var(--color-text-secondary)", fontSize: "var(--text-md)", maxWidth: 440, borderLeft: "3px solid var(--color-sky-300)", paddingLeft: 14, textAlign: "left" };
+const attachmentNoticeStyle: CSSProperties = { marginTop: 12, maxWidth: 480, padding: "10px 12px", borderRadius: 10, background: "var(--color-sky-50)", color: "var(--color-text-secondary)", fontSize: "var(--text-sm)", textAlign: "left" };
 function navBtn(disabled: boolean): CSSProperties {
   return { width: 38, height: 38, borderRadius: 8, border: "1px solid var(--color-border)", background: disabled ? "var(--color-bg-tertiary)" : "var(--color-navy-900, #132272)", color: disabled ? "var(--color-text-tertiary)" : "#fff", cursor: disabled ? "default" : "pointer", fontSize: 16, fontWeight: 700 };
 }

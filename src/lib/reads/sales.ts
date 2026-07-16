@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import type { DealRow } from "@/components/SalesBoard";
 
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 /** Load every deal as a board row (shared by the /sales console and /hr/sales). */
 export async function loadSalesRows(): Promise<DealRow[]> {
   const deals = await db.deal.findMany({
@@ -23,6 +27,7 @@ export async function loadSalesRows(): Promise<DealRow[]> {
     leadVerdict: d.leadVerdict,
     leadScore: d.leadScore,
     leadSummary: d.leadSummary,
+    attachmentKeys: stringArray(d.attachmentKeys),
     discoveryCallAt: d.discoveryCallAt ? d.discoveryCallAt.toISOString() : null,
     discoveryCallStatus: d.discoveryCallStatus,
     discoveryNotesJson: (d.discoveryNotesJson as DealRow["discoveryNotesJson"]) ?? null,

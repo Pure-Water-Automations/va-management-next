@@ -70,8 +70,9 @@ export const DISCOVERY_QUESTIONS: readonly DiscoveryQuestion[] = [
   { key: "hoursPerWeek", label: "Roughly how many hours a week disappear into admin?", type: "single_select", required: true, options: HOURS_OPTIONS },
   { key: "budgetAvailable", label: "If it's the right fit, is funding available to move?", help: "No wrong answer — it just helps us recommend the right option.", type: "single_select", required: true, options: BUDGET_OPTIONS },
   { key: "timeline", label: "When do you want relief?", type: "single_select", required: true, options: TIMELINE_OPTIONS },
+  { key: "availability", label: "When are you typically available for a call? (days/times, your timezone)", type: "short_text", required: false, placeholder: "Optional — e.g. weekdays after 2 PM Eastern" },
   { key: "triedBefore", label: "What have you already tried so far?", type: "long_text", required: false, placeholder: "Optional — tools, hires, systems" },
-  { key: "heardAbout", label: "Last one — how did you hear about us?", type: "dropdown", required: true, options: HEARD_OPTIONS },
+  { key: "heardAbout", label: "How did you hear about us?", type: "dropdown", required: true, options: HEARD_OPTIONS },
 ];
 
 export function isVisible(q: DiscoveryQuestion, answers: Record<string, unknown>): boolean {
