@@ -1455,6 +1455,21 @@ enum ClientOnboardingStatus {
   completed
 }
 
+// ── AI CFO ────────────────────────────────────────────────────────────────
+// One row per pushed CFO snapshot (from the Mac-side analyst/skill via the
+// machine-to-machine /api/cfo/snapshot endpoint). `payload` is the whole POST
+// body (derived tables + optional executive narrative + actions). QuickBooks is
+// never touched by this app — only derived, read-only JSON crosses the wire.
+// Pruned to the last 60 rows on insert (trend history).
+model CfoSnapshot {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  computedAt   DateTime // when analyst.js computed the numbers (from the payload)
+  hasNarrative Boolean  @default(false) // true = full review (skill); false = nightly derived-only
+  payload      Json
+  @@index([createdAt])
+}
+
 model ClientOnboarding {
   id                   String                 @id @default(cuid())
   clientOrganizationId String                 @unique

@@ -145,12 +145,14 @@ export function Sidebar({
   name,
   showMeetingActions = false,
   meetingActionsCount = 0,
+  showCeo = false,
 }: {
   view: ConsoleView;
   role: Role;
   name: string;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
+  showCeo?: boolean;
 }) {
   const sections = NAV[view] ?? NAV.HR;
   return (
@@ -181,6 +183,14 @@ export function Sidebar({
         {showMeetingActions && (
           <NavGroup label="Meetings">
             <NavItemLink href="/meeting-actions" label="Meeting Actions" badge={meetingActionsCount} icon={<IconMessageSquare />} />
+          </NavGroup>
+        )}
+
+        {/* CEO / CFO view — financial monitoring, gated by isCeo() (email allowlist,
+            Justin by default). Nav link visible only for CEO emails. */}
+        {showCeo && (
+          <NavGroup label="Leadership">
+            <NavItemLink href="/ceo" label="CEO / CFO view" icon={<IconBarChart />} />
           </NavGroup>
         )}
       </nav>

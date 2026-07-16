@@ -59,6 +59,13 @@ const envSchema = z.object({
   // /api/mcp endpoint is disabled (503) until MCP_API_TOKEN is set.
   MCP_API_TOKEN: optionalEnvString(z.string()),
   MCP_ACTOR_EMAIL: optionalEnvString(z.string().email()),
+  // AI CFO snapshot ingestion — machine-to-machine bearer for POST /api/cfo/snapshot.
+  // The Mac-side analyst/skill pushes derived, read-only financial JSON here. The
+  // endpoint 401s until this is set (same self-disabling pattern as MCP_API_TOKEN).
+  // Must be on the Cloudflare Access BYPASS list, like /api/external/*.
+  CFO_SNAPSHOT_TOKEN: optionalEnvString(z.string().min(1)),
+  // Email allowlist for the /ceo (CFO/CEO) view — read via process.env directly
+  // (see isCeo in auth/access.ts), same convention as FOUNDER_EMAILS.
   // SecondBrain cloud MCP endpoint (co-located on the same VPS). Used by the
   // "Enhance with Second Brain" feature to search Notion/Drive/meeting mirrors.
   SECONDBRAIN_MCP_URL: optionalEnvString(z.string().url()),

@@ -94,6 +94,21 @@ export function isFounder(email: string | null | undefined): boolean {
   return !!email && FOUNDER_EMAILS.has(email.toLowerCase());
 }
 
+// CEO / CFO view gate (the /ceo financial-monitoring surface). A dedicated
+// allowlist rather than reusing isFounder so CEO access can widen (a bookkeeper,
+// a co-founder) without also handing out the founder-only beta features. Defaults
+// to Justin only; override with CEO_EMAILS. `??` (not `||`) so CEO_EMAILS="" means
+// "no one" — TESTER/admin do NOT get it by default.
+const CEO_EMAILS = new Set(
+  (process.env.CEO_EMAILS ?? "okamotomiak@gmail.com")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+export function isCeo(email: string | null | undefined): boolean {
+  return !!email && CEO_EMAILS.has(email.toLowerCase());
+}
+
 /**
  * Beta features (Enhance, Discover, Recordings) are founder-only AND runtime-
  * toggleable, so the founder can hide them on demand — e.g. while demoing the
