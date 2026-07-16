@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { DealStage } from "@prisma/client";
 import { db } from "@/lib/db";
 import { loadSettings, num as settingNum } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
@@ -13,7 +14,28 @@ import {
 } from "@/lib/sales/client-template";
 import { appBaseUrl, systemEmailFrom, teamRecipients, companyName, firstName, addDays } from "@/lib/sales/util";
 import { onAgreementSigned } from "@/lib/sales/payment";
-import { maybeConvertDeal } from "@/lib/sales/deal";
+import { maybeConvertDeal, setDealStage } from "@/lib/sales/deal";
+
+/**
+ * Pre-proposal stages a deal can auto-advance FROM when its agreement is sent.
+ * Sending the agreement IS the proposal going out, so these move to
+ * `proposal_sent`. Excludes stages at or past `proposal_sent`
+ * (`proposal_sent`/`negotiation`/`verbal_yes`/`won`) so a resend never drags a
+ * deal backward, and `lost` (a closed-lost deal reopens by a deliberate move).
+ */
+const PRE_PROPOSAL_STAGES: readonly DealStage[] = [
+  "new",
+  "discovery_scheduled",
+  "discovery_completed",
+  "proposal_needed",
+  "nurture",
+  "no_show",
+];
+
+/** Whether sending the agreement should advance this stage to `proposal_sent`. */
+export function shouldAdvanceToProposalSent(stage: DealStage): boolean {
+  return PRE_PROPOSAL_STAGES.includes(stage);
+}
 
 function templateHtml(settings: Map<string, string>): string {
   return settings.get("client_agreement_template_html")?.trim() || DEFAULT_CLIENT_AGREEMENT_TEMPLATE_HTML;
@@ -61,28 +83,42 @@ export async function sendClientAgreement(dealId: string) {
     },
   });
 
+  const company = companyName(settings);
   const link = `${appBaseUrl(settings)}/sign/${token}`;
   await runWithActor(deal.contactEmail, () =>
     sendSystemEmail({
       from: systemEmailFrom(settings),
       to: deal.contactEmail!,
-      subject: `Your ${companyName(settings)} service agreement`,
+      subject: `Your ${company} service agreement`,
       body: [
         `Hi ${firstName(deal.contactName) || "there"},`,
         "",
-        "Thank you for choosing to work with us! Your service agreement is ready to review and sign:",
+        `This is the team at ${company} — thank you for choosing to work with us! Your service agreement is ready to review and sign:`,
         "",
         link,
         "",
-        "Read it, type your name, sign, and submit — it takes about a minute. Once signed and the first payment is received, we'll kick off onboarding.",
+        "Read it, type your name, sign, and submit — it takes about a minute. Once it's signed and your first payment is in, we'll kick off onboarding right away.",
         "",
-        `— ${companyName(settings)}`,
+        "Questions? Just reply to this email — we read every one.",
+        "",
+        "With you in the mission,",
+        `The ${company} team`,
+        "https://purewaterautomations.com",
       ].join("\n"),
     }),
   ).catch((err) => console.warn("sendClientAgreement: email failed:", err instanceof Error ? err.message : err));
 
   await db.deal.update({ where: { id: dealId }, data: { lastContactAt: now } });
   await logActivity({ source: "sales", eventType: "agreement_sent", summary: `Service agreement sent to ${deal.orgName}` });
+
+  // Sending the agreement IS the proposal going out — advance the funnel so the
+  // card doesn't sit in discovery_completed while its agreement is live. Never
+  // drags a deal backward from negotiation/verbal_yes/won on a resend.
+  if (shouldAdvanceToProposalSent(deal.stage)) {
+    await setDealStage(dealId, "proposal_sent").catch((err) =>
+      console.warn("sendClientAgreement: stage advance failed:", err instanceof Error ? err.message : err),
+    );
+  }
   return agreement;
 }
 
@@ -216,7 +252,17 @@ export async function signClientAgreement(
       from: systemEmailFrom(settings),
       folderId: (settings.get("signed_client_contracts_folder_id") ?? "").trim(),
       subject: `Your signed ${vars.company} service agreement`,
-      body: `Hi ${firstName(vars.contact) || "there"},\n\nThank you — your signed service agreement is attached for your records.\n\n— ${vars.company}`,
+      body: [
+        `Hi ${firstName(vars.contact) || "there"},`,
+        "",
+        `Thank you — your signed service agreement with ${vars.company} is attached for your records. We're so glad to have you with us, and we'll be in touch shortly to kick off onboarding.`,
+        "",
+        "If anything comes up, just reply to this email.",
+        "",
+        "With you in the mission,",
+        `The ${vars.company} team`,
+        "https://purewaterautomations.com",
+      ].join("\n"),
     }),
   );
 

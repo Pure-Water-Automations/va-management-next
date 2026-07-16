@@ -10,6 +10,8 @@ import { env } from "@/lib/env";
 import { logActivity } from "@/lib/activity";
 import { sendSystemEmail } from "@/lib/email";
 import { loadSettings, num, str } from "@/lib/settings";
+import { systemEmailFrom } from "@/lib/sales/util";
+import { createDiscoverySubmissionGrant } from "@/lib/discovery-attachments";
 import {
   validateDiscovery,
   dealFieldsFromAnswers,
@@ -28,6 +30,12 @@ const OPEN_INTAKE_STAGES = ["new", "discovery_scheduled", "discovery_completed",
 // Stages that mean "we'd dropped them" — a fresh submission re-opens the lead.
 const REENGAGE_STAGES = new Set(["nurture", "no_show"]);
 
+function summaryWithAvailability(summary: string, availability: string): string {
+  const base = summary.trim();
+  const line = `Call availability: ${availability.trim()}`;
+  return base ? `${base}\n\n${line}` : line;
+}
+
 export async function submitDiscoveryLead(raw: Record<string, unknown>) {
   const validation = validateDiscovery(raw);
   if (!validation.ok) throw new DiscoveryValidationError(validation.error);
@@ -39,6 +47,7 @@ export async function submitDiscoveryLead(raw: Record<string, unknown>) {
   const settings = await loadSettings();
   const rate = num(settings, "admin_cost_rate", 25);
   const estimatedAdminCost = answers.hoursPerWeek ? estimateAdminCost(answers.hoursPerWeek, rate) : null;
+  const availability = answers.availability || "";
 
   const data = {
     orgName: fields.orgName,
@@ -56,6 +65,9 @@ export async function submitDiscoveryLead(raw: Record<string, unknown>) {
     estimatedAdminCost,
     fitVerdict: fitVerdict(answers),
     discoveryJson: answers as Prisma.InputJsonValue,
+    // Give reps the scheduling context immediately. The best-effort AI pass below
+    // replaces this with its summary, then appends the same explicit line.
+    leadSummary: availability ? summaryWithAvailability("", availability) : null,
   };
 
   // Dedupe only against an existing native-form lead still in the intake funnel,
@@ -96,10 +108,23 @@ export async function submitDiscoveryLead(raw: Record<string, unknown>) {
   if (isNew) await notifySalesOwner(settings, fields, answers, estimatedAdminCost);
 
   // AI scoring — best-effort, never block the lead's submission.
-  void scoreAndSaveLead(dealId).catch(() => {});
+  void scoreAndSaveLead(dealId)
+    .then((result) => availability
+      ? db.deal.update({
+          where: { id: dealId },
+          data: { leadSummary: summaryWithAvailability(result.summary, availability) },
+        })
+      : undefined)
+    .catch(() => {});
 
   // bookingToken is the capability for the public slot picker + /discovery/[token].
-  return { ok: true, dealId, isNew, bookingToken };
+  return {
+    ok: true,
+    dealId,
+    isNew,
+    bookingToken,
+    attachmentGrant: createDiscoverySubmissionGrant(dealId, env.NEXTAUTH_SECRET),
+  };
 }
 
 async function notifySalesOwner(
@@ -109,9 +134,9 @@ async function notifySalesOwner(
   estimatedAdminCost: number | null,
 ) {
   try {
-    const from = str(settings, "system_email_from");
+    const from = systemEmailFrom(settings);
     const to = str(settings, "sales_owner_email") || str(settings, "hr_manager_email");
-    if (!from || !to) return;
+    if (!to) return;
     const base = (str(settings, "app_base_url") || env.APP_BASE_URL || "https://team.pwasecondbrain.uk").replace(/\/+$/, "");
     await sendSystemEmail({
       from,
@@ -128,6 +153,7 @@ async function notifySalesOwner(
         `Hours/week on admin: ${fields.hoursPerWeek ?? "—"}\n` +
         `Funding available: ${fields.budgetAvailable ?? "—"}\n` +
         `Timeline: ${fields.timeline ?? "—"}\n` +
+        `Call availability: ${answers.availability || "—"}\n` +
         (estimatedAdminCost ? `Est. admin cost: $${estimatedAdminCost.toLocaleString()}/yr\n` : "") +
         `\nReview the pipeline: ${base}/hr/sales`,
     });

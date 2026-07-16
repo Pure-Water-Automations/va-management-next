@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getCurrentUser, isAllAccess } from "@/lib/auth/access";
 import { db } from "@/lib/db";
 import { senderStatus, redirectUri, oauthClient } from "@/lib/email-oauth";
@@ -11,16 +12,31 @@ import { DigestToggle } from "@/components/DigestToggle";
 
 export const dynamic = "force-dynamic";
 
+/** Persist the default Reply-To address for all system email (all-access only). */
+async function saveReplyTo(formData: FormData) {
+  "use server";
+  const user = await getCurrentUser();
+  if (!isAllAccess(user)) throw new Error("Not authorized.");
+  const value = String(formData.get("replyTo") ?? "").trim();
+  await db.setting.upsert({
+    where: { key: "system_email_reply_to" },
+    update: { value },
+    create: { key: "system_email_reply_to", value },
+  });
+  revalidatePath("/admin/email");
+}
+
 export default async function EmailSenderPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await getCurrentUser();
   if (!isAllAccess(user)) redirect("/");
   const sp = await searchParams;
 
-  const [status, fromSetting, redirectRow, digestRow] = await Promise.all([
+  const [status, fromSetting, redirectRow, digestRow, replyToRow] = await Promise.all([
     senderStatus(),
     db.setting.findUnique({ where: { key: "system_email_from" } }),
     db.setting.findUnique({ where: { key: "email_redirect_to" }, select: { value: true } }),
     db.setting.findUnique({ where: { key: "notification_digest_enabled" }, select: { value: true } }),
+    db.setting.findUnique({ where: { key: "system_email_reply_to" }, select: { value: true } }),
   ]);
   const clientConfigured = !!oauthClient();
   const digestOn = (digestRow?.value ?? "").toUpperCase() === "TRUE";
@@ -73,6 +89,25 @@ export default async function EmailSenderPage({ searchParams }: { searchParams: 
           </div>
         )}
         {status.connected && fromSetting?.value && <TestEmailButton />}
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <h2 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-xl)", margin: "0 0 12px" }}>Reply-to address</h2>
+        <p className="small" style={{ marginTop: 0, marginBottom: 14 }}>
+          Optional. When set, every system email carries this <code>Reply-To</code> header, so replies land here (e.g.
+          sales or Justin) while the <strong>From</strong> address stays the connected sending account. Leave blank to
+          send with no reply-to (replies go back to the From address).
+        </p>
+        <form action={saveReplyTo} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            name="replyTo"
+            type="email"
+            defaultValue={replyToRow?.value ?? ""}
+            placeholder="replies-to@purewaterautomations.com"
+            style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-input)", padding: "8px 11px", font: "inherit", fontSize: "var(--text-sm)", minWidth: 280 }}
+          />
+          <Button type="submit" variant="primary">Save reply-to</Button>
+        </form>
       </Card>
 
       <Card style={{ marginBottom: 16 }}>

@@ -62,7 +62,7 @@ case "$ENV" in
     # --delete rsync never touches the live va-world dir on the dev box.
     rsync -az --delete \
       --exclude node_modules/ --exclude .next/ --exclude .git/ \
-      --exclude va-world/ \
+      --exclude va-world/ --exclude .secrets/ \
       "$TMP/" "$DEV_VPS:$BASE/current/"
     ssh "$DEV_VPS" "echo '$SHA' > $BASE/current/DEPLOYED_VERSION"
     build_and_restart "$DEV_VPS"

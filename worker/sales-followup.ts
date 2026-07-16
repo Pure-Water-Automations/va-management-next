@@ -32,7 +32,7 @@ async function main() {
         from,
         to,
         subject: `Follow-up due: ${d.orgName}`,
-        body: `A follow-up is due for ${d.orgName} (stage: ${d.stage}). Update the deal or set the next step.`,
+        body: `A follow-up is due for ${d.orgName} (stage: ${d.stage}). Update the deal or set the next step.\n\n— The ${company} team`,
       }).catch(() => {});
       await db.deal.update({ where: { id: d.id }, data: { nextFollowUpAt: null } });
       sent++;
@@ -49,7 +49,7 @@ async function main() {
         from,
         to: team,
         subject: `Agreement unsigned past deadline: ${a.deal.orgName}`,
-        body: `${a.deal.orgName}'s service agreement was sent but remains unsigned past its deadline. Consider a nudge or a new link.`,
+        body: `${a.deal.orgName}'s service agreement was sent but remains unsigned past its deadline. Consider a warm nudge or a fresh signing link.\n\n— The ${company} team`,
       }).catch(() => {});
       sent++;
     }
@@ -67,7 +67,7 @@ async function main() {
         from,
         to,
         subject: `Onboarding stalled: ${o.clientOrganization.name}`,
-        body: `${o.clientOrganization.name} has not submitted their intake form yet. Resend the intake link or follow up.\n\n— ${company}`,
+        body: `${o.clientOrganization.name} has not submitted their intake form yet. Resend the intake link or follow up.\n\n— The ${company} team`,
       }).catch(() => {});
       sent++;
     }

@@ -1,4 +1,5 @@
 import { submitDiscoveryLead, DiscoveryValidationError } from "@/lib/actions/discovery";
+import { checkDiscoveryRateLimit } from "@/lib/discovery-attachments";
 
 // PUBLIC endpoint — leads are not logged in (public page, like /apply). The form
 // payload is small; cap the body so a public client can't make us parse/store
@@ -6,6 +7,13 @@ import { submitDiscoveryLead, DiscoveryValidationError } from "@/lib/actions/dis
 const MAX_BODY_BYTES = 20_000;
 
 export async function POST(request: Request): Promise<Response> {
+  const rate = checkDiscoveryRateLimit(request, "submit");
+  if (!rate.ok) {
+    return Response.json(
+      { ok: false, error: "Too many submissions. Please try again shortly." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfter) } },
+    );
+  }
   const raw = await request.text();
   if (raw.length > MAX_BODY_BYTES) {
     return Response.json({ ok: false, error: "Submission too large." }, { status: 413 });

@@ -6,12 +6,15 @@
  */
 import { db } from "@/lib/db";
 import { sendSystemEmail } from "@/lib/email";
-import { loadSettings, num, str } from "@/lib/settings";
+import { loadSettings, num } from "@/lib/settings";
+import { systemEmailFrom, companyName } from "@/lib/sales/util";
 
 async function main() {
   const settings = await loadSettings();
-  const from = str(settings, "system_email_from");
-  if (!from) { console.log("discovery-reminders: no system_email_from set — skipping."); return; }
+  // Resolve the From via the shared helper so an unset system_email_from falls
+  // back (hr_manager → founder) instead of silently dropping reminders.
+  const from = systemEmailFrom(settings);
+  const company = companyName(settings);
   const hours = num(settings, "discovery_reminder_hours", 24);
   const now = new Date();
   const until = new Date(now.getTime() + hours * 3_600_000);
@@ -40,12 +43,13 @@ async function main() {
       if (to.length) {
         await sendSystemEmail({
           from, to,
-          subject: `Reminder: discovery call — ${d.orgName}`,
+          subject: `Reminder: your discovery call with ${company} — ${d.orgName}`,
           body:
-            `This is a friendly reminder of your upcoming discovery call.\n\n` +
+            `Hi from the ${company} team — this is a friendly reminder of your upcoming discovery call.\n\n` +
             `  ${when}\n` +
             (d.discoveryCallVideoUrl ? `  Join: ${d.discoveryCallVideoUrl}\n` : "") +
-            `\nSee you soon!`,
+            `\nWe're looking forward to it. If you need to reschedule, just reply to this email.\n\n` +
+            `With you in the mission,\nThe ${company} team\nhttps://purewaterautomations.com`,
         });
       }
       console.log(`  ✓ reminded ${d.orgName}`);

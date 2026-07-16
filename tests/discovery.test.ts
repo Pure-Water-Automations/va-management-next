@@ -46,8 +46,14 @@ test("invalid email is rejected", () => {
 });
 
 test("optional fields can be blank", () => {
-  const r = validateDiscovery({ ...base, phone: "", painMore: "", triedBefore: "" });
+  const r = validateDiscovery({ ...base, phone: "", painMore: "", triedBefore: "", availability: "" });
   assert.equal(r.ok, true);
+});
+
+test("optional call availability is retained in validated discovery answers", () => {
+  const r = validateDiscovery({ ...base, availability: "Tuesdays after 3 PM Eastern" });
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.answers.availability, "Tuesdays after 3 PM Eastern");
 });
 
 test("dealFieldsFromAnswers maps org/contact + promoted columns", () => {

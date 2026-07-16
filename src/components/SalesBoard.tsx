@@ -21,6 +21,7 @@ export type DealRow = {
   leadVerdict: string | null;
   leadScore: number | null;
   leadSummary: string | null;
+  attachmentKeys: string[];
   discoveryCallAt: string | null;
   discoveryCallStatus: string | null;
   discoveryNotesJson: Partial<DiscoveryNotes> | null;
@@ -68,6 +69,11 @@ function dealValueLabel(d: DealRow): string | null {
   if (d.billingType === "retainer") return `${v}/mo`;
   if (d.billingType === "hourly") return `${v}/hr`;
   return v;
+}
+
+function attachmentName(key: string): string {
+  const leaf = key.split("/").pop() || "attachment";
+  return leaf.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-/i, "") || "attachment";
 }
 
 type NextAction = { label: string; op?: string; href?: string; finance?: boolean; needsEmail?: boolean };
@@ -409,6 +415,22 @@ function DealDrawer({ deal, canFinance, busy, run, onPreview }: { deal: DealRow;
         </div>
       )}
       {deal.leadSummary && <div style={{ fontSize: 13, color: "var(--color-text-secondary,#666)" }}>{deal.leadSummary}</div>}
+      {deal.attachmentKeys.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "100px minmax(0, 1fr)", gap: 8, fontSize: 13 }}>
+          <span style={{ color: "var(--color-text-secondary,#666)" }}>Attachments</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+            {deal.attachmentKeys.map((key, index) => (
+              <a
+                key={key}
+                href={`/api/discover/attachment/download?dealId=${encodeURIComponent(deal.id)}&index=${index}`}
+                style={{ color: "var(--color-sky-700,#087eaa)", overflowWrap: "anywhere" }}
+              >
+                📎 {attachmentName(key)}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
       {deal.discoveryCallAt && <div>{callChip(deal)}</div>}
 
       <ClosingTimeline deal={deal} />
