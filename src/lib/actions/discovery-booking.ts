@@ -23,6 +23,13 @@ import {
 } from "@/lib/discovery-booking";
 import { resolveRepCalendar, connectedReps } from "@/lib/calendar-connection";
 import { freeBusy, createEvent, updateEventTime, deleteEvent } from "@/lib/google/calendar";
+import {
+  createZoomMeeting,
+  updateZoomMeetingTime,
+  deleteZoomMeeting,
+  resolveDiscoveryZoom,
+} from "@/lib/zoom/meetings";
+import { systemEmailFrom } from "@/lib/sales/util";
 
 export class BookingError extends Error {}
 
@@ -208,6 +215,7 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
   const prevRepEmail = deal.discoveryRepEmail;
   const prevEventId = deal.discoveryCalEventId;
   const prevCalId = deal.discoveryCalId;
+  const prevZoomMeetingId = deal.discoveryZoomMeetingId;
 
   try {
     await db.deal.update({
@@ -232,47 +240,125 @@ export async function bookDiscoveryCall(token: string, startIso: string) {
 
   const company = str(settings, "company_name", "Pure Water Automations");
   const label = formatSlot(slot.startIso, opts, tzLabel);
+  const durationMin = opts.slotMinutes ?? 30;
 
-  // Best-effort Google Calendar event (with a Meet link). On reschedule, move the
-  // existing event; if the rep changed, remove the old event first. The .ics email
-  // below is always the durable fallback, so a Google failure never breaks booking.
+  // Best-effort video + calendar provisioning. Zoom supplies the preferred join
+  // link; Google Calendar still owns the invite and supplies Meet as the fallback.
+  // The .ics email below remains the durable fallback if either provider fails.
   let calEventId = prevEventId;
   let calId = prevCalId;
+  let zoomMeetingId = prevZoomMeetingId;
+  let zoomVideoUrl: string | null = null;
   try {
-    // Outer bound so a sequence of Google calls can't hang the booking request
-    // (each call also has its own gaxios HTTP timeout).
+    // Outer bound so a sequence of provider calls can't hang the booking request.
     await withTimeout((async () => {
+      try {
+        const zoom = await resolveDiscoveryZoom();
+        if (zoom) {
+          const sameMeeting = wasBooked && !!prevZoomMeetingId && !!deal.discoveryCallVideoUrl
+            && prevRepEmail?.toLowerCase() === slot.repEmail.toLowerCase();
+          if (sameMeeting) {
+            await updateZoomMeetingTime(zoom.auth, prevZoomMeetingId!, slot.startIso, durationMin);
+            zoomVideoUrl = deal.discoveryCallVideoUrl;
+          } else {
+            if (wasBooked && prevZoomMeetingId) {
+              await deleteZoomMeeting(zoom.auth, prevZoomMeetingId).catch((err) => {
+                console.warn("[discovery-booking] Old Zoom meeting delete failed; creating its replacement:", err instanceof Error ? err.message : err);
+              });
+            }
+            const created = await createZoomMeeting(zoom.auth, {
+              topic: `Discovery call — ${company} × ${deal.orgName}`,
+              startIso: slot.startIso,
+              durationMin,
+              timezone: opts.tz || "UTC",
+            });
+            zoomMeetingId = created.id;
+            zoomVideoUrl = created.joinUrl;
+          }
+          videoUrl = zoomVideoUrl;
+          await db.deal.update({
+            where: { id: deal.id },
+            data: { discoveryZoomMeetingId: zoomMeetingId, discoveryCallVideoUrl: videoUrl },
+          });
+        } else {
+          console.warn("[discovery-booking] Zoom unavailable; falling back to Google Meet.");
+        }
+      } catch (err) {
+        zoomVideoUrl = null;
+        console.warn("[discovery-booking] Zoom failed; falling back to Google Meet:", err instanceof Error ? err.message : err);
+      }
+
       const cal = await resolveRepCalendar(slot.repEmail);
-      if (!cal) return;
-      const sameEvent = wasBooked && !!prevEventId && prevCalId === cal.calendarId && prevRepEmail?.toLowerCase() === slot.repEmail.toLowerCase();
+      if (!cal) {
+        if (!zoomVideoUrl) {
+          console.warn(`[discovery-booking] Google Meet unavailable; falling back to ${videoUrl ? "the configured video link" : "no video link"}.`);
+        }
+        return;
+      }
+      const sameProvider = !!prevZoomMeetingId === !!zoomVideoUrl;
+      const sameEvent = wasBooked && !!prevEventId && prevCalId === cal.calendarId
+        && prevRepEmail?.toLowerCase() === slot.repEmail.toLowerCase() && sameProvider;
       if (sameEvent) {
         await updateEventTime(cal.auth, cal.calendarId, prevEventId!, slot.startIso, slot.endIso);
-        // patch keeps the existing Meet link — preserve it as the video URL.
-        if (deal.discoveryCallVideoUrl) videoUrl = deal.discoveryCallVideoUrl;
+        // A time patch keeps the existing Zoom location or Meet link.
+        if (!zoomVideoUrl && deal.discoveryCallVideoUrl) videoUrl = deal.discoveryCallVideoUrl;
       } else {
         if (wasBooked && prevEventId && prevCalId && prevRepEmail) {
           const oldCal = await resolveRepCalendar(prevRepEmail).catch(() => null);
           if (oldCal) await deleteEvent(oldCal.auth, prevCalId, prevEventId).catch(() => {});
         }
-        const created = await createEvent(cal.auth, cal.calendarId, {
+        const eventInput = {
           summary: `Discovery call — ${company} × ${deal.orgName}`,
-          description: "A free 30-minute discovery call to map out how we can help.",
+          description: `A free 30-minute discovery call to map out how we can help.${zoomVideoUrl ? `\n\nJoin on Zoom: ${zoomVideoUrl}` : ""}`,
           startIso: slot.startIso,
           endIso: slot.endIso,
           attendees: [deal.contactEmail, slot.repEmail].filter(Boolean) as string[],
-          meetRequestId: randomUUID(),
-        });
+          meetRequestId: zoomVideoUrl ? undefined : randomUUID(),
+          location: zoomVideoUrl || undefined,
+        };
+        const created = await createEvent(
+          cal.auth,
+          cal.calendarId,
+          eventInput as Parameters<typeof createEvent>[2],
+        );
         calEventId = created.eventId || null;
         calId = cal.calendarId;
-        if (created.meetLink) videoUrl = created.meetLink;
+        if (zoomVideoUrl) {
+          if (created.eventId) {
+            // createEvent predates external video providers, so apply the Zoom
+            // location directly while retaining its invite/update behavior.
+            await cal.auth.request({
+              url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.calendarId)}/events/${encodeURIComponent(created.eventId)}`,
+              method: "PATCH",
+              params: { sendUpdates: "none" },
+              data: { location: zoomVideoUrl },
+              timeout: 6000,
+            }).catch((err) => {
+              console.warn("[discovery-booking] Google Calendar Zoom location update failed; the event description still has the link:", err instanceof Error ? err.message : err);
+            });
+          }
+        } else if (created.meetLink) {
+          videoUrl = created.meetLink;
+        } else {
+          console.warn(`[discovery-booking] Google Meet unavailable; falling back to ${videoUrl ? "the configured video link" : "no video link"}.`);
+        }
       }
       await db.deal.update({
         where: { id: deal.id },
-        data: { discoveryCalEventId: calEventId, discoveryCalId: calId, ...(videoUrl ? { discoveryCallVideoUrl: videoUrl } : {}) },
+        data: {
+          discoveryCalEventId: calEventId,
+          discoveryCalId: calId,
+          discoveryZoomMeetingId: zoomMeetingId,
+          ...(videoUrl ? { discoveryCallVideoUrl: videoUrl } : {}),
+        },
       });
     })(), 12_000);
-  } catch {
-    /* best-effort — the .ics email is the durable invite */
+  } catch (err) {
+    if (!zoomVideoUrl) {
+      console.warn(`[discovery-booking] Google Meet failed; falling back to ${videoUrl ? "the configured video link" : "no video link"}:`, err instanceof Error ? err.message : err);
+    } else {
+      console.warn("[discovery-booking] Google Calendar event failed; the Zoom link remains active:", err instanceof Error ? err.message : err);
+    }
   }
 
   await logActivity({
@@ -300,7 +386,18 @@ export async function cancelDiscoveryCall(token: string) {
   const startIso = deal.discoveryCallAt.toISOString();
   const endIso = (deal.discoveryCallEndAt ?? deal.discoveryCallAt).toISOString();
 
-  // Best-effort: remove the Google Calendar event so the rep's calendar clears.
+  // Best-effort: delete the Zoom meeting and remove the Google Calendar event.
+  if (deal.discoveryZoomMeetingId) {
+    try {
+      await withTimeout((async () => {
+        const zoom = await resolveDiscoveryZoom();
+        if (zoom) await deleteZoomMeeting(zoom.auth, deal.discoveryZoomMeetingId!);
+        else console.warn("[discovery-booking] Zoom cancellation skipped: no active connection.");
+      })(), 8000);
+    } catch (err) {
+      console.warn("[discovery-booking] Zoom cancellation failed (best-effort):", err instanceof Error ? err.message : err);
+    }
+  }
   if (deal.discoveryCalEventId && deal.discoveryCalId) {
     try {
       await withTimeout((async () => {
@@ -320,6 +417,7 @@ export async function cancelDiscoveryCall(token: string) {
       discoveryCallEndAt: null,
       discoveryCalEventId: null,
       discoveryCalId: null,
+      discoveryZoomMeetingId: null,
       discoveryReminderSentAt: null,
       // only step the pipeline back if it was sitting at discovery_scheduled
       ...(deal.stage === "discovery_scheduled" ? { stage: "new" as const } : {}),
@@ -328,9 +426,9 @@ export async function cancelDiscoveryCall(token: string) {
   });
   await logActivity({ source: "sales", eventType: "discovery_call_cancelled", severity: "warning", summary: `${deal.orgName}: discovery call cancelled` });
 
-  const from = str(settings, "system_email_from");
+  const from = systemEmailFrom(settings);
   const to = [deal.contactEmail, deal.discoveryRepEmail].filter(Boolean) as string[];
-  if (from && to.length) {
+  if (to.length) {
     const company = str(settings, "company_name", "Pure Water Automations");
     const ics = buildIcs({
       uid: `discovery-${deal.id}@pwa`, method: "CANCEL", sequence: 1,
@@ -342,7 +440,10 @@ export async function cancelDiscoveryCall(token: string) {
     await sendSystemEmail({
       from, to,
       subject: `Discovery call cancelled — ${deal.orgName} (${formatSlot(startIso, opts, tzLabel)})`,
-      body: `The discovery call for ${deal.orgName} has been cancelled.\n\nYou can pick a new time any time using your booking link.`,
+      body:
+        `We're Pure Water Automations, a team helping businesses grow with trained virtual assistants and practical automation.\n\n` +
+        `Your discovery call for ${deal.orgName} has been cancelled. You can choose a new time anytime using your booking link.\n\n` +
+        `Learn more about us at https://purewaterautomations.com.`,
       attachments: [{ filename: "discovery-call-cancelled.ics", content: Buffer.from(ics, "utf8"), mimeType: "text/calendar; method=CANCEL" }],
     }).catch(() => {});
   }
@@ -356,8 +457,7 @@ async function sendBookingEmails(
     repEmail: string; startIso: string; endIso: string; videoUrl: string | null; label: string; rescheduled: boolean;
   },
 ) {
-  const from = str(settings, "system_email_from");
-  if (!from) return;
+  const from = systemEmailFrom(settings);
   const company = str(settings, "company_name", "Pure Water Automations");
   const ics = buildIcs({
     uid: `discovery-${b.dealId}@pwa`, sequence: b.rescheduled ? 1 : 0,
@@ -376,14 +476,20 @@ async function sendBookingEmails(
       subject: `Your discovery call is ${verb} — ${b.label}`,
       body:
         `Hi${b.leadName ? ` ${b.leadName}` : ""},\n\n` +
-        `Your free discovery call with ${company} is ${verb}:\n\n  ${b.label}\n` +
+        `We're ${company}, a team helping businesses grow with trained virtual assistants and practical automation.\n\n` +
+        `Your free discovery call is ${verb}:\n\n  ${b.label}\n` +
         (b.videoUrl ? `  Join here: ${b.videoUrl}\n` : "") +
-        `\nWe've attached a calendar invite. See you then!\n\n— ${company}`,
+        `\nWe've attached a calendar invite. We look forward to learning about your goals and where we can help.\n\n` +
+        `Learn more at https://purewaterautomations.com.\n\n— ${company}`,
     });
   }
   await sendSystemEmail({
     from, to: b.repEmail, attachments,
     subject: `Discovery call ${verb}: ${b.orgName} — ${b.label}`,
-    body: `${b.orgName} ${b.rescheduled ? "moved" : "booked"} a discovery call.\n\n  ${b.label}\n  Lead: ${b.leadName ?? b.leadEmail ?? "—"}\n${b.videoUrl ? `  Join: ${b.videoUrl}\n` : ""}`,
+    body:
+      `${b.orgName} ${b.rescheduled ? "rescheduled" : "booked"} a discovery call with PWA.\n\n` +
+      `  ${b.label}\n  Lead: ${b.leadName ?? b.leadEmail ?? "—"}\n` +
+      (b.videoUrl ? `  Join: ${b.videoUrl}\n` : "") +
+      `\nPlease review the lead details and come ready to map the clearest next step.`,
   });
 }
