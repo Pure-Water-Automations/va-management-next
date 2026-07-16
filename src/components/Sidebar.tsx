@@ -187,8 +187,9 @@ export function Sidebar({
         )}
 
         {/* CEO / CFO view — financial monitoring, gated by isCeo() (email allowlist,
-            Justin by default). Nav link visible only for CEO emails. */}
-        {showCeo && (
+            Justin by default). Shown only in the ADMIN console (where all-access users
+            land), not while previewing "View as → HR/Payroll/etc." */}
+        {showCeo && view === "ADMIN" && (
           <NavGroup label="Leadership">
             <NavItemLink href="/ceo" label="CEO / CFO view" icon={<IconBarChart />} />
           </NavGroup>
