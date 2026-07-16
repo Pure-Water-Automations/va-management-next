@@ -115,6 +115,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     ? await db.meetingAction.count({ where: { status: "PENDING", items: { some: { status: "PENDING" } } } })
     : 0;
 
+  // Sales nav badge: follow-ups due today or overdue.
+  let navBadges: Record<string, number> = {};
+  if (view === "SALES") {
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    const followupsDue = await db.salesFollowUp.count({ where: { doneAt: null, due: { lte: endOfToday } } });
+    navBadges = { "/sales/followups": followupsDue };
+  }
+
   const userName = user.name ?? user.email;
   const roleLabel =
     impersonatedRoleLabel ??
@@ -169,6 +178,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           view={view}
           role={user.role}
           name={userName}
+          navBadges={navBadges}
           showMeetingActions={showMeetingActions}
           meetingActionsCount={meetingActionsCount}
           showCeo={showCeo}
