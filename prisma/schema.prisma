@@ -1401,6 +1401,8 @@ model Deal {
   agreement         ClientAgreement?
   wonAt              DateTime? // stamped once when the deal first hits "won"
   upgradeOfAccountId String? // set on upgrade deals: the ClientAccount being grown
+  discoveryZoomMeetingId String? // Zoom meeting backing the discovery call (join link is discoveryCallVideoUrl)
+  attachmentKeys     Json                @default("[]") // R2 keys of lead-attached files: discovery/{dealId}/…
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
