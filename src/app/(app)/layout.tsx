@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser, getEffectiveView, getEffectiveVaId, isFounder, isBetaOn, isAllAccess, isCeo } from "@/lib/auth/access";
 import { canUserDelegateTasks, canVaDelegateTasks, canUserReviewMeetingActions, canVaReviewMeetingActions } from "@/lib/auth/delegation";
 import { db } from "@/lib/db";
 import { getNotifications } from "@/lib/inbox";
+import { logPageView } from "@/lib/pageview";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { VaTopNav } from "@/components/VaTopNav";
@@ -45,6 +47,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   const view = await getEffectiveView(user);
   if (view === "CLIENT") redirect("/client");
+
+  const path = (await headers()).get("x-pathname") ?? "";
+  await logPageView({ path, userId: user.id, vaId: user.vaId, role: user.role, view });
   let adminVas: { vaId: string; name: string }[] = [];
   let impersonatedVaId: string | null = null;
   if (isAllAccess(user)) {

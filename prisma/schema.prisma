@@ -840,6 +840,22 @@ model SyncRun {
   @@index([worker])
 }
 
+// Console usage analytics — one row per authenticated page render, logged from the
+// (app) layout (the one choke point every console route passes through).
+model PageView {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  path      String
+  userId    String?
+  vaId      String?
+  role      String?
+  view      String?
+
+  @@index([timestamp])
+  @@index([path])
+  @@index([userId])
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   timestamp  DateTime @default(now())

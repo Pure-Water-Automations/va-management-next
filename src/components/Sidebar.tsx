@@ -46,6 +46,8 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
         { href: "/admin/zoom", label: "Zoom", icon: <IconVideo /> },
         { href: "/admin/users", label: "Users", icon: <IconUsers /> },
         { href: "/admin/mcp-tokens", label: "MCP Tokens", icon: <IconShieldCheck /> },
+        { href: "/admin/usage", label: "Console Usage", icon: <IconBarChart /> },
+        { href: "/admin/coaching", label: "Capacity Coaching", icon: <IconAlertTriangle /> },
       ],
     },
     {
