@@ -118,13 +118,16 @@ const NAV: Record<string, { label: string; items: NavItem[] }[]> = {
       label: "Sales",
       items: [
         { href: "/sales", label: "Pipeline", icon: <IconBriefcase /> },
+        { href: "/sales/followups", label: "Follow-ups", icon: <IconListChecks /> },
         { href: "/sales/calendar", label: "Calendar", icon: <IconCalendarCheck /> },
+        { href: "/sales/templates", label: "Email Templates", icon: <IconMail /> },
       ],
     },
     {
       // Client management moved here from HR.
       label: "Clients",
       items: [
+        { href: "/sales/clients", label: "Client Accounts", icon: <IconBuilding /> },
         { href: "/hr/client-onboarding", label: "Onboarding", icon: <IconHandshake /> },
         { href: "/hr/clients", label: "Organizations", icon: <IconBuilding /> },
         { href: "/hr/requests", label: "Client Requests", icon: <IconMessageSquare /> },
@@ -147,6 +150,7 @@ export function Sidebar({
   view,
   role,
   name,
+  navBadges = {},
   showMeetingActions = false,
   meetingActionsCount = 0,
   showCeo = false,
@@ -154,6 +158,7 @@ export function Sidebar({
   view: ConsoleView;
   role: Role;
   name: string;
+  navBadges?: Record<string, number>;
   showMeetingActions?: boolean;
   meetingActionsCount?: number;
   showCeo?: boolean;
@@ -176,7 +181,7 @@ export function Sidebar({
         {sections.map((section) => (
           <NavGroup key={section.label} label={section.label}>
             {section.items.map((item) => (
-              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+              <NavItemLink key={item.href} href={item.href} label={item.label} icon={item.icon} badge={navBadges[item.href]} />
             ))}
           </NavGroup>
         ))}

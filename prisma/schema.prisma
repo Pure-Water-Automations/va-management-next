@@ -1399,6 +1399,8 @@ model Deal {
   clientOrgId       String?             @unique // set when Won → client org created
   clientOrg         ClientOrganization? @relation(fields: [clientOrgId], references: [id])
   agreement         ClientAgreement?
+  wonAt              DateTime? // stamped once when the deal first hits "won"
+  upgradeOfAccountId String? // set on upgrade deals: the ClientAccount being grown
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -1540,4 +1542,52 @@ model ClientProjectMap {
   createdByEmail String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ── Sales console (Follow-ups / Client Accounts / Email Templates) ──────
+
+model SalesFollowUp {
+  id        String    @id @default(cuid())
+  due       DateTime
+  title     String
+  detail    String    @default("")
+  kind      String    @default("email") // call | email | check-in | proposal | payment
+  refType   String? // "deal" | "client"
+  refId     String?
+  doneAt    DateTime? // Done rows are hidden, not deleted
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([doneAt, due])
+}
+
+model SalesEmailTemplate {
+  id        String   @id @default(cuid())
+  cat       String // discovery | proposal | payment | checkin | upgrade | reengage | testimonial | referral
+  title     String
+  purpose   String   @default("")
+  body      String
+  sort      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model ClientAccount {
+  id            String   @id @default(cuid())
+  org           String
+  contact       String   @default("")
+  email         String   @default("")
+  pkg           String   @default("Custom")
+  price         Float    @default(0) // effective $/month (Hourly stores month total)
+  hoursUsed     Float    @default(0) // current month
+  since         DateTime @default(now())
+  lastTouch     DateTime @default(now())
+  ownerEmail    String   @default("")
+  health        String   @default("new") // good | growing | watch | new
+  checkinDue    Boolean  @default(false)
+  testimonial   String   @default("none") // none | torequest | requested | received | published
+  upgradeDealId String? // open upgrade Deal in the pipeline
+  clientOrgId   String?  @unique
+  timeline      Json     @default("[]") // [{ date, type: call|email|note|checkin, note }]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
