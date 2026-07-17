@@ -78,7 +78,9 @@ export function AgreementPreviewModal({
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        zIndex: 50,
+        // Above the deal Drawer (zIndex 91) — the modal is always opened from
+        // inside the open drawer, so it must sit on top of it, not behind.
+        zIndex: 100,
       }}
     >
       <div
