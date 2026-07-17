@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { ActionButton } from "@/components/ActionButton";
 import { ApplicationDetails } from "@/components/ApplicationDetails";
 import { ScreeningPanel } from "@/components/ScreeningPanel";
+import { env } from "@/lib/env";
+import { TrialQueue } from "./trial/TrialQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -192,6 +194,9 @@ export default async function GateReviewPage() {
           );
         })
       )}
+
+      {/* Skills Trial V2 review queue — additive, only when the flag is on. */}
+      {env.SKILLS_TRIAL_V2 && <TrialQueue />}
     </>
   );
 }
