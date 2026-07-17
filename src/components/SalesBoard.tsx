@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { NOTE_TEXT_FIELDS, BUYING_SIGNALS, DECISION_TYPES, type DiscoveryNotes } from "@/lib/discovery-notes";
+import { PACKAGES } from "@/lib/sales/packages";
 import { AgreementPreviewModal } from "@/components/AgreementPreviewModal";
 
 export type DealRow = {
@@ -532,7 +533,18 @@ function DiscoveryNotesPanel({ deal, busy, onSave }: { deal: DealRow; busy: bool
       {NOTE_TEXT_FIELDS.map((field) => (
         <label key={field.key} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, gridColumn: field.long ? "1 / -1" : "auto" }}>
           <span style={{ color: "var(--color-text-secondary,#666)" }}>{field.label}</span>
-          {field.long ? <textarea value={f[field.key] ?? ""} onChange={set(field.key)} rows={2} style={notesInput} /> : <input value={f[field.key] ?? ""} onChange={set(field.key)} style={notesInput} />}
+          {field.key === "recommendedPackage" ? (
+            // Dropdown, not free text: the value must match a ladder package name
+            // so the price auto-fills on convert (a typo would leave $0).
+            <select value={f[field.key] ?? ""} onChange={set(field.key)} style={notesInput}>
+              <option value="">—</option>
+              {PACKAGES.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+            </select>
+          ) : field.long ? (
+            <textarea value={f[field.key] ?? ""} onChange={set(field.key)} rows={2} style={notesInput} />
+          ) : (
+            <input value={f[field.key] ?? ""} onChange={set(field.key)} style={notesInput} />
+          )}
         </label>
       ))}
       <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
@@ -573,7 +585,7 @@ function NewDealForm({ onCreate, busy }: { onCreate: (b: Record<string, unknown>
       <Field label="Contact name"><input value={f.contactName ?? ""} onChange={set("contactName")} style={notesInput} /></Field>
       <Field label="Contact email"><input value={f.contactEmail ?? ""} onChange={set("contactEmail")} style={notesInput} /></Field>
       <Field label="Account owner email"><input value={f.accountOwnerEmail ?? ""} onChange={set("accountOwnerEmail")} style={notesInput} /></Field>
-      <Field label="Package"><input value={f.packageName ?? ""} onChange={set("packageName")} style={notesInput} /></Field>
+      <Field label="Package"><select value={f.packageName ?? ""} onChange={set("packageName")} style={notesInput}><option value="">—</option>{PACKAGES.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}</select></Field>
       <Field label="Deal value (USD)"><input value={f.dealValue ?? ""} onChange={set("dealValue")} inputMode="numeric" style={notesInput} /></Field>
       <Field label="Billing type">
         <select value={f.billingType ?? ""} onChange={set("billingType")} style={notesInput}>
