@@ -33,6 +33,15 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: optionalEnvString(z.string()),
   OPENROUTER_BASE_URL: optionalEnvString(z.string()),
   OPENROUTER_MATRIX_MODEL: optionalEnvString(z.string()),
+  // Skills Trial V2 (simulated work week) — feature flag + persona AI model.
+  SKILLS_TRIAL_V2: z.preprocess((value) => {
+    if (typeof value !== "string" || value.trim() === "") return false; // default OFF
+    return ["true", "1", "on", "yes"].includes(value.trim().toLowerCase());
+  }, z.boolean()),
+  TRIAL_AI_MODEL: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().default("google/gemini-2.5-flash-lite"),
+  ),
   // Model for the transcript-to-tasks worker's action-item extraction. Defaults
   // to google/gemini-2.5-flash-lite in the worker when unset.
   OPENROUTER_TRANSCRIPT_MODEL: optionalEnvString(z.string()),
