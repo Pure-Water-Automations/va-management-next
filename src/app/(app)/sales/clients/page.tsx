@@ -5,10 +5,12 @@ import { ClientAccountsClient } from "@/components/sales/ClientAccountsClient";
 export const dynamic = "force-dynamic";
 
 // Sales — Client accounts: the relationship after the win.
-// `?account=<id>` deep-links straight into that client's drawer.
-export default async function SalesClientAccountsPage({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
+// `?account=<id>` deep-links straight into that client's drawer;
+// `?preset=note|checkin` focuses the log field or the Schedule check-in button.
+export default async function SalesClientAccountsPage({ searchParams }: { searchParams: Promise<{ account?: string; preset?: string }> }) {
   await requireSalesUser();
-  const { account } = await searchParams;
+  const { account, preset } = await searchParams;
+  const openPreset = preset === "note" || preset === "checkin" ? preset : null;
   const accounts = await loadClientAccounts();
   return (
     <>
@@ -22,7 +24,7 @@ export default async function SalesClientAccountsPage({ searchParams }: { search
           </p>
         </div>
       </div>
-      <ClientAccountsClient accounts={accounts} openAccountId={account ?? null} />
+      <ClientAccountsClient accounts={accounts} openAccountId={account ?? null} openPreset={openPreset} />
     </>
   );
 }

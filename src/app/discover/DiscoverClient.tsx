@@ -10,6 +10,7 @@ import {
 } from "@/lib/discovery-questions";
 import { validateDiscoveryAttachments } from "@/lib/discovery-attachment-validation";
 import { putToR2 } from "@/lib/upload-client";
+import { useDraft } from "@/lib/use-draft";
 import { BookingPicker } from "./BookingPicker";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -18,6 +19,11 @@ type Props = {
   adminCostRate: number;
   bookingUrl: string | null;
   testimonial: string | null;
+};
+
+type DiscoverDraft = {
+  answers: Record<string, string>;
+  idx: number;
 };
 
 export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props) {
@@ -35,6 +41,11 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   const [bookingToken, setBookingToken] = useState<string | null>(null);
   const [bookedLabel, setBookedLabel] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const draftState = useMemo(() => ({ answers, idx }), [answers, idx]);
+  const draft = useDraft<DiscoverDraft>("pwa_discover_draft", draftState, (saved) => {
+    setAnswers(saved.answers);
+    setIdx(saved.idx);
+  });
 
   const visible = useMemo(() => questions.filter((q) => isVisible(q, answers)), [questions, answers]);
   const clamped = Math.min(idx, Math.max(0, visible.length - 1));
@@ -111,6 +122,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     }).then((r) => r.json()).catch(() => ({ ok: false, error: "Network error — please try again." }));
     setSubmitting(false);
     if (!res.ok) { setError(res.error || "Something went wrong. Please try again."); return; }
+    draft.discard();
     setBookingToken(res.result?.bookingToken ?? null);
     if (files.length > 0) {
       setAttachmentNotice("Uploading your attachments…");
@@ -195,6 +207,17 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     }
   }
 
+  function startOver() {
+    draft.discard();
+    setAnswers({});
+    setIdx(0);
+    setError("");
+    setShowCost(false);
+    setShowAttachments(false);
+  }
+
+  const draftBanner = draft.hasDraft ? <DraftBanner onResume={draft.resume} onStartOver={startOver} /> : null;
+
   if (done) {
     // Already-booked confirmation.
     if (bookedLabel) {
@@ -249,6 +272,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
     const cost = estimateAdminCost(answers.hoursPerWeek ?? "", adminCostRate);
     return (
       <div style={page}>
+        {draftBanner}
         <div style={progressTrack}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
         <div style={{ ...card, textAlign: "center", alignItems: "center" }}>
           <div style={qNum}>Here&apos;s what that&apos;s costing</div>
@@ -268,6 +292,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
   if (showAttachments) {
     return (
       <div style={page}>
+        {draftBanner}
         <div style={progressTrack}><div style={{ ...progressBar, width: "100%" }} /></div>
         <div style={card}>
           <div style={qNum}>Optional final step</div>
@@ -307,6 +332,7 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
 
   return (
     <div style={page}>
+      {draftBanner}
       <div style={progressTrack}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
       <div style={card}>
         <div style={qNum}>{clamped + 1} <span style={{ opacity: 0.5 }}>of {total}</span></div>
@@ -330,6 +356,19 @@ export function DiscoverClient({ adminCostRate, bookingUrl, testimonial }: Props
         </div>
       </div>
       <div style={brand}>Pure Water Automations · Refreshing leaders. Removing burdens.</div>
+    </div>
+  );
+}
+
+function DraftBanner({ onResume, onStartOver }: { onResume: () => void; onStartOver: () => void }) {
+  return (
+    <div role="status" style={draftBannerStyle}>
+      <style>{"@keyframes discoverDraftSlideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }"}</style>
+      <span>Welcome back — resume where you left off?</span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onResume} style={draftResumeBtn}>Resume</button>
+        <button onClick={onStartOver} style={draftStartOverBtn}>Start over</button>
+      </div>
     </div>
   );
 }
@@ -424,7 +463,7 @@ function MultiSelect({
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
         {options.map((opt) => {
           const on = selected.includes(opt);
           return (
@@ -471,6 +510,9 @@ const errStyle: CSSProperties = { marginTop: 12, color: "var(--color-error, #b42
 const brand: CSSProperties = { marginTop: 20, fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", letterSpacing: "0.04em" };
 const quote: CSSProperties = { marginTop: 20, fontStyle: "italic", color: "var(--color-text-secondary)", fontSize: "var(--text-md)", maxWidth: 440, borderLeft: "3px solid var(--color-sky-300)", paddingLeft: 14, textAlign: "left" };
 const attachmentNoticeStyle: CSSProperties = { marginTop: 12, maxWidth: 480, padding: "10px 12px", borderRadius: 10, background: "var(--color-sky-50)", color: "var(--color-text-secondary)", fontSize: "var(--text-sm)", textAlign: "left" };
+const draftBannerStyle: CSSProperties = { width: "100%", maxWidth: 640, marginBottom: 14, padding: "12px 16px", border: "1px solid var(--color-sky-200)", borderRadius: 12, background: "var(--color-surface)", boxShadow: "var(--shadow-md)", color: "var(--color-navy-900)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", fontSize: "var(--text-sm)", animation: "discoverDraftSlideDown 0.25s ease-out" };
+const draftResumeBtn: CSSProperties = { border: "none", borderRadius: 9999, padding: "8px 14px", background: "var(--color-navy-900, #132272)", color: "#fff", fontWeight: 700, cursor: "pointer" };
+const draftStartOverBtn: CSSProperties = { border: "1px solid var(--color-border)", borderRadius: 9999, padding: "8px 14px", background: "transparent", color: "var(--color-text-secondary)", cursor: "pointer" };
 function navBtn(disabled: boolean): CSSProperties {
   return { width: 38, height: 38, borderRadius: 8, border: "1px solid var(--color-border)", background: disabled ? "var(--color-bg-tertiary)" : "var(--color-navy-900, #132272)", color: disabled ? "var(--color-text-tertiary)" : "#fff", cursor: disabled ? "default" : "pointer", fontSize: 16, fontWeight: 700 };
 }

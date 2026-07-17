@@ -42,6 +42,11 @@ export default async function RecruitmentConsole() {
   const canDecide = canDecideHire(user.role) || user.isAdmin;
   const canRecruit = isRecruiter(user.role) || user.isAdmin;
   const canGate = isGateReviewer(user.role) || user.isAdmin;
+  const applicationsByEmail = new Map<string, number>();
+  for (const candidate of p.candidates) {
+    const email = candidate.email.trim().toLowerCase();
+    applicationsByEmail.set(email, (applicationsByEmail.get(email) ?? 0) + 1);
+  }
 
   return (
     <>
@@ -107,6 +112,10 @@ export default async function RecruitmentConsole() {
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span className="small">Applied {c.createdAt.toLocaleDateString()}</span>
+                    {applicationBadges(c.applicationJson)}
+                    {(applicationsByEmail.get(c.email.trim().toLowerCase()) ?? 0) > 1 && (
+                      <Badge variant="warning" size="sm">⚠ applied {applicationsByEmail.get(c.email.trim().toLowerCase())}x</Badge>
+                    )}
                     <Badge variant="info">{STAGE_LABEL[c.currentStage] ?? c.currentStage}</Badge>
                   </div>
                   <RecruiterWorkflow
@@ -125,6 +134,29 @@ export default async function RecruitmentConsole() {
           )}
         </div>
       </Card>
+    </>
+  );
+}
+
+function applicationBadges(applicationJson: unknown) {
+  if (!applicationJson || typeof applicationJson !== "object") return null;
+  const answers = applicationJson as Record<string, unknown>;
+  const referralSource = typeof answers.referralSource === "string" ? answers.referralSource.trim() : "";
+  const ffwpuAffiliated = typeof answers.ffwpuAffiliated === "string" ? answers.ffwpuAffiliated.trim().toLowerCase() : "";
+  if (!referralSource && ffwpuAffiliated !== "yes") return null;
+
+  return (
+    <>
+      {referralSource && (
+        <span title={referralSource}>
+          <Badge variant="default" size="sm">
+            📌 {referralSource.length > 28 ? `${referralSource.slice(0, 28)}…` : referralSource}
+          </Badge>
+        </span>
+      )}
+      {ffwpuAffiliated === "yes" && (
+        <Badge variant="primary" size="sm" style={{ background: "var(--color-navy-100)" }}>FFWPU</Badge>
+      )}
     </>
   );
 }

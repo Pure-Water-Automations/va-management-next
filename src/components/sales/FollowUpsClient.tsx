@@ -44,16 +44,23 @@ export function FollowUpsClient({ followUps }: { followUps: FollowUpRow[] }) {
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState("");
   const [due, setDue] = useState(defaultDue);
+  const [query, setQuery] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [snoozeOpenId, setSnoozeOpenId] = useState<string | null>(null);
   const [toastNode, showToast] = useToast();
 
   const groups = useMemo(() => {
-    const sorted = [...items].sort((a, b) => a.due.localeCompare(b.due));
+    const q = query.trim().toLowerCase();
+    const sorted = items
+      .filter((f) => !q || `${f.title} ${f.detail ?? ""}`.toLowerCase().includes(q))
+      .sort((a, b) => a.due.localeCompare(b.due));
     return [
       { key: "overdue", label: "Overdue", dot: "#a32d2d", items: sorted.filter((f) => dayDiff(f.due) < 0) },
       { key: "today", label: "Today", dot: "#0d5e7e", items: sorted.filter((f) => dayDiff(f.due) === 0) },
       { key: "up", label: "Coming up", dot: "#7c7c82", items: sorted.filter((f) => dayDiff(f.due) > 0) },
     ];
-  }, [items]);
+  }, [items, query]);
 
   async function add() {
     if (!title.trim()) { showToast("Give the follow-up a title."); return; }
@@ -70,18 +77,38 @@ export function FollowUpsClient({ followUps }: { followUps: FollowUpRow[] }) {
     }
   }
 
-  function snooze(f: FollowUpRow) {
+  function snooze(f: FollowUpRow, days = 7) {
     const d = new Date(f.due);
-    d.setDate(d.getDate() + 7);
+    d.setDate(d.getDate() + days);
     setItems((p) => p.map((x) => (x.id === f.id ? { ...x, due: d.toISOString() } : x)));
-    showToast("Snoozed one week.");
-    void call({ op: "followup_snooze", id: f.id }).then((res) => { if (!res.ok) { showToast(res.error || "Snooze failed."); router.refresh(); } });
+    setSnoozeOpenId(null);
+    showToast(`Snoozed ${days === 1 ? "one day" : `${days} days`}.`);
+    void call({ op: "followup_snooze", id: f.id, ...(days === 7 ? {} : { days }) }).then((res) => { if (!res.ok) { showToast(res.error || "Snooze failed."); router.refresh(); } });
   }
 
   function done(f: FollowUpRow) {
     setItems((p) => p.filter((x) => x.id !== f.id));
     showToast("Done — nice work.");
     void call({ op: "followup_done", id: f.id }).then((res) => { if (!res.ok) { showToast(res.error || "Failed."); router.refresh(); } });
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function bulkDone() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setItems((current) => current.filter((f) => !selected.has(f.id)));
+    setSelected(new Set());
+    showToast(`${ids.length} follow-up${ids.length === 1 ? "" : "s"} marked done.`);
+    void call({ op: "followup_done_bulk", ids }).then((res) => {
+      if (!res.ok) { showToast(res.error || "Failed."); router.refresh(); }
+    });
   }
 
   function open(f: FollowUpRow) {
@@ -91,7 +118,14 @@ export function FollowUpsClient({ followUps }: { followUps: FollowUpRow[] }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
+          <span style={{ position: "absolute", left: 12, top: 9, color: "var(--color-text-tertiary,#98989d)" }}>⌕</span>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search follow-ups…" style={{ ...input, width: "100%", paddingLeft: 30 }} />
+        </div>
+        <button type="button" onClick={() => { setSelectMode((mode) => !mode); setSelected(new Set()); }} style={selectMode ? solidSmBtn : ghostBtn}>
+          {selectMode ? "Cancel" : "Select"}
+        </button>
         <button type="button" onClick={() => setShowAdd((s) => !s)} style={primaryBtn}>
           {showAdd ? "Cancel" : "+ Add follow-up"}
         </button>
@@ -131,12 +165,23 @@ export function FollowUpsClient({ followUps }: { followUps: FollowUpRow[] }) {
                       <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-navy-900,#132272)" }}>{f.title}</div>
                       {f.detail && <div style={{ fontSize: 12, color: "var(--color-text-tertiary,#98989d)", marginTop: 2 }}>{f.detail}</div>}
                     </div>
+                    {selectMode && (
+                      <input type="checkbox" checked={selected.has(f.id)} onChange={() => toggleSelected(f.id)} aria-label={`Select ${f.title}`} style={{ width: 18, height: 18 }} />
+                    )}
                     <span style={{ fontSize: 12, whiteSpace: "nowrap", ...when.style }}>{when.text}</span>
                     <div style={{ display: "flex", gap: 8 }}>
                       {f.refType && f.refId && (
                         <button type="button" onClick={() => open(f)} style={ghostBtn}>Open</button>
                       )}
-                      <button type="button" onClick={() => snooze(f)} style={ghostBtn}>Snooze</button>
+                      <div style={{ display: "flex", position: "relative" }}>
+                        <button type="button" onClick={() => snooze(f)} style={{ ...ghostBtn, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}>Snooze</button>
+                        <button type="button" onClick={() => setSnoozeOpenId((id) => id === f.id ? null : f.id)} aria-label="Choose snooze duration" style={{ ...ghostBtn, borderLeft: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, padding: "7px 8px" }}>▾</button>
+                        {snoozeOpenId === f.id && (
+                          <div style={snoozeMenu}>
+                            {[1, 3, 7, 14].map((days) => <button key={days} type="button" onClick={() => snooze(f, days)} style={menuBtn}>+{days}d</button>)}
+                          </div>
+                        )}
+                      </div>
                       <button type="button" onClick={() => done(f)} style={solidSmBtn}>Done</button>
                     </div>
                   </div>
@@ -146,6 +191,13 @@ export function FollowUpsClient({ followUps }: { followUps: FollowUpRow[] }) {
           )}
         </section>
       ))}
+
+      {selectMode && selected.size > 0 && (
+        <div style={bulkFooter}>
+          <span>{selected.size} selected</span>
+          <button type="button" onClick={bulkDone} style={solidSmBtn}>Mark done</button>
+        </div>
+      )}
 
       {toastNode}
     </div>
@@ -158,3 +210,6 @@ const solidSmBtn: CSSProperties = { border: "none", borderRadius: 9999, padding:
 const ghostBtn: CSSProperties = { border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 9999, padding: "7px 14px", background: "var(--color-surface,#fff)", color: "var(--color-navy-900,#132272)", fontWeight: 600, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" };
 const input: CSSProperties = { border: "1px solid var(--color-border,#ccc)", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 13 };
 const countPill: CSSProperties = { fontSize: 12, fontWeight: 700, color: "var(--color-text-tertiary,#98989d)", background: "var(--color-surface,#fff)", border: "1px solid var(--color-border-subtle,#e8e8ed)", borderRadius: 999, padding: "1px 8px" };
+const snoozeMenu: CSSProperties = { position: "absolute", zIndex: 2, top: "calc(100% + 5px)", right: 0, display: "flex", gap: 4, padding: 5, background: "var(--color-surface,#fff)", border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,.12)" };
+const menuBtn: CSSProperties = { border: "none", background: "transparent", color: "var(--color-navy-900,#132272)", padding: "5px 7px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
+const bulkFooter: CSSProperties = { position: "sticky", bottom: 12, zIndex: 3, display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, padding: "10px 14px", background: "var(--color-navy-900,#132272)", color: "#fff", borderRadius: 10, boxShadow: "0 4px 16px rgba(19,34,114,.22)", fontSize: 13, fontWeight: 600 };

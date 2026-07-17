@@ -31,6 +31,8 @@ export async function loadSalesRows(): Promise<DealRow[]> {
     discoveryCallAt: d.discoveryCallAt ? d.discoveryCallAt.toISOString() : null,
     discoveryCallStatus: d.discoveryCallStatus,
     discoveryNotesJson: (d.discoveryNotesJson as DealRow["discoveryNotesJson"]) ?? null,
+    lastContactAt: d.lastContactAt ? d.lastContactAt.toISOString() : null,
+    createdAt: d.createdAt.toISOString(),
     agreement: d.agreement
       ? { status: d.agreement.status, sent: !!d.agreement.sentAt, signed: !!d.agreement.signedAt, paid: !!d.agreement.paidAt }
       : null,

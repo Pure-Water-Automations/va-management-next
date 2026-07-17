@@ -26,6 +26,8 @@ export type DealRow = {
   discoveryCallAt: string | null;
   discoveryCallStatus: string | null;
   discoveryNotesJson: Partial<DiscoveryNotes> | null;
+  lastContactAt: string | null;
+  createdAt: string;
   agreement: { status: string; sent: boolean; signed: boolean; paid: boolean } | null;
 };
 
@@ -63,6 +65,16 @@ function compactMoney(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
   return `$${n.toLocaleString()}`;
 }
+function validContactEmail(email: string | null): boolean {
+  return !!email && /.+@.+\..+/.test(email);
+}
+function staleDealDays(deal: DealRow): number | null {
+  if (deal.stage === "won" || deal.stage === "lost") return null;
+  const timestamp = Date.parse(deal.lastContactAt ?? deal.createdAt);
+  if (!Number.isFinite(timestamp)) return null;
+  const days = Math.floor((Date.now() - timestamp) / 86400000);
+  return days >= 30 ? days : null;
+}
 /** Per-deal value chip, formatted by billing type ($2,400/mo · $3,500 · $90/hr). */
 function dealValueLabel(d: DealRow): string | null {
   if (d.dealValue == null) return null;
@@ -98,6 +110,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials, openDealId 
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setView] = useState<"board" | "list" | "testimonials">("board");
   const [query, setQuery] = useState("");
+  const [agreementFilter, setAgreementFilter] = useState<"all" | "signature" | "payment" | "won">("all");
   const [showNew, setShowNew] = useState(false);
   // `openDealId` deep-links straight into a deal's drawer (/sales?deal=<id>).
   const [openId, setOpenId] = useState<string | null>(openDealId);
@@ -117,9 +130,15 @@ export function SalesBoard({ deals, canFinance = true, testimonials, openDealId 
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return deals;
-    return deals.filter((d) => `${d.orgName} ${d.contactName ?? ""} ${d.contactEmail ?? ""}`.toLowerCase().includes(q));
-  }, [deals, query]);
+    return deals.filter((d) => {
+      const matchesQuery = !q || `${d.orgName} ${d.contactName ?? ""} ${d.contactEmail ?? ""}`.toLowerCase().includes(q);
+      const matchesAgreement = agreementFilter === "all"
+        || (agreementFilter === "signature" && d.agreement?.sent && !d.agreement?.signed)
+        || (agreementFilter === "payment" && d.agreement?.signed && !d.agreement?.paid)
+        || (agreementFilter === "won" && d.stage === "won");
+      return matchesQuery && matchesAgreement;
+    });
+  }, [deals, query, agreementFilter]);
 
   const byStage = useMemo(() => {
     const m = new Map<string, DealRow[]>();
@@ -175,6 +194,17 @@ export function SalesBoard({ deals, canFinance = true, testimonials, openDealId 
             </button>
           ))}
         </div>
+        <div style={quickFilters}>
+          {([
+            ["signature", "Awaiting signature", stats.awaitingSig],
+            ["payment", "Awaiting payment", stats.awaitingPay],
+            ["won", "Won", stats.won],
+          ] as const).map(([value, label, count]) => (
+            <button key={value} type="button" onClick={() => setAgreementFilter((current) => current === value ? "all" : value)} style={quickFilterBtn(agreementFilter === value)}>
+              {label} <span style={{ opacity: 0.75 }}>{count}</span>
+            </button>
+          ))}
+        </div>
         <button type="button" onClick={() => setShowNew(true)} style={primaryBtn}>+ New lead</button>
         {msg && <span className="small" style={{ color: "var(--color-text-secondary,#666)" }}>{msg}</span>}
       </div>
@@ -207,6 +237,7 @@ export function SalesBoard({ deals, canFinance = true, testimonials, openDealId 
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {cards.map((d) => <DealCard key={d.id} deal={d} canFinance={canFinance} onOpen={() => setOpenId(d.id)} onDragStartCard={(id) => { dragId.current = id; }} onAction={(a) => doNextAction(d, a)} />)}
+                    {cards.length === 0 && <div style={emptyColumn}>No deals here yet</div>}
                   </div>
                 </div>
               );
@@ -312,6 +343,7 @@ function callChip(d: DealRow) {
 function DealCard({ deal, canFinance, onOpen, onDragStartCard, onAction }: { deal: DealRow; canFinance: boolean; onOpen: () => void; onDragStartCard: (id: string) => void; onAction: (a: NextAction) => void }) {
   const dragging = useRef(false);
   const value = dealValueLabel(deal);
+  const staleDays = staleDealDays(deal);
   return (
     <div
       draggable
@@ -331,6 +363,7 @@ function DealCard({ deal, canFinance, onOpen, onDragStartCard, onAction }: { dea
       <div className="small" style={{ color: "var(--color-text-secondary,#666)", marginTop: 2 }}>{deal.contactName || deal.contactEmail || ""}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
         {deal.leadVerdict && <ScoreChip verdict={deal.leadVerdict} score={deal.leadScore} />}
+        {staleDays != null && <span style={staleTag}>⏱ {staleDays}d</span>}
         {deal.packageName && <span style={pkgTag}>{deal.packageName}</span>}
         {deal.source === "native_form" && <span style={tagStyle}>discover</span>}
       </div>
@@ -359,9 +392,9 @@ function CardAction({ deal, canFinance, onAction }: { deal: DealRow; canFinance:
   if (a.finance && !canFinance) {
     return <span style={{ ...cardActionChip, color: "var(--color-text-tertiary,#98989d)", cursor: "default" }}>{pendingLabel(a)}</span>;
   }
-  const disabled = !!a.needsEmail && !deal.contactEmail;
+  const disabled = !!a.needsEmail && !validContactEmail(deal.contactEmail);
   return (
-    <button type="button" disabled={disabled} onClick={(e) => { stop(e); onAction(a); }} style={{ ...cardActionBtn, opacity: disabled ? 0.5 : 1 }}>
+    <button type="button" disabled={disabled} title={disabled ? "Add a valid contact email first" : undefined} onClick={(e) => { stop(e); onAction(a); }} style={{ ...cardActionBtn, opacity: disabled ? 0.5 : 1 }}>
       {a.label}
     </button>
   );
@@ -449,7 +482,7 @@ function DealDrawer({ deal, canFinance, busy, run, onPreview }: { deal: DealRow;
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <button type="button" disabled={!deal.contactEmail || busy === `send-${deal.id}`} onClick={onPreview} style={drawerBtn}>
+        <button type="button" disabled={!validContactEmail(deal.contactEmail) || busy === `send-${deal.id}`} title={!validContactEmail(deal.contactEmail) ? "Add a valid contact email first" : undefined} onClick={onPreview} style={drawerBtn}>
           {a?.sent ? "Resend agreement" : "Send agreement"}
         </button>
         {canFinance && (
@@ -620,6 +653,8 @@ const toolbar: CSSProperties = { display: "flex", alignItems: "center", gap: 12,
 const search: CSSProperties = { width: "100%", border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 9999, padding: "8px 14px 8px 30px", font: "inherit", fontSize: 14, outline: "none", background: "var(--color-surface,#fff)" };
 const tabs: CSSProperties = { display: "inline-flex", background: "var(--color-bg-tertiary,#e8e8ed)", borderRadius: 9999, padding: 3 };
 const tabBtn = (active: boolean): CSSProperties => ({ border: "none", borderRadius: 9999, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: active ? "var(--color-surface,#fff)" : "transparent", color: active ? "var(--color-navy-900,#132272)" : "var(--color-text-secondary,#666)", boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none" });
+const quickFilters: CSSProperties = { display: "inline-flex", gap: 6, flexWrap: "wrap" };
+const quickFilterBtn = (active: boolean): CSSProperties => ({ border: "1px solid", borderColor: active ? "var(--color-navy-900,#132272)" : "var(--color-border,#d2d2d7)", borderRadius: 9999, padding: "6px 11px", fontSize: 12, fontWeight: 600, cursor: "pointer", background: active ? "var(--color-navy-900,#132272)" : "transparent", color: active ? "#fff" : "var(--color-text-secondary,#666)" });
 const primaryBtn: CSSProperties = { border: "none", borderRadius: 9999, padding: "9px 18px", background: "var(--color-navy-900,#132272)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const statStrip: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 18 };
 const statCard: CSSProperties = { background: "var(--color-surface,#fff)", border: "1px solid var(--color-border,#e8e8ed)", borderRadius: 16, padding: "16px 18px" };
@@ -628,10 +663,12 @@ const boardScroll: CSSProperties = { display: "flex", gap: 14, overflowX: "auto"
 const column = (over: boolean): CSSProperties => ({ flex: "0 0 280px", minWidth: 280, background: over ? "var(--color-sky-50,#e7f8fd)" : "var(--color-bg-secondary,#f5f5f7)", borderRadius: 16, padding: 12, transition: "background 0.15s", border: over ? "1px dashed var(--color-sky-400,#4dc4e8)" : "1px solid transparent" });
 const columnHead: CSSProperties = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "0 2px" };
 const countPill: CSSProperties = { marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "var(--color-text-tertiary,#98989d)", background: "var(--color-surface,#fff)", borderRadius: 999, padding: "1px 8px" };
+const emptyColumn: CSSProperties = { padding: "14px 4px 6px", color: "var(--color-text-tertiary,#98989d)", fontSize: 13, textAlign: "center" };
 const card: CSSProperties = { background: "var(--color-surface,#fff)", border: "1px solid var(--color-border,#e8e8ed)", borderRadius: 14, padding: 14, cursor: "pointer", boxShadow: "0 1px 2px rgba(15,28,94,0.05)" };
 const drawerBtn: CSSProperties = { border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 9999, padding: "8px 14px", background: "var(--color-surface,#fff)", color: "var(--color-navy-900,#132272)", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const notesInput: CSSProperties = { border: "1px solid var(--color-border,#ccc)", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 13, width: "100%" };
 const tagStyle: CSSProperties = { padding: "1px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: "var(--color-sky-100, #c4eef9)", color: "var(--color-sky-800, #0d5e7e)", textTransform: "uppercase", letterSpacing: "0.04em" };
+const staleTag: CSSProperties = { display: "inline-flex", alignItems: "center", borderRadius: 9999, padding: "2px 8px", fontSize: 11, fontWeight: 700, background: "#fff3d4", color: "#966200" };
 const pkgTag: CSSProperties = { padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 600, background: "var(--color-sky-50,#e7f8fd)", color: "var(--color-sky-700,#157ba0)" };
 const cardActionBtn: CSSProperties = { border: "none", borderRadius: 9999, padding: "6px 13px", background: "var(--color-navy-900,#132272)", color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" };
 const cardActionChip: CSSProperties = { display: "inline-flex", alignItems: "center", borderRadius: 9999, padding: "6px 12px", background: "var(--color-bg-tertiary,#e8e8ed)", color: "var(--color-navy-900,#132272)", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" };

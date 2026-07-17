@@ -18,11 +18,15 @@ export function ApplicationDetails({ answers }: { answers: unknown }) {
         {rows.map((q) => {
           const val = a[q.key];
           const isLink = q.type === "url" || /^https?:\/\//i.test(val);
+          const linkLabel = getLinkLabel(val);
           return (
             <div key={q.key}>
               <div style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary)", fontWeight: 700 }}>{q.label}</div>
               {isLink ? (
-                <a href={val} target="_blank" rel="noreferrer" style={{ color: "var(--color-sky-600)", fontSize: "var(--text-sm)", wordBreak: "break-all" }}>{val}</a>
+                <div style={{ fontSize: "var(--text-sm)" }}>
+                  {linkLabel && <span style={{ marginRight: 5, fontSize: "var(--text-2xs)", color: "var(--color-text-tertiary)", fontWeight: 700 }}>{linkLabel}</span>}
+                  <a href={val} target="_blank" rel="noreferrer" style={{ color: "var(--color-sky-600)", wordBreak: "break-all" }}>{val}</a>
+                </div>
               ) : (
                 <div style={{ fontSize: "var(--text-sm)", whiteSpace: "pre-wrap" }}>{val}</div>
               )}
@@ -32,4 +36,14 @@ export function ApplicationDetails({ answers }: { answers: unknown }) {
       </div>
     </details>
   );
+}
+
+function getLinkLabel(value: string) {
+  if (!/^https?:\/\//i.test(value)) return null;
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    return host === "drive.google.com" ? "Drive" : host === "dropbox.com" ? "Dropbox" : host === "docs.google.com" ? "Docs" : null;
+  } catch {
+    return null;
+  }
 }
