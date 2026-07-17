@@ -441,6 +441,14 @@ function gradeLearn(contentJson: unknown, answer: string | undefined): AiEvaluat
   };
 }
 
+// Non-graded kinds (tour/branch/sop/meet/reflect) carry no AI proposal and
+// auto-approve on submit — the weekly rubric gate is the only human judgment
+// for those. learn (gradeLearn) and sim (evaluateSimSubmission) keep grading.
+export function resolveFinalMissionStatus(proposal: AiEvaluationProposal | null): MissionStatus {
+  if (!proposal) return "APPROVED";
+  return proposal.approved ? "APPROVED" : "NEEDS_REVISION";
+}
+
 async function markEvidenceReadyIfComplete(trialId: string, now: Date): Promise<void> {
   const remaining = await db.candidateMission.count({ where: { trialId, status: { not: "APPROVED" } } });
   if (remaining !== 0) return;
@@ -464,7 +472,7 @@ export async function submitStep(candidateId: string, input: StepSubmitRequest, 
   if (mission.template.kind === "sim") {
     proposal = await evaluateSimSubmission({ trial: mission.trial, mission, template: mission.template, submission: input });
   }
-  const finalStatus: MissionStatus = proposal ? (proposal.approved ? "APPROVED" : "NEEDS_REVISION") : "SUBMITTED";
+  const finalStatus: MissionStatus = resolveFinalMissionStatus(proposal);
   const delta = mission.timerStartedAt ? calculateTimerDelta(mission.timerStartedAt, now) : 0;
   const day = currentTrialDay(mission.trial.startDate, mission.trial.timezone, now);
   await db.$transaction(async (tx) => {
@@ -561,6 +569,69 @@ export async function getTrialMessages(candidateId: string): Promise<TrialMessag
       messages: conversation.messages.map((message) => messageView({ ...message, conversation: { actorType: conversation.actorType } })),
     })),
   };
+}
+
+// Missions the reviewer's "revision" gate decision sends back for rework —
+// anything already approved (auto or graded) or awaiting review.
+const REVISION_RESET_STATUSES: MissionStatus[] = ["APPROVED", "SUBMITTED"];
+
+export function shouldResetMissionForRevision(status: MissionStatus): boolean {
+  return REVISION_RESET_STATUSES.includes(status);
+}
+
+/**
+ * Reviewer "revision" gate decision: send every approved/submitted mission
+ * back to NEEDS_REVISION (clearing completedAt) and post the reviewer's
+ * rationale to the candidate's Human conversation so they know what to redo.
+ * Idempotent — a mission already NEEDS_REVISION is left untouched.
+ */
+export async function resetMissionsForRevision(
+  trialId: string,
+  rationale: string,
+  now = new Date(),
+  client: Prisma.TransactionClient | typeof db = db,
+): Promise<void> {
+  // Runs on the caller's transaction when one is passed (so a gate "revision"
+  // decision resets missions atomically with its own stage/status writes), else
+  // opens its own. Read + writes share one client so there's no TOCTOU gap, and
+  // the whole thing is idempotent — a re-run finds nothing to reset (all already
+  // NEEDS_REVISION) and returns before posting a duplicate feedback message.
+  const run = async (tx: Prisma.TransactionClient | typeof db) => {
+    const trial = requireTrial(await tx.candidateTrial.findUnique({ where: { id: trialId } }));
+    const day = currentTrialDay(trial.startDate, trial.timezone, now);
+    const missions = await tx.candidateMission.findMany({
+      where: { trialId, status: { in: REVISION_RESET_STATUSES } },
+      include: { template: true },
+    });
+    if (missions.length === 0) return; // nothing to reset → no duplicate message
+    for (const mission of missions) {
+      await tx.candidateMission.update({
+        where: { id: mission.id },
+        data: { status: "NEEDS_REVISION", completedAt: null },
+      });
+      await tx.trialEvent.create({
+        data: {
+          trialId,
+          day,
+          actor: "Human",
+          type: TRIAL_EVENTS.REVISION_REQUESTED,
+          label: `${mission.template.title} sent back for revision`,
+          dataJson: { stepId: mission.template.key, rationale },
+        },
+      });
+    }
+    const conversation = await tx.trialConversation.upsert({
+      where: { trialId_actorType: { trialId, actorType: "Human" } },
+      create: { trialId, actorType: "Human" },
+      update: {},
+    });
+    await tx.trialMessage.create({
+      data: { conversationId: conversation.id, timestamp: now, day, from: "human", text: rationale, tag: "Reviewer feedback" },
+    });
+  };
+  // If given a transaction client, join it; otherwise open our own.
+  if (client === db) await db.$transaction((tx) => run(tx));
+  else await run(client);
 }
 
 export async function escalateTrial(candidateId: string, input: EscalateRequest, now = new Date()): Promise<void> {

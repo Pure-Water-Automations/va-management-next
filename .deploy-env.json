@@ -1,0 +1,6 @@
+{
+  "app": "va-management-next",
+  "name": "VA Management Console",
+  "dev":  { "domain": "dev-team.pwasecondbrain.uk", "box": "IONOS", "branch": "feature/*" },
+  "prod": { "domain": "team.purewaterautomations.com", "box": "Hostinger VPS", "branch": "main" }
+}

@@ -2,6 +2,7 @@ import type { TrialActorType } from "@/lib/trial/types";
 import { chatJson, type TrialAiTransport } from "./client";
 import { escalationCheck, outputFilter } from "./guardrails";
 import { emilyPrompt, michaelPrompt, puriiPrompt, sarahPrompt, type PersonaContext } from "./personas";
+import { sanitizeForModel } from "./sanitize";
 
 interface HistoryMessage {
   from?: string;
@@ -57,11 +58,12 @@ export async function generateActorReply({
   } as const;
   const transcript = history
     .slice(-10)
-    .map((message) => `${message.from || "unknown"}: ${message.text}`)
+    .map((message) => `${message.from || "unknown"}: ${sanitizeForModel(message.text).clean}`)
     .join("\n");
+  const cleanCandidateText = sanitizeForModel(candidateText).clean;
   const response = await chatJson<{ reply: string }>(
     prompts[actorType](trial),
-    `RECENT CONVERSATION (up to 10 messages):\n${transcript || "(none)"}\n\nCANDIDATE MESSAGE:\n${candidateText}\n\nRespond to the candidate now.`,
+    `RECENT CONVERSATION (up to 10 messages):\n${transcript || "(none)"}\n\nCANDIDATE MESSAGE:\n${cleanCandidateText}\n\nRespond to the candidate now.`,
     '{ "reply": "string" }',
     { trialId: trial.id, transport, validate: isReply },
   );

@@ -2,6 +2,7 @@ import type { AiEvaluationProposal, TrialFeedback } from "@/lib/trial/types";
 import { chatJson, type TrialAiTransport } from "./client";
 import { outputFilter } from "./guardrails";
 import { sarahPrompt } from "./personas";
+import { sanitizeForModel } from "./sanitize";
 
 interface TrialLike {
   id: string;
@@ -75,6 +76,10 @@ function filterEvaluation(proposal: AiEvaluationProposal | null): AiEvaluationPr
   };
 }
 
+function modelSubmissionText(value: string | null | undefined): string {
+  return sanitizeForModel(value || "(not submitted)").clean;
+}
+
 export async function evaluateSimSubmission({
   trial,
   mission,
@@ -107,12 +112,12 @@ MANDATORY CRITERIA:
 Approve only if all four criteria are met.
 
 CANDIDATE CLARIFYING MESSAGE:
-${submission.submittedText1 || "(not submitted)"}
+${modelSubmissionText(submission.submittedText1)}
 
 CANDIDATE DRAFT ANNOUNCEMENT:
-${submission.submittedText2 || "(not submitted)"}
+${modelSubmissionText(submission.submittedText2)}
 
-SUBMISSION LINK: ${submission.submittedLink || "(none)"}
+SUBMISSION LINK: ${modelSubmissionText(submission.submittedLink || "(none)")}
 MISSION CONTEXT: ${JSON.stringify(mission)}`;
 
   return filterEvaluation(
@@ -146,7 +151,7 @@ CRITERIA:
 Approve only if all four criteria are met. Use the four-part coaching format.
 
 CANDIDATE SOP:
-${submission.submittedText2 || submission.submittedText1 || "(not submitted)"}
+${modelSubmissionText(submission.submittedText2 || submission.submittedText1)}
 
 MISSION CONTEXT: ${JSON.stringify(mission)}`;
 

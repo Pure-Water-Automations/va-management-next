@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/access";
 import { isGateReviewer } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
+import { resetMissionsForRevision } from "@/lib/trial/engine";
 import { TRIAL_EVENTS } from "@/lib/trial/events";
 import {
   RUBRIC_DIMENSIONS,
@@ -135,6 +136,12 @@ export async function POST(request: Request): Promise<Response> {
         ...(finalDecision ? { finalDecision } : {}),
       },
     });
+    // Atomically with the gate transition: a "revision" decision sends the
+    // missions back and posts the reviewer's rationale to the candidate. Sharing
+    // tx avoids a split-brain where the deal is "revision" but missions stayed approved.
+    if (input.decision === "revision") {
+      await resetMissionsForRevision(trial.id, input.rationale, now, tx);
+    }
   });
 
   await logActivity({
