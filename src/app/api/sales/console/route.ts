@@ -66,11 +66,19 @@ export const POST = action(
         const cur = await db.salesFollowUp.findUnique({ where: { id } });
         if (!cur) throw new Error("Follow-up not found.");
         const due = new Date(cur.due);
-        due.setDate(due.getDate() + 7);
+        const requestedDays = typeof body.days === "number" && Number.isFinite(body.days) ? body.days : 7;
+        const days = Math.min(60, Math.max(1, requestedDays));
+        due.setDate(due.getDate() + days);
         return db.salesFollowUp.update({ where: { id }, data: { due } });
       }
       case "followup_done":
         return db.salesFollowUp.update({ where: { id: str(body, "id") }, data: { doneAt: new Date() } });
+      case "followup_done_bulk": {
+        const ids = Array.isArray(body.ids)
+          ? body.ids.filter((id): id is string => typeof id === "string").slice(0, 100)
+          : [];
+        return db.salesFollowUp.updateMany({ where: { id: { in: ids } }, data: { doneAt: new Date() } });
+      }
 
       // ── Email templates ─────────────────────────────────────────────
       case "template_save":

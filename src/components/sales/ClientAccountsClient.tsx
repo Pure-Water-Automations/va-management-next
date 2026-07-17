@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Chip,
@@ -64,14 +64,37 @@ function usagePct(a: ClientAccountRow): number | null {
 }
 
 const AT_CEILING = 0.9;
+const NEAR_CEILING = 0.8;
+
+/** Suggested next check-in date from account health (display-only cadence). */
+function suggestedCheckin(health: string): { date: Date; days: number } {
+  const days = health === "good" ? 30 : health === "growing" ? 21 : 7;
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return { date, days };
+}
+
+/** Amber / red-amber ceiling chip once metered usage crosses the near-ceiling line. */
+function CeilingChip({ pct }: { pct: number | null }) {
+  if (pct == null || pct < NEAR_CEILING) return null;
+  const red = pct >= AT_CEILING;
+  const fg = red ? "#b23a1f" : "#966200";
+  const bg = red ? "#fbe3da" : "#fff3d4";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px", borderRadius: 9999, background: bg, color: fg, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+      <span style={{ width: 6, height: 6, borderRadius: 9999, background: fg }} />
+      {Math.round(pct * 100)}%
+    </span>
+  );
+}
 
 type Action = { label: string; variant: "solid" | "ghost" | "ghost-sky"; run: () => void };
 
-export function ClientAccountsClient({ accounts: initial, openAccountId = null }: { accounts: ClientAccountRow[]; openAccountId?: string | null }) {
+export function ClientAccountsClient({ accounts: initial, openAccountId = null, openPreset = null }: { accounts: ClientAccountRow[]; openAccountId?: string | null; openPreset?: "checkin" | "note" | null }) {
   const router = useRouter();
   const [accounts, setAccounts] = useState<ClientAccountRow[]>(initial);
   const [drawer, setDrawer] = useState<{ id: string; preset: "checkin" | "note" | null } | null>(
-    () => (openAccountId && initial.some((a) => a.id === openAccountId) ? { id: openAccountId, preset: null } : null),
+    () => (openAccountId && initial.some((a) => a.id === openAccountId) ? { id: openAccountId, preset: openPreset } : null),
   );
   const [toastNode, showToast] = useToast();
 
@@ -174,8 +197,11 @@ export function ClientAccountsClient({ accounts: initial, openAccountId = null }
                     <span style={pkgPill}>{a.pkg}</span>
                     <span style={{ display: "block", fontSize: 12, color: "var(--color-text-tertiary,#98989d)", marginTop: 3 }}>{priceLabel(a)}</span>
                   </span>
-                  <span style={{ fontSize: 13, color: "var(--color-text-secondary,#666)" }}>
-                    {pkg?.hours ? `${Math.round(a.hoursUsed)} / ${pkg.hours} hrs` : `${Math.round(a.hoursUsed)} hrs in ${monthName()}`}
+                  <span style={{ fontSize: 13, color: "var(--color-text-secondary,#666)", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {pkg?.hours ? `${Math.round(a.hoursUsed)} / ${pkg.hours} hrs` : `${Math.round(a.hoursUsed)} hrs in ${monthName()}`}
+                    </span>
+                    <CeilingChip pct={usagePct(a)} />
                   </span>
                   <span><HealthChip health={a.health} /></span>
                   <span style={{ fontSize: 13, ...(touchDays > 21 ? { color: "#966200", fontWeight: 700 } : { color: "var(--color-text-secondary,#666)" }) }}>
@@ -228,6 +254,22 @@ function ClientDrawer({ account: a, preset, onStartUpgrade, onOpenUpgrade, onSch
   const touchDays = daysSince(a.lastTouch);
   const [type, setType] = useState<string>(preset ?? "call");
   const [note, setNote] = useState("");
+  const suggested = suggestedCheckin(a.health);
+
+  // Deep-link preset: focus the note field, or scroll to + flash the check-in button.
+  const noteRef = useRef<HTMLInputElement>(null);
+  const checkinRef = useRef<HTMLButtonElement>(null);
+  const [flashCheckin, setFlashCheckin] = useState(false);
+  useEffect(() => {
+    if (preset === "note") {
+      noteRef.current?.focus();
+    } else if (preset === "checkin") {
+      checkinRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlashCheckin(true);
+      const t = setTimeout(() => setFlashCheckin(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [preset]);
 
   const testimonialChip: Record<string, { label: string; bg: string; fg: string }> = {
     torequest: { label: "Testimonial: ready to request", bg: "#fff3d4", fg: "#966200" },
@@ -303,7 +345,19 @@ function ClientDrawer({ account: a, preset, onStartUpgrade, onOpenUpgrade, onSch
             ? "Check-in due — no formal cadence set (ad-hoc)."
             : `Relationship is ad-hoc — last touch ${touchLabel(touchDays)}.`}
         </span>
-        <button type="button" onClick={onScheduleCheckin} style={actionBtn("ghost")}>Schedule check-in</button>
+        <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--color-text-tertiary,#98989d)" }}>
+            Suggested: {suggested.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} (based on {a.health})
+          </span>
+          <button
+            ref={checkinRef}
+            type="button"
+            onClick={onScheduleCheckin}
+            style={{ ...actionBtn("ghost"), ...(flashCheckin ? { boxShadow: "0 0 0 3px rgba(98,120,213,0.45)" } : null) }}
+          >
+            Schedule check-in
+          </button>
+        </span>
       </div>
 
       {/* 6 — log an interaction */}
@@ -317,6 +371,7 @@ function ClientDrawer({ account: a, preset, onStartUpgrade, onOpenUpgrade, onSch
             <option value="checkin">Check-in</option>
           </select>
           <input
+            ref={noteRef}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && onLog(type, note)) setNote(""); }}

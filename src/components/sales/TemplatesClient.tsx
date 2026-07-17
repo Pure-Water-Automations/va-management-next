@@ -6,6 +6,14 @@ import type { EmailTemplateRow } from "@/lib/reads/sales-console";
 
 const call = (body: Record<string, unknown>) => postJson("/api/sales/console", body);
 
+/** Replace filled [bracketed] placeholders, keeping blank values untouched. */
+export function fillTemplateBody(body: string, values: Record<string, string>): string {
+  return body.replace(/\[([^\[\]\r\n]+)\]/g, (placeholder, name: string) => {
+    const value = values[name];
+    return value?.trim() ? value : placeholder;
+  });
+}
+
 const CATS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
   { key: "discovery", label: "Discovery" },
@@ -25,17 +33,38 @@ function catLabel(cat: string): string {
 export function TemplatesClient({ templates: initial }: { templates: EmailTemplateRow[] }) {
   const [templates, setTemplates] = useState<EmailTemplateRow[]>(initial);
   const [cat, setCat] = useState("all");
+  const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [fillTarget, setFillTarget] = useState<{ template: EmailTemplateRow; placeholders: string[] } | null>(null);
+  const [fillValues, setFillValues] = useState<Record<string, string>>({});
   const copyTimer = useRef<number | null>(null);
   const [toastNode, showToast] = useToast();
 
-  const shown = useMemo(() => (cat === "all" ? templates : templates.filter((t) => t.cat === cat)), [templates, cat]);
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return templates.filter((t) => {
+      const matchesCategory = cat === "all" || t.cat === cat;
+      const matchesSearch = !needle || [t.title, t.purpose, t.body].some((value) => value.toLowerCase().includes(needle));
+      return matchesCategory && matchesSearch;
+    });
+  }, [templates, cat, query]);
 
-  async function copy(t: EmailTemplateRow) {
+  function copy(t: EmailTemplateRow) {
+    const placeholders = [...t.body.matchAll(/\[([^\[\]\r\n]+)\]/g)].map((match) => match[1]);
+    const uniquePlaceholders = [...new Set(placeholders)];
+    if (uniquePlaceholders.length > 0) {
+      setFillTarget({ template: t, placeholders: uniquePlaceholders });
+      setFillValues(Object.fromEntries(uniquePlaceholders.map((placeholder) => [placeholder, ""])));
+      return;
+    }
+    void copyText(t, t.body);
+  }
+
+  async function copyText(t: EmailTemplateRow, body: string) {
     try {
-      await navigator.clipboard.writeText(`${t.title}\n\n${t.body}`);
+      await navigator.clipboard.writeText(`${t.title}\n\n${body}`);
     } catch {
       showToast("Couldn't reach the clipboard.");
       return;
@@ -44,6 +73,13 @@ export function TemplatesClient({ templates: initial }: { templates: EmailTempla
     if (copyTimer.current) window.clearTimeout(copyTimer.current);
     copyTimer.current = window.setTimeout(() => setCopiedId(null), 1800);
     showToast("Template copied to clipboard.");
+  }
+
+  function copyFilled() {
+    if (!fillTarget) return;
+    const { template } = fillTarget;
+    setFillTarget(null);
+    void copyText(template, fillTemplateBody(template.body, fillValues));
   }
 
   function startEdit(t: EmailTemplateRow) {
@@ -68,8 +104,17 @@ export function TemplatesClient({ templates: initial }: { templates: EmailTempla
         ))}
       </div>
 
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search templates..."
+        aria-label="Search templates"
+        style={{ display: "block", width: "100%", maxWidth: 520, border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 10, padding: "10px 12px", marginBottom: 18, font: "inherit", fontSize: 13, outline: "none" }}
+      />
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 14 }}>
-        {shown.length === 0 && <p className="small">No templates in this category yet.</p>}
+        {shown.length === 0 && <p className="small">No templates match your search.</p>}
         {shown.map((t) => {
           const editing = editingId === t.id;
           return (
@@ -100,7 +145,7 @@ export function TemplatesClient({ templates: initial }: { templates: EmailTempla
                 ) : (
                   <>
                     <button type="button" onClick={() => startEdit(t)} style={ghostBtn}>Edit</button>
-                    <button type="button" onClick={() => void copy(t)} style={ghostBtn}>{copiedId === t.id ? "Copied ✓" : "Copy"}</button>
+                    <button type="button" onClick={() => copy(t)} style={ghostBtn}>{copiedId === t.id ? "Copied ✓" : "Copy"}</button>
                   </>
                 )}
               </div>
@@ -108,6 +153,26 @@ export function TemplatesClient({ templates: initial }: { templates: EmailTempla
           );
         })}
       </div>
+
+      {fillTarget && (
+        <div role="dialog" aria-label="Fill template variables" style={{ position: "fixed", right: 24, bottom: 24, zIndex: 10, width: 300, maxWidth: "calc(100vw - 32px)", background: "var(--color-surface,#fff)", border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,0.16)", padding: 16 }}>
+          <div style={{ fontWeight: 700, color: "var(--color-navy-900,#132272)", marginBottom: 10 }}>Fill template variables</div>
+          {fillTarget.placeholders.map((placeholder) => (
+            <label key={placeholder} style={{ display: "block", fontSize: 12, color: "var(--color-text-secondary,#666)", marginBottom: 8 }}>
+              [{placeholder}]
+              <input
+                value={fillValues[placeholder] ?? ""}
+                onChange={(e) => setFillValues((values) => ({ ...values, [placeholder]: e.target.value }))}
+                style={{ display: "block", width: "100%", border: "1px solid var(--color-border,#d2d2d7)", borderRadius: 8, padding: "7px 9px", marginTop: 4, font: "inherit", fontSize: 13 }}
+              />
+            </label>
+          ))}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+            <button type="button" onClick={() => setFillTarget(null)} style={ghostBtn}>Cancel</button>
+            <button type="button" onClick={copyFilled} style={solidBtn}>Copy</button>
+          </div>
+        </div>
+      )}
 
       {toastNode}
     </div>

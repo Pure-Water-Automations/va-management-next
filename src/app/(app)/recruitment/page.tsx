@@ -4,10 +4,8 @@ import { canDecideHire, isRecruiter, isGateReviewer } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { ApplicationDetails } from "@/components/ApplicationDetails";
-import { ScreeningPanel } from "@/components/ScreeningPanel";
-import { RecruiterWorkflow } from "@/components/RecruiterWorkflow";
 import { InterviewLinksSettings } from "@/components/InterviewLinksSettings";
+import { PipelineClient, type PipelineCandidate } from "./PipelineClient";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +40,33 @@ export default async function RecruitmentConsole() {
   const canDecide = canDecideHire(user.role) || user.isAdmin;
   const canRecruit = isRecruiter(user.role) || user.isAdmin;
   const canGate = isGateReviewer(user.role) || user.isAdmin;
+  const applicationsByEmail = new Map<string, number>();
+  for (const candidate of p.candidates) {
+    const email = candidate.email.trim().toLowerCase();
+    applicationsByEmail.set(email, (applicationsByEmail.get(email) ?? 0) + 1);
+  }
+
+  // Serialize for the client sort/filter component (Dates → ISO, derive tz + dup count).
+  const rows: PipelineCandidate[] = p.candidates.map((c) => {
+    const aj = (c.applicationJson && typeof c.applicationJson === "object" ? c.applicationJson : {}) as Record<string, unknown>;
+    return {
+      candidateId: c.candidateId,
+      name: c.name,
+      email: c.email,
+      skillsRoleTags: c.skillsRoleTags,
+      applicationJson: c.applicationJson,
+      source: c.source,
+      screenVerdict: c.screenVerdict,
+      screenScore: c.screenScore,
+      screenSummary: c.screenSummary,
+      screenFlags: c.screenFlags,
+      screenedAtIso: c.screenedAt ? c.screenedAt.toISOString() : null,
+      createdAtIso: c.createdAt.toISOString(),
+      currentStage: c.currentStage,
+      timezone: typeof aj.timezone === "string" ? aj.timezone : null,
+      dupCount: applicationsByEmail.get(c.email.trim().toLowerCase()) ?? 1,
+    };
+  });
 
   return (
     <>
@@ -67,63 +92,18 @@ export default async function RecruitmentConsole() {
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-secondary)" }}>
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: "var(--text-xl)", margin: 0 }}>Candidates</h2>
         </div>
-        <div>
-          {p.candidates.length === 0 ? (
-            <div style={{ padding: 24, fontStyle: "italic", color: "var(--color-text-tertiary)" }}>
-              No active candidates.
-            </div>
-          ) : (
-            p.candidates.map((c) => (
-              <div
-                key={c.candidateId}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  padding: "14px 20px",
-                  borderBottom: "1px solid var(--color-border-subtle)",
-                }}
-              >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{c.name ?? c.email}</div>
-                  <div className="small">
-                    {c.email}
-                    {c.skillsRoleTags ? ` · ${c.skillsRoleTags}` : ""}
-                  </div>
-                  <ApplicationDetails answers={c.applicationJson} />
-                  {c.source === "native_form" && (
-                    <ScreeningPanel
-                      candidateId={c.candidateId}
-                      verdict={c.screenVerdict}
-                      score={c.screenScore}
-                      summary={c.screenSummary}
-                      flags={c.screenFlags}
-                      screenedAt={c.screenedAt}
-                      canScreen={canRecruit}
-                    />
-                  )}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span className="small">Applied {c.createdAt.toLocaleDateString()}</span>
-                    <Badge variant="info">{STAGE_LABEL[c.currentStage] ?? c.currentStage}</Badge>
-                  </div>
-                  <RecruiterWorkflow
-                    candidateId={c.candidateId}
-                    name={c.name}
-                    email={c.email}
-                    stage={c.currentStage}
-                    hasVideoOrBookingLink={hasLink}
-                    canRecruit={canRecruit}
-                    canDecide={canDecide}
-                    canGate={canGate}
-                  />
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {rows.length === 0 ? (
+          <div style={{ padding: 24, fontStyle: "italic", color: "var(--color-text-tertiary)" }}>No active candidates.</div>
+        ) : (
+          <PipelineClient
+            candidates={rows}
+            stageLabel={STAGE_LABEL}
+            hasLink={hasLink}
+            canRecruit={canRecruit}
+            canDecide={canDecide}
+            canGate={canGate}
+          />
+        )}
       </Card>
     </>
   );

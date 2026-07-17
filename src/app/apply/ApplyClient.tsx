@@ -2,8 +2,25 @@
 
 import { useMemo, useState, useRef, useEffect, type CSSProperties, type KeyboardEvent } from "react";
 import { APPLICATION_QUESTIONS, isVisible, type ApplicationQuestion } from "@/lib/application-questions";
+import { useDraft } from "@/lib/use-draft";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type Draft = { answers: Record<string, string>; idx: number };
+
+/** Tiny local media-query hook — not a breakpoint system, just this screen's one narrow check. */
+function useIsNarrow(query: string): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(query);
+    setNarrow(mq.matches);
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return narrow;
+}
 
 export function ApplyClient({ skillOptions }: { skillOptions?: string[] }) {
   // Inject runtime skill options (from the skill_list setting) into the skills question.
@@ -21,6 +38,12 @@ export function ApplyClient({ skillOptions }: { skillOptions?: string[] }) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const isNarrow = useIsNarrow("(max-width: 480px)");
+
+  const draft = useDraft<Draft>("pwa_apply_draft", { answers, idx }, (saved) => {
+    setAnswers(saved.answers);
+    setIdx(saved.idx);
+  });
 
   const visible = useMemo(() => questions.filter((q) => isVisible(q, answers)), [questions, answers]);
   const clamped = Math.min(idx, Math.max(0, visible.length - 1));
@@ -86,6 +109,7 @@ export function ApplyClient({ skillOptions }: { skillOptions?: string[] }) {
     }).then((r) => r.json()).catch(() => ({ ok: false, error: "Network error — please try again." }));
     setSubmitting(false);
     if (!res.ok) { setError(res.error || "Something went wrong. Please try again."); return; }
+    draft.discard();
     setDone(true);
   }
 
@@ -117,9 +141,23 @@ export function ApplyClient({ skillOptions }: { skillOptions?: string[] }) {
     <div style={page}>
       <div style={progressTrack}><div style={{ ...progressBar, width: `${pct}%` }} /></div>
 
-      <div style={card}>
+      {draft.hasDraft && (
+        <div style={{ ...resumeBanner, ...(isNarrow ? resumeBannerNarrow : {}) }}>
+          <span>Welcome back — resume where you left off? <span style={{ opacity: 0.65 }}>({draft.draftAgeLabel})</span></span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={draft.resume} style={resumeBtn}>Resume</button>
+            <button onClick={draft.discard} style={startOverBtn}>Start over</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...card, ...(isNarrow ? cardNarrow : {}) }}>
         <div style={qNum}>{clamped + 1} <span style={{ opacity: 0.5 }}>of {total}</span></div>
-        <label htmlFor={q.key} style={qLabel}>{q.label}{q.required && <span style={{ color: "var(--color-sky-500)" }}> *</span>}</label>
+        <label htmlFor={q.key} style={qLabel}>
+          {q.label}
+          {q.required && <span style={{ color: "var(--color-sky-500)" }}> *</span>}
+          {!q.required && <span style={optionalTag}> (optional)</span>}
+        </label>
         {q.help && <div style={qHelp}>{q.help}</div>}
         {q.helpLink && (
           <a href={q.helpLink.url} target="_blank" rel="noreferrer" style={helpLinkStyle}>{q.helpLink.label}</a>
@@ -283,6 +321,12 @@ const page: CSSProperties = { minHeight: "100vh", display: "flex", flexDirection
 const progressTrack: CSSProperties = { position: "fixed", top: 0, left: 0, right: 0, height: 6, background: "var(--color-bg-tertiary)" };
 const progressBar: CSSProperties = { height: "100%", background: "linear-gradient(90deg, var(--color-sky-400), var(--color-navy-700))", transition: "width 0.3s ease" };
 const card: CSSProperties = { width: "100%", maxWidth: 640, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-lg)", padding: "36px 40px", display: "flex", flexDirection: "column" };
+const cardNarrow: CSSProperties = { padding: "20px 18px" };
+const optionalTag: CSSProperties = { fontSize: "var(--text-sm)", fontWeight: 400, color: "var(--color-text-tertiary)" };
+const resumeBanner: CSSProperties = { width: "100%", maxWidth: 640, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, padding: "12px 16px", background: "var(--color-sky-50)", border: "1px solid var(--color-sky-300)", borderRadius: "var(--radius-lg)", color: "var(--color-navy-900)", fontSize: "var(--text-sm)" };
+const resumeBannerNarrow: CSSProperties = { flexDirection: "column", alignItems: "flex-start" };
+const resumeBtn: CSSProperties = { border: "none", borderRadius: 8, padding: "8px 14px", minHeight: 46, background: "var(--color-navy-800, #132272)", color: "#fff", fontWeight: 700, fontSize: "var(--text-sm)", cursor: "pointer" };
+const startOverBtn: CSSProperties = { border: "1.5px solid var(--color-border)", borderRadius: 8, padding: "8px 14px", minHeight: 46, background: "var(--color-surface)", color: "var(--color-text-secondary)", fontWeight: 600, fontSize: "var(--text-sm)", cursor: "pointer" };
 const qNum: CSSProperties = { fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)", color: "var(--color-sky-600)", fontWeight: 700, marginBottom: 8 };
 const qLabel: CSSProperties = { fontFamily: "var(--font-display)", fontSize: "var(--text-2xl)", color: "var(--color-navy-900)", lineHeight: 1.25, fontWeight: 700 };
 const qHelp: CSSProperties = { marginTop: 8, color: "var(--color-text-secondary)", fontSize: "var(--text-md)" };
@@ -290,12 +334,12 @@ const helpLinkStyle: CSSProperties = { display: "inline-block", marginTop: 8, co
 const qImage: CSSProperties = { display: "block", width: "100%", marginTop: 16, borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)" };
 const selectStyle: CSSProperties = { width: "100%", border: "1.5px solid var(--color-sky-300)", borderRadius: "var(--radius-input)", padding: "12px 14px", font: "inherit", fontSize: "var(--text-lg)", color: "var(--color-navy-900)", background: "var(--color-surface)", outline: "none" };
 const inputBase: CSSProperties = { width: "100%", border: "none", borderBottom: "2px solid var(--color-sky-300)", background: "transparent", padding: "8px 2px", font: "inherit", fontSize: "var(--text-xl)", color: "var(--color-navy-900)", outline: "none" };
-const okBtn: CSSProperties = { border: "none", borderRadius: 10, padding: "11px 22px", background: "var(--color-navy-800, #132272)", color: "#fff", fontWeight: 700, fontSize: "var(--text-md)", cursor: "pointer" };
+const okBtn: CSSProperties = { border: "none", borderRadius: 10, padding: "11px 22px", minHeight: 46, background: "var(--color-navy-800, #132272)", color: "#fff", fontWeight: 700, fontSize: "var(--text-md)", cursor: "pointer" };
 const choiceBtn: CSSProperties = { flex: 1, border: "1.5px solid var(--color-border)", borderRadius: 12, padding: "16px 18px", background: "var(--color-surface)", cursor: "pointer", fontSize: "var(--text-lg)", color: "var(--color-navy-900)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s ease" };
 const checkBtn: CSSProperties = { border: "1.5px solid var(--color-border)", borderRadius: 10, padding: "11px 14px", background: "var(--color-surface)", cursor: "pointer", fontSize: "var(--text-md)", color: "var(--color-navy-900)", display: "flex", alignItems: "center", textAlign: "left", transition: "all 0.15s ease" };
 const choiceActive: CSSProperties = { borderColor: "var(--color-navy-700, #132272)", background: "var(--color-sky-50)", boxShadow: "0 0 0 3px var(--color-sky-100)" };
 const errStyle: CSSProperties = { marginTop: 12, color: "var(--color-error, #b42318)", fontSize: "var(--text-sm)", fontWeight: 600 };
 const brand: CSSProperties = { marginTop: 20, fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", letterSpacing: "0.04em" };
 function navBtn(disabled: boolean): CSSProperties {
-  return { width: 38, height: 38, borderRadius: 8, border: "1px solid var(--color-border)", background: disabled ? "var(--color-bg-tertiary)" : "var(--color-navy-800, #132272)", color: disabled ? "var(--color-text-tertiary)" : "#fff", cursor: disabled ? "default" : "pointer", fontSize: 16, fontWeight: 700 };
+  return { width: 46, minHeight: 46, borderRadius: 8, border: "1px solid var(--color-border)", background: disabled ? "var(--color-bg-tertiary)" : "var(--color-navy-800, #132272)", color: disabled ? "var(--color-text-tertiary)" : "#fff", cursor: disabled ? "default" : "pointer", fontSize: 16, fontWeight: 700 };
 }
