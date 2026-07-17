@@ -51,6 +51,37 @@ export default async function SalesCalendarPage({ searchParams }: { searchParams
         </div>
       )}
 
+      {/* Self-serve: the signed-in rep can always connect their OWN calendar,
+          even before an admin lists them in discovery_booking_windows. */}
+      {configured && (() => {
+        const myConn = connByRep.get(user.email.toLowerCase());
+        return (
+          <Card style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>Your calendar</div>
+                <div className="small">{user.email}</div>
+                {myConn ? (
+                  <div className="small" style={{ color: "var(--color-success-dark,#1a7a4a)" }}>
+                    Connected{myConn.email ? ` as ${myConn.email}` : ""} · calendar “{myConn.calendarId}”
+                  </div>
+                ) : (
+                  <div className="small" style={{ color: "var(--color-text-tertiary,#98989d)" }}>
+                    Not connected — connect to sync your busy times and add Meet links to booked calls.
+                  </div>
+                )}
+              </div>
+              <a
+                href={`/api/calendar/oauth/start?rep=${encodeURIComponent(user.email)}&return=${encodeURIComponent("/sales/calendar")}`}
+                style={{ border: "none", borderRadius: 9999, padding: "8px 18px", fontWeight: 600, fontSize: 13, color: "#fff", background: "var(--color-navy-900,#132272)", textDecoration: "none" }}
+              >
+                {myConn ? "Reconnect" : "Connect my Google Calendar"}
+              </a>
+            </div>
+          </Card>
+        );
+      })()}
+
       {!configured && (
         <Card>
           <p className="small" style={{ margin: 0 }}>
