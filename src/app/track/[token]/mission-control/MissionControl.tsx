@@ -31,6 +31,7 @@ type ModalKind = null | "blocker" | "human";
 export function MissionControl({ token }: { token: string }) {
   const [state, setState] = useState<TrialStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [completionStatus, setCompletionStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [nav, setNav] = useState<NavKey>("home");
@@ -46,9 +47,11 @@ export function MissionControl({ token }: { token: string }) {
     const res = await fetchState(token);
     if (!res.ok) {
       setError(res.error);
+      setCompletionStatus(res.completionStatus ?? null);
       setState(null);
     } else {
       setError(null);
+      setCompletionStatus(null);
       setState(res);
     }
     setLoading(false);
@@ -87,13 +90,18 @@ export function MissionControl({ token }: { token: string }) {
     setAckError(null);
     const res = await api.acknowledge(token, body);
     setAckSubmitting(false);
-    if (!res.ok) { setAckError(res.error); return; }
+    if (!res.ok) {
+      if (res.completionStatus) setCompletionStatus(res.completionStatus);
+      setAckError(res.error);
+      return;
+    }
     await refresh();
   }, [token, refresh]);
 
   const startStep = useCallback(async (stepKey: string) => {
     const res = await api.stepStart(token, stepKey);
     if (res.ok) await refresh();
+    else if (res.completionStatus) setCompletionStatus(res.completionStatus);
     return res.ok;
   }, [token, refresh]);
 
@@ -102,11 +110,13 @@ export function MissionControl({ token }: { token: string }) {
     const res = await api.stepPause(token, stepKey);
     setPausing(false);
     if (res.ok) await refresh();
+    else if (res.completionStatus) setCompletionStatus(res.completionStatus);
   }, [token, refresh]);
 
   const submitStep = useCallback(async (body: StepSubmitRequest): Promise<StepSubmitResponse | { ok: false; error: string }> => {
     const res = await api.stepSubmit(token, body);
     if (res.ok) await refresh();
+    else if (res.completionStatus) setCompletionStatus(res.completionStatus);
     return res;
   }, [token, refresh]);
 
@@ -135,6 +145,16 @@ export function MissionControl({ token }: { token: string }) {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (completionStatus) {
+    const outcome = trialOutcome(completionStatus);
+    return (
+      <>
+        <GlobalStyle />
+        <CenteredCard emoji={outcome.emoji} title={outcome.title} body={outcome.body} />
+      </>
     );
   }
 
@@ -235,4 +255,28 @@ export function MissionControl({ token }: { token: string }) {
       {modal === "human" && <EscalateModal token={token} onClose={() => setModal(null)} />}
     </>
   );
+}
+
+function trialOutcome(completionStatus: string): { emoji: string; title: string; body: string } {
+  if (["tenhr_pass", "contract_sent", "signed", "onboarding"].includes(completionStatus)) {
+    return {
+      emoji: "🎉",
+      title: "You passed — next steps",
+      body: "Congratulations — your skills trial is complete, and we're excited to move you forward. Your recruiter will be in touch with what comes next.",
+    };
+  }
+
+  if (["tenhr_fail", "closed"].includes(completionStatus)) {
+    return {
+      emoji: "💛",
+      title: "Thanks, you were not selected",
+      body: "Thank you for the time, care, and effort you put into the skills trial. We truly appreciate your interest in working with Pure Water Automations and wish you all the best in what comes next.",
+    };
+  }
+
+  return {
+    emoji: "✓",
+    title: "This trial is complete",
+    body: "Thank you for everything you shared during the skills trial. There is nothing else you need to do here; your recruiter will be in touch if there are any next steps.",
+  };
 }

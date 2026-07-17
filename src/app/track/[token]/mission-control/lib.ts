@@ -22,16 +22,26 @@ import type { MissionStatus } from "@prisma/client";
 
 // ── API client (Authorization: Bearer <token>) ─────────────────────────────
 
-type ApiResult<T> = (T & { ok: true }) | { ok: false; error: string };
+type ApiResult<T> =
+  | (T & { ok: true })
+  | { ok: false; error: string; completionStatus?: string };
 
 function headers(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}`, "content-type": "application/json" };
 }
 
 async function parse<T>(res: Response): Promise<ApiResult<T>> {
-  const json = (await res.json().catch(() => null)) as (ApiResult<T> & { error?: string }) | null;
+  const json = (await res.json().catch(() => null)) as
+    | (ApiResult<T> & { error?: string; message?: string; completionStatus?: string })
+    | null;
   if (!json) return { ok: false, error: "The server returned an unexpected response." };
-  if (!json.ok) return { ok: false, error: json.error || "Something went wrong. Please try again." };
+  if (!json.ok) {
+    return {
+      ok: false,
+      error: json.message ?? json.error ?? "Something went wrong. Please try again.",
+      ...(json.completionStatus ? { completionStatus: json.completionStatus } : {}),
+    };
+  }
   return json;
 }
 
