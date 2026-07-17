@@ -158,13 +158,14 @@ async function notifyReviewers(
  */
 export async function notifyReviewersEvidenceReady(
   trialId: string,
+  candidateId: string,
   candidateName: string | null,
   candidateEmail: string
 ): Promise<SystemEmailResult> {
   const baseUrl = getBaseUrl();
   const displayName = candidateName?.trim() ? `${candidateName.trim()} (${candidateEmail})` : candidateEmail;
   const subject = `[Evidence Ready] PWA Skills Trial — ${displayName}`;
-  const reviewUrl = `${baseUrl}/admin/trials/${encodeURIComponent(trialId)}`;
+  const reviewUrl = `${baseUrl}/recruitment/gate/trial/${encodeURIComponent(candidateId)}`;
 
   const body = `Reviewer Alert: Evidence Packet Ready
 
@@ -191,6 +192,7 @@ ${reviewUrl}`;
  */
 export async function notifyReviewersDeadlinePassed(
   trialId: string,
+  candidateId: string,
   candidateName: string | null,
   candidateEmail: string,
   deadlineDate: Date
@@ -198,7 +200,7 @@ export async function notifyReviewersDeadlinePassed(
   const baseUrl = getBaseUrl();
   const displayName = candidateName?.trim() ? `${candidateName.trim()} (${candidateEmail})` : candidateEmail;
   const subject = `[Deadline Passed] PWA Skills Trial — ${displayName}`;
-  const reviewUrl = `${baseUrl}/admin/trials/${encodeURIComponent(trialId)}`;
+  const reviewUrl = `${baseUrl}/recruitment/gate/trial/${encodeURIComponent(candidateId)}`;
   const deadlineStr = deadlineDate.toISOString().slice(0, 10);
 
   const body = `Reviewer Alert: Candidate Deadline Passed
@@ -224,6 +226,7 @@ ${reviewUrl}`;
  */
 export async function notifyReviewersHumanEscalation(
   trialId: string,
+  candidateId: string,
   candidateName: string | null,
   candidateEmail: string,
   escalationText: string
@@ -231,7 +234,7 @@ export async function notifyReviewersHumanEscalation(
   const baseUrl = getBaseUrl();
   const displayName = candidateName?.trim() ? `${candidateName.trim()} (${candidateEmail})` : candidateEmail;
   const subject = `[Human Escalation] PWA Skills Trial — ${displayName}`;
-  const reviewUrl = `${baseUrl}/admin/trials/${encodeURIComponent(trialId)}`;
+  const reviewUrl = `${baseUrl}/recruitment/gate/trial/${encodeURIComponent(candidateId)}`;
 
   const body = `Reviewer Alert: Human Escalation Requested
 

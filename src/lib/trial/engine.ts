@@ -8,6 +8,7 @@ import type {
   TrialMessage,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { notifyReviewersEvidenceReady } from "./notify";
 import { evaluateSimSubmission, generateActorReply } from "@/lib/trial/ai-hooks";
 import { TRIAL_EVENTS, type TrialEventType } from "@/lib/trial/events";
 import type {
@@ -459,6 +460,14 @@ async function markEvidenceReadyIfComplete(trialId: string, now: Date): Promise<
     db.candidate.update({ where: { candidateId: trial.candidateId }, data: { trainingReadyForReview: true } }),
     db.trialEvent.create({ data: { trialId, day: currentTrialDay(trial.startDate, trial.timezone, now), actor: "System", type: TRIAL_EVENTS.EVIDENCE_READY, label: "All trial missions are approved; evidence is ready" } }),
   ]);
+  // A3: alert reviewers the packet is ready (best-effort; no-ops in dry-run / when
+  // TRIAL_REVIEWER_EMAILS is unset). Never let a notification failure break the flow.
+  const candidate = await db.candidate.findUnique({ where: { candidateId: trial.candidateId }, select: { name: true, email: true } });
+  if (candidate) {
+    await notifyReviewersEvidenceReady(trialId, trial.candidateId, candidate.name, candidate.email).catch((e) =>
+      console.warn("evidence-ready reviewer alert failed:", e instanceof Error ? e.message : e),
+    );
+  }
 }
 
 export async function submitStep(candidateId: string, input: StepSubmitRequest, now = new Date()): Promise<StepSubmitResponse> {

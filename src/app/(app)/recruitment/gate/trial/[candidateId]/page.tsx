@@ -13,6 +13,7 @@ import { CompetencyExplorer } from "../CompetencyExplorer";
 import { ArtifactComparison, type MissionArtifact } from "../ArtifactComparison";
 import { ReviewPanel } from "../ReviewPanel";
 import { rubricEvidenceCounts } from "../competency-map";
+import { buildReviewerSummary } from "@/lib/trial/ai";
 import type { ReviewerAiSummary, RubricRowView, TimelineEntry } from "../view-types";
 
 export const dynamic = "force-dynamic";
@@ -91,10 +92,30 @@ export default async function TrialReviewConsole({
     data: e.dataJson,
   }));
 
-  // ── AI summary — compiled by a parallel agent's generator; absent for now ──
-  // (typed via `as` so it doesn't narrow to the `null` literal — the console
-  // renders gracefully when the generator hasn't populated it yet.)
-  const aiSummary = null as ReviewerAiSummary | null;
+  // ── AI evidence summary (A4) ──────────────────────────────────────────────
+  // Deterministic competency grouping + AI-suggested rubric scores are computed
+  // with no model dependency; only the narrative draftSummary uses the AI
+  // transport and degrades to null if the key is absent or the call fails.
+  const summaryResult = await buildReviewerSummary({
+    events: trial.events,
+    missions,
+    messages: trial.conversations.flatMap((c) => c.messages),
+    trial: { id: trial.id, accommodationsActive: trial.accommodationsActive },
+  }).catch(() => null);
+  const aiSummary: ReviewerAiSummary | null = summaryResult
+    ? {
+        draftSummary: summaryResult.draftSummary ?? undefined,
+        // Map the AI layer's competency groups to the console view shape.
+        competencyGroups: Object.values(summaryResult.competencyGroups).map((g) => ({
+          key: g.competency,
+          label: g.competency.charAt(0).toUpperCase() + g.competency.slice(1),
+          confidence: g.confidence.toLowerCase() as "low" | "medium" | "high",
+          evidence: g.evidence.map((e) => e.label),
+        })),
+        aiSuggestedScores: summaryResult.aiSuggestedScores,
+        compiledAt: now.toISOString(),
+      }
+    : null;
 
   // ── Rubric rows: event-driven evidence + mission-kind evidence ────────────
   const evidence = rubricEvidenceCounts(trial.events.map((e) => e.type));

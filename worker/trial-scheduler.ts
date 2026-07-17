@@ -308,7 +308,7 @@ export async function main() {
               label: "All missions approved — evidence packet ready for review",
             },
           });
-          await notifyReviewersEvidenceReady(trial.id, trial.candidate.name, trial.candidate.email);
+          await notifyReviewersEvidenceReady(trial.id, trial.candidateId, trial.candidate.name, trial.candidate.email);
           evidenceReadyCount++;
         }
       }
@@ -340,6 +340,7 @@ export async function main() {
           });
           await notifyReviewersDeadlinePassed(
             trial.id,
+            trial.candidateId,
             trial.candidate.name,
             trial.candidate.email,
             trial.deadlineDate
@@ -388,6 +389,7 @@ export async function main() {
             });
             await notifyReviewersHumanEscalation(
               trial.id,
+              trial.candidateId,
               trial.candidate.name,
               trial.candidate.email,
               esc.label || "Candidate requested human assistance"
